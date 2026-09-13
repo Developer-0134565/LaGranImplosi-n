@@ -1,34 +1,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Exo+2:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Michroma&family=Orbitron:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --font-title: "Orbitron";
-  --font-heading: "Rajdhani";
-  --font-body: "Exo 2";
-  --font-number: "Share Tech Mono";
-  --font-button: "Oxanium";
+  --font-title: "Orbitron", sans-serif;
+  --font-heading: "Rajdhani", sans-serif;
+  --font-body: "Exo 2", sans-serif;
+  --font-number: "Share Tech Mono", monospace;
+  --font-button: "Oxanium", sans-serif;
 }
 
 html,
 body {
-  font-family: var(--font-body), sans-serif !important;
+  font-family: var(--font-body) !important;
 }
 
 button,
 select,
 input,
 textarea {
-  font-family: var(--font-button), sans-serif !important;
+  font-family: var(--font-button) !important;
 }
 
-/* TÍTULOS */
 .logo,
 .logo strong,
 .hero h1,
 .preview-title {
-  font-family: var(--font-title), sans-serif !important;
+  font-family: var(--font-title) !important;
 }
 
-/* ENCABEZADOS */
 .panel-header,
 .panel-header span,
 .section-title,
@@ -38,10 +36,9 @@ textarea {
 .preview-heading,
 .style-header h2,
 .system-message strong {
-  font-family: var(--font-heading), sans-serif !important;
+  font-family: var(--font-heading) !important;
 }
 
-/* TEXTO GENERAL */
 .game,
 .content,
 .panel,
@@ -51,10 +48,9 @@ textarea {
 .system-message p,
 .hero p,
 .preview-body {
-  font-family: var(--font-body), sans-serif !important;
+  font-family: var(--font-body) !important;
 }
 
-/* NÚMEROS */
 .number,
 .resource strong.number,
 .resource-row strong.number,
@@ -62,11 +58,10 @@ textarea {
 .planet-row small,
 .planet-status,
 .preview-number {
-  font-family: var(--font-number), monospace !important;
+  font-family: var(--font-number) !important;
   font-variant-numeric: tabular-nums;
 }
 
-/* BOTONES Y CONTROLES */
 .nav-button,
 .action-button,
 .preset-button,
@@ -75,7 +70,7 @@ textarea {
 .close-button,
 .font-control select,
 .preview-button {
-  font-family: var(--font-button), sans-serif !important;
+  font-family: var(--font-button) !important;
 }
 
 .font-preview {
