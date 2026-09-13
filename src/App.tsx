@@ -15,6 +15,10 @@ type Planet = {
   position: number
   is_homeworld: boolean
   is_destroyed: boolean
+  players: {
+    username: string
+    is_guest: boolean
+  } | null
   planet_resources: Array<{
     metal: number | string
     crystal: number | string
@@ -195,6 +199,9 @@ function App() {
   const fontVariables = useMemo(() => getFontVariables(fontSettings), [fontSettings])
   const homeworld = planets.find((planet) => planet.is_homeworld) ?? planets[0]
   const homeworldResources = homeworld?.planet_resources[0]
+  const currentPlayer = homeworld?.players
+  const playerLabel = currentPlayer?.is_guest ? 'INVITADO' : 'JUGADOR'
+  const gameStatus = gameDataLoading ? 'CARGANDO' : gameDataError ? 'ERROR' : planets.length > 0 ? 'ONLINE' : 'SIN DATOS'
 
   useEffect(() => {
     const safeSettings = sanitizeFontSettings(fontSettings)
@@ -226,7 +233,7 @@ function App() {
 
       const { data, error } = await supabase
         .from('planets')
-        .select('id,name,galaxy,system,position,is_homeworld,is_destroyed,planet_resources(metal,crystal,deuterium,energy)')
+        .select('id,name,galaxy,system,position,is_homeworld,is_destroyed,players(username,is_guest),planet_resources(metal,crystal,deuterium,energy)')
         .eq('is_destroyed', false)
         .order('galaxy', { ascending: true })
         .order('system', { ascending: true })
@@ -286,7 +293,7 @@ function App() {
         <aside className="sidebar">
           <div className="player-card">
             <div className="player-avatar">👤</div>
-            <div><small>INVITADO</small><strong>DevPlayer</strong></div>
+            <div><small>{playerLabel}</small><strong>{currentPlayer?.username ?? 'Cargando jugador…'}</strong></div>
           </div>
           <nav>
             <button type="button" className="nav-button active">OVERVIEW</button>
@@ -300,8 +307,8 @@ function App() {
 
         <section className="content">
           <div className="hero">
-            <div><span className="eyebrow">{homeworld ? `SISTEMA ${homeworld.system} · IMPERIO` : 'SISTEMA · IMPERIO'}</span><h1>{homeworld?.name ?? 'DEV HOMEWORLD'}</h1><p>{homeworld ? `${coordinates(homeworld)} · ${homeworld.is_homeworld ? 'Planeta principal' : 'Planeta'}` : 'Cargando planeta principal…'}</p></div>
-            <div className="planet-status">{gameDataLoading ? 'CARGANDO' : gameDataError ? 'ERROR' : 'ONLINE'}</div>
+            <div><span className="eyebrow">{homeworld ? `SISTEMA ${homeworld.system} · IMPERIO` : 'SISTEMA · IMPERIO'}</span><h1>{homeworld?.name ?? 'Cargando planeta…'}</h1><p>{homeworld ? `${coordinates(homeworld)} · ${homeworld.is_homeworld ? 'Planeta principal' : 'Planeta'}` : 'Esperando datos del imperio…'}</p></div>
+            <div className="planet-status">{gameStatus}</div>
           </div>
           <div className="dashboard-grid">
             <article className="panel">
@@ -313,15 +320,15 @@ function App() {
               {gameDataError && <small>{gameDataError}</small>}
             </article>
             <article className="panel">
-              <div className="panel-header"><span>PLANETAS</span><small>{planets.length} COLONIAS</small></div>
+              <div className="panel-header"><span>PLANETAS</span><small>{planets.length} PLANETAS</small></div>
               {planets.map((planet) => (
                 <div className="planet-row" key={planet.id}><span>🌍 {planet.name}</span><small>{coordinates(planet)}</small></div>
               ))}
               {!gameDataLoading && planets.length === 0 && <div className="planet-row"><span>No hay planetas visibles</span><small>—</small></div>}
             </article>
             <article className="panel wide">
-              <div className="panel-header"><span>SISTEMA</span><small>ACTIVIDAD</small></div>
-              <div className="system-message"><span className="pulse" /><div><strong>Sistema operativo</strong><p>La infraestructura de La Gran Implosión está funcionando correctamente.</p></div></div>
+              <div className="panel-header"><span>SISTEMA</span><small>ESTADO</small></div>
+              <div className="system-message"><span className="pulse" /><div><strong>{gameDataError ? 'Sin conexión con los datos' : planets.length > 0 ? 'Datos del imperio cargados' : 'Esperando datos del imperio'}</strong><p>{gameDataError ? gameDataError : 'La vista general está conectada a los datos disponibles de Supabase.'}</p></div></div>
               <button type="button" className="action-button">ABRIR CENTRO DE CONTROL</button>
             </article>
           </div>
