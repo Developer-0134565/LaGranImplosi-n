@@ -42,9 +42,7 @@ const presets: Record<string, FontSettings> = {
 
 const defaultFonts: FontSettings = { ...presets.Deuteria }
 
-const allFonts = Array.from(
-  new Set(Object.values(fonts).flat()),
-)
+const allFonts = Array.from(new Set(Object.values(fonts).flat()))
 
 function isValidFont(role: FontRole, value: unknown): value is string {
   return typeof value === 'string' && fonts[role].includes(value)
@@ -58,66 +56,68 @@ function sanitizeFontSettings(value: unknown): FontSettings {
   const parsed = value as Partial<FontSettings>
 
   return {
-    title: isValidFont('title', parsed.title)
-      ? parsed.title
-      : defaultFonts.title,
-    heading: isValidFont('heading', parsed.heading)
-      ? parsed.heading
-      : defaultFonts.heading,
-    body: isValidFont('body', parsed.body)
-      ? parsed.body
-      : defaultFonts.body,
-    number: isValidFont('number', parsed.number)
-      ? parsed.number
-      : defaultFonts.number,
-    button: isValidFont('button', parsed.button)
-      ? parsed.button
-      : defaultFonts.button,
+    title: isValidFont('title', parsed.title) ? parsed.title : defaultFonts.title,
+    heading: isValidFont('heading', parsed.heading) ? parsed.heading : defaultFonts.heading,
+    body: isValidFont('body', parsed.body) ? parsed.body : defaultFonts.body,
+    number: isValidFont('number', parsed.number) ? parsed.number : defaultFonts.number,
+    button: isValidFont('button', parsed.button) ? parsed.button : defaultFonts.button,
   }
 }
 
 function loadSavedFonts(): FontSettings {
   try {
     const saved = localStorage.getItem(FONT_STORAGE_KEY)
-
-    return saved
-      ? sanitizeFontSettings(JSON.parse(saved))
-      : { ...defaultFonts }
+    return saved ? sanitizeFontSettings(JSON.parse(saved)) : { ...defaultFonts }
   } catch {
     return { ...defaultFonts }
   }
 }
 
+function fontValue(font: string) {
+  return `"${font}"`
+}
+
 function getFontVariables(settings: FontSettings): CSSProperties {
   return {
-    '--font-title': `"${settings.title}", sans-serif`,
-    '--font-heading': `"${settings.heading}", sans-serif`,
-    '--font-body': `"${settings.body}", sans-serif`,
-    '--font-number': `"${settings.number}", monospace`,
-    '--font-button': `"${settings.button}", sans-serif`,
+    '--font-title': fontValue(settings.title),
+    '--font-heading': fontValue(settings.heading),
+    '--font-body': fontValue(settings.body),
+    '--font-number': fontValue(settings.number),
+    '--font-button': fontValue(settings.button),
   } as CSSProperties
 }
 
 function applyFonts(settings: FontSettings) {
   const root = document.documentElement
+  const game = document.querySelector<HTMLElement>('.game')
 
-  root.style.setProperty('--font-title', `"${settings.title}", sans-serif`)
-  root.style.setProperty('--font-heading', `"${settings.heading}", sans-serif`)
-  root.style.setProperty('--font-body', `"${settings.body}", sans-serif`)
-  root.style.setProperty('--font-number', `"${settings.number}", monospace`)
-  root.style.setProperty('--font-button', `"${settings.button}", sans-serif`)
+  const variables = {
+    '--font-title': fontValue(settings.title),
+    '--font-heading': fontValue(settings.heading),
+    '--font-body': fontValue(settings.body),
+    '--font-number': fontValue(settings.number),
+    '--font-button': fontValue(settings.button),
+  }
+
+  Object.entries(variables).forEach(([name, value]) => {
+    root.style.setProperty(name, value)
+    game?.style.setProperty(name, value)
+  })
 }
 
 async function preloadFont(font: string) {
   try {
-    await document.fonts.load(`400 16px "${font}"`)
+    await Promise.all([
+      document.fonts.load(`400 16px "${font}"`),
+      document.fonts.load(`600 16px "${font}"`),
+      document.fonts.load(`700 16px "${font}"`),
+    ])
   } catch {
     // El fallback CSS se mantiene disponible si la fuente no carga.
   }
 }
 
 async function preloadAllFonts() {
-  // Esperamos a que el CSS que contiene @import de Google Fonts esté listo.
   await document.fonts.ready
   await Promise.all(allFonts.map(preloadFont))
 }
@@ -157,9 +157,7 @@ function FontSelector({
 }
 
 function App() {
-  const [fontSettings, setFontSettings] = useState<FontSettings>(() =>
-    loadSavedFonts(),
-  )
+  const [fontSettings, setFontSettings] = useState<FontSettings>(() => loadSavedFonts())
   const [panelOpen, setPanelOpen] = useState(false)
 
   const fontVariables = useMemo(
@@ -169,7 +167,6 @@ function App() {
 
   useEffect(() => {
     const safeSettings = sanitizeFontSettings(fontSettings)
-
     applyFonts(safeSettings)
     localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(safeSettings))
   }, [fontSettings])
@@ -179,9 +176,7 @@ function App() {
   }, [])
 
   function changeFont(role: FontRole, value: string) {
-    if (!isValidFont(role, value)) {
-      return
-    }
+    if (!isValidFont(role, value)) return
 
     setFontSettings((current) => ({
       ...current,
@@ -191,11 +186,7 @@ function App() {
 
   function applyPreset(name: string) {
     const preset = presets[name]
-
-    if (!preset) {
-      return
-    }
-
+    if (!preset) return
     setFontSettings({ ...preset })
   }
 
@@ -322,14 +313,11 @@ function App() {
                 <div>
                   <strong>Sistema operativo</strong>
                   <p>
-                    La infraestructura de La Gran Implosión está funcionando
-                    correctamente.
+                    La infraestructura de La Gran Implosión está funcionando correctamente.
                   </p>
                 </div>
               </div>
-              <button className="action-button">
-                ABRIR CENTRO DE CONTROL
-              </button>
+              <button className="action-button">ABRIR CENTRO DE CONTROL</button>
             </article>
           </div>
         </section>
@@ -404,9 +392,7 @@ function App() {
             <span className="section-title">VISTA PREVIA</span>
             <div className="preview-title">LA GRAN IMPLOSIÓN</div>
             <div className="preview-heading">CENTRO DE CONTROL</div>
-            <div className="preview-body">
-              Flota preparada para operaciones.
-            </div>
+            <div className="preview-body">Flota preparada para operaciones.</div>
             <div className="preview-number">1.234.567.890</div>
             <button className="preview-button">INICIAR OPERACIÓN</button>
           </section>
