@@ -41,7 +41,6 @@ const presets: Record<string, FontSettings> = {
 }
 
 const defaultFonts: FontSettings = { ...presets.Deuteria }
-
 const allFonts = Array.from(new Set(Object.values(fonts).flat()))
 
 function isValidFont(role: FontRole, value: unknown): value is string {
@@ -49,9 +48,7 @@ function isValidFont(role: FontRole, value: unknown): value is string {
 }
 
 function sanitizeFontSettings(value: unknown): FontSettings {
-  if (!value || typeof value !== 'object') {
-    return { ...defaultFonts }
-  }
+  if (!value || typeof value !== 'object') return { ...defaultFonts }
 
   const parsed = value as Partial<FontSettings>
 
@@ -73,35 +70,31 @@ function loadSavedFonts(): FontSettings {
   }
 }
 
-function fontValue(font: string) {
-  return `"${font}"`
+function fontStack(font: string, fallback: string) {
+  return `"${font}", ${fallback}`
 }
 
 function getFontVariables(settings: FontSettings): CSSProperties {
   return {
-    '--font-title': fontValue(settings.title),
-    '--font-heading': fontValue(settings.heading),
-    '--font-body': fontValue(settings.body),
-    '--font-number': fontValue(settings.number),
-    '--font-button': fontValue(settings.button),
+    '--font-title': fontStack(settings.title, 'sans-serif'),
+    '--font-heading': fontStack(settings.heading, 'sans-serif'),
+    '--font-body': fontStack(settings.body, 'sans-serif'),
+    '--font-number': fontStack(settings.number, 'monospace'),
+    '--font-button': fontStack(settings.button, 'sans-serif'),
   } as CSSProperties
 }
 
 function applyFonts(settings: FontSettings) {
-  const root = document.documentElement
+  const variables = getFontVariables(settings) as Record<string, string>
+  const targets: HTMLElement[] = [document.documentElement]
   const game = document.querySelector<HTMLElement>('.game')
 
-  const variables = {
-    '--font-title': fontValue(settings.title),
-    '--font-heading': fontValue(settings.heading),
-    '--font-body': fontValue(settings.body),
-    '--font-number': fontValue(settings.number),
-    '--font-button': fontValue(settings.button),
-  }
+  if (game) targets.push(game)
 
-  Object.entries(variables).forEach(([name, value]) => {
-    root.style.setProperty(name, value)
-    game?.style.setProperty(name, value)
+  targets.forEach((target) => {
+    Object.entries(variables).forEach(([name, value]) => {
+      target.style.setProperty(name, value)
+    })
   })
 }
 
@@ -113,7 +106,7 @@ async function preloadFont(font: string) {
       document.fonts.load(`700 16px "${font}"`),
     ])
   } catch {
-    // El fallback CSS se mantiene disponible si la fuente no carga.
+    // El fallback CSS sigue disponible si una fuente no carga.
   }
 }
 
@@ -136,20 +129,12 @@ function FontSelector({
   return (
     <label className="font-control">
       <span>{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
         {fonts[role].map((font) => (
-          <option key={font} value={font}>
-            {font}
-          </option>
+          <option key={font} value={font}>{font}</option>
         ))}
       </select>
-      <strong
-        className="font-preview"
-        style={{ fontFamily: `"${value}", sans-serif` }}
-      >
+      <strong className="font-preview" style={{ fontFamily: `"${value}", sans-serif` }}>
         {value}
       </strong>
     </label>
@@ -160,10 +145,7 @@ function App() {
   const [fontSettings, setFontSettings] = useState<FontSettings>(() => loadSavedFonts())
   const [panelOpen, setPanelOpen] = useState(false)
 
-  const fontVariables = useMemo(
-    () => getFontVariables(fontSettings),
-    [fontSettings],
-  )
+  const fontVariables = useMemo(() => getFontVariables(fontSettings), [fontSettings])
 
   useEffect(() => {
     const safeSettings = sanitizeFontSettings(fontSettings)
@@ -177,21 +159,17 @@ function App() {
 
   function changeFont(role: FontRole, value: string) {
     if (!isValidFont(role, value)) return
-
-    setFontSettings((current) => ({
-      ...current,
-      [role]: value,
-    }))
+    setFontSettings((current) => ({ ...current, [role]: value }))
   }
 
   function applyPreset(name: string) {
     const preset = presets[name]
-    if (!preset) return
-    setFontSettings({ ...preset })
+    if (preset) setFontSettings({ ...preset })
   }
 
   function resetFonts() {
     setFontSettings({ ...defaultFonts })
+    localStorage.removeItem(FONT_STORAGE_KEY)
   }
 
   return (
@@ -201,45 +179,21 @@ function App() {
           <span>LA GRAN</span>
           <strong>IMPLOSIÓN</strong>
         </div>
-
         <div className="top-resources">
-          <div className="resource">
-            <span>METAL</span>
-            <strong className="number">100.000</strong>
-          </div>
-          <div className="resource">
-            <span>CRISTAL</span>
-            <strong className="number">86.719</strong>
-          </div>
-          <div className="resource">
-            <span>DEUTERIO</span>
-            <strong className="number">90.518</strong>
-          </div>
-          <div className="resource">
-            <span>ENERGÍA</span>
-            <strong className="number">0</strong>
-          </div>
+          <div className="resource"><span>METAL</span><strong className="number">100.000</strong></div>
+          <div className="resource"><span>CRISTAL</span><strong className="number">86.719</strong></div>
+          <div className="resource"><span>DEUTERIO</span><strong className="number">90.518</strong></div>
+          <div className="resource"><span>ENERGÍA</span><strong className="number">0</strong></div>
         </div>
-
-        <button
-          className="settings-button"
-          onClick={() => setPanelOpen((current) => !current)}
-          aria-label="Abrir configuración"
-        >
-          ⚙
-        </button>
+        <button className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label="Abrir configuración">⚙</button>
       </header>
 
       <div className="layout">
         <aside className="sidebar">
           <div className="player-card">
             <div className="player-avatar">👤</div>
-            <div>
-              <small>INVITADO</small>
-              <strong>DevPlayer</strong>
-            </div>
+            <div><small>INVITADO</small><strong>DevPlayer</strong></div>
           </div>
-
           <nav>
             <button className="nav-button active">OVERVIEW</button>
             <button className="nav-button">PLANETAS</button>
@@ -252,71 +206,26 @@ function App() {
 
         <section className="content">
           <div className="hero">
-            <div>
-              <span className="eyebrow">SISTEMA 1 · IMPERIO</span>
-              <h1>DEV HOMEWORLD</h1>
-              <p>[1:1:1] · Planeta principal</p>
-            </div>
+            <div><span className="eyebrow">SISTEMA 1 · IMPERIO</span><h1>DEV HOMEWORLD</h1><p>[1:1:1] · Planeta principal</p></div>
             <div className="planet-status">ONLINE</div>
           </div>
-
           <div className="dashboard-grid">
             <article className="panel">
-              <div className="panel-header">
-                <span>RECURSOS</span>
-                <small>PRODUCCIÓN</small>
-              </div>
-              <div className="resource-row">
-                <span>🪨 Metal</span>
-                <strong className="number">100.000</strong>
-              </div>
-              <div className="resource-row">
-                <span>💎 Cristal</span>
-                <strong className="number">86.719</strong>
-              </div>
-              <div className="resource-row">
-                <span>💧 Deuterio</span>
-                <strong className="number">90.518</strong>
-              </div>
-              <div className="resource-row">
-                <span>⚡ Energía</span>
-                <strong className="number">0</strong>
-              </div>
+              <div className="panel-header"><span>RECURSOS</span><small>PRODUCCIÓN</small></div>
+              <div className="resource-row"><span>🪨 Metal</span><strong className="number">100.000</strong></div>
+              <div className="resource-row"><span>💎 Cristal</span><strong className="number">86.719</strong></div>
+              <div className="resource-row"><span>💧 Deuterio</span><strong className="number">90.518</strong></div>
+              <div className="resource-row"><span>⚡ Energía</span><strong className="number">0</strong></div>
             </article>
-
             <article className="panel">
-              <div className="panel-header">
-                <span>PLANETAS</span>
-                <small>3 COLONIAS</small>
-              </div>
-              <div className="planet-row">
-                <span>🌍 Dev Homeworld</span>
-                <small>[1:1:1]</small>
-              </div>
-              <div className="planet-row">
-                <span>🌍 TEST FLEET TARGET</span>
-                <small>[1:2:1]</small>
-              </div>
-              <div className="planet-row">
-                <span>🌍 Colony 1:2:2</span>
-                <small>[1:2:2]</small>
-              </div>
+              <div className="panel-header"><span>PLANETAS</span><small>3 COLONIAS</small></div>
+              <div className="planet-row"><span>🌍 Dev Homeworld</span><small>[1:1:1]</small></div>
+              <div className="planet-row"><span>🌍 TEST FLEET TARGET</span><small>[1:2:1]</small></div>
+              <div className="planet-row"><span>🌍 Colony 1:2:2</span><small>[1:2:2]</small></div>
             </article>
-
             <article className="panel wide">
-              <div className="panel-header">
-                <span>SISTEMA</span>
-                <small>ACTIVIDAD</small>
-              </div>
-              <div className="system-message">
-                <span className="pulse" />
-                <div>
-                  <strong>Sistema operativo</strong>
-                  <p>
-                    La infraestructura de La Gran Implosión está funcionando correctamente.
-                  </p>
-                </div>
-              </div>
+              <div className="panel-header"><span>SISTEMA</span><small>ACTIVIDAD</small></div>
+              <div className="system-message"><span className="pulse" /><div><strong>Sistema operativo</strong><p>La infraestructura de La Gran Implosión está funcionando correctamente.</p></div></div>
               <button className="action-button">ABRIR CENTRO DE CONTROL</button>
             </article>
           </div>
@@ -326,68 +235,25 @@ function App() {
       {panelOpen && (
         <aside className="style-panel">
           <div className="style-header">
-            <div>
-              <span>CONFIGURACIÓN</span>
-              <h2>APARIENCIA</h2>
-            </div>
-            <button
-              className="close-button"
-              onClick={() => setPanelOpen(false)}
-              aria-label="Cerrar configuración"
-            >
-              ×
-            </button>
+            <div><span>CONFIGURACIÓN</span><h2>APARIENCIA</h2></div>
+            <button className="close-button" onClick={() => setPanelOpen(false)} aria-label="Cerrar configuración">×</button>
           </div>
-
           <section className="style-section">
             <span className="section-title">PRESETS</span>
             <div className="preset-grid">
               {Object.keys(presets).map((preset) => (
-                <button
-                  key={preset}
-                  className="preset-button"
-                  onClick={() => applyPreset(preset)}
-                >
-                  {preset}
-                </button>
+                <button key={preset} className="preset-button" onClick={() => applyPreset(preset)}>{preset}</button>
               ))}
             </div>
           </section>
-
           <section className="style-section">
             <span className="section-title">TIPOGRAFÍA</span>
-            <FontSelector
-              role="title"
-              label="Títulos"
-              value={fontSettings.title}
-              onChange={(value) => changeFont('title', value)}
-            />
-            <FontSelector
-              role="heading"
-              label="Encabezados"
-              value={fontSettings.heading}
-              onChange={(value) => changeFont('heading', value)}
-            />
-            <FontSelector
-              role="body"
-              label="Texto"
-              value={fontSettings.body}
-              onChange={(value) => changeFont('body', value)}
-            />
-            <FontSelector
-              role="number"
-              label="Números"
-              value={fontSettings.number}
-              onChange={(value) => changeFont('number', value)}
-            />
-            <FontSelector
-              role="button"
-              label="Botones"
-              value={fontSettings.button}
-              onChange={(value) => changeFont('button', value)}
-            />
+            <FontSelector role="title" label="Títulos" value={fontSettings.title} onChange={(value) => changeFont('title', value)} />
+            <FontSelector role="heading" label="Encabezados" value={fontSettings.heading} onChange={(value) => changeFont('heading', value)} />
+            <FontSelector role="body" label="Texto" value={fontSettings.body} onChange={(value) => changeFont('body', value)} />
+            <FontSelector role="number" label="Números" value={fontSettings.number} onChange={(value) => changeFont('number', value)} />
+            <FontSelector role="button" label="Botones" value={fontSettings.button} onChange={(value) => changeFont('button', value)} />
           </section>
-
           <section className="style-preview">
             <span className="section-title">VISTA PREVIA</span>
             <div className="preview-title">LA GRAN IMPLOSIÓN</div>
@@ -396,10 +262,7 @@ function App() {
             <div className="preview-number">1.234.567.890</div>
             <button className="preview-button">INICIAR OPERACIÓN</button>
           </section>
-
-          <button className="reset-button" onClick={resetFonts}>
-            RESTAURAR PREDETERMINADO
-          </button>
+          <button className="reset-button" onClick={resetFonts}>RESTAURAR PREDETERMINADO</button>
         </aside>
       )}
     </main>
