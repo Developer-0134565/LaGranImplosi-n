@@ -8,32 +8,7 @@
   --font-button: 'Oxanium', sans-serif;
 }
 
-.font-title {
-  font-family: var(--font-title) !important;
-}
-
-.font-heading {
-  font-family: var(--font-heading) !important;
-}
-
-.font-body {
-  font-family: var(--font-body) !important;
-}
-
-.font-number,
-.number {
-  font-family: var(--font-number) !important;
-  font-variant-numeric: tabular-nums;
-}
-
-.font-button {
-  font-family: var(--font-button) !important;
-}
-
-html {
-  font-family: var(--font-body);
-}
-
+html,
 body {
   font-family: var(--font-body);
 }
@@ -45,75 +20,23 @@ textarea {
   font-family: var(--font-button);
 }
 
-/* TÍTULO PRINCIPAL */
-
-.logo {
+.logo,
+.logo strong,
+.hero h1,
+.preview-title {
   font-family: var(--font-title);
 }
 
-.logo strong {
-  font-family: var(--font-title);
-}
-
-/* ENCABEZADOS */
-
-.hero h1 {
-  font-family: var(--font-title);
-}
-
-.panel-header {
-  font-family: var(--font-heading);
-}
-
-.panel-header span {
-  font-family: var(--font-heading);
-}
-
-.panel-header small {
-  font-family: var(--font-heading);
-}
-
+.panel-header,
+.panel-header span,
+.section-title,
+.eyebrow,
+.player-card strong,
+.font-control span,
+.preview-heading,
 .style-header h2 {
   font-family: var(--font-heading);
 }
-
-.section-title {
-  font-family: var(--font-heading);
-}
-
-.eyebrow {
-  font-family: var(--font-heading);
-}
-
-.player-card strong {
-  font-family: var(--font-heading);
-}
-
-.nav-button {
-  font-family: var(--font-button);
-}
-
-.action-button {
-  font-family: var(--font-button);
-}
-
-.preset-button {
-  font-family: var(--font-button);
-}
-
-.reset-button {
-  font-family: var(--font-button);
-}
-
-.settings-button {
-  font-family: var(--font-button);
-}
-
-.close-button {
-  font-family: var(--font-button);
-}
-
-/* TEXTO NORMAL */
 
 body,
 .content,
@@ -122,52 +45,33 @@ body,
 .planet-row,
 .system-message,
 .system-message p,
-.hero p {
+.hero p,
+.preview-body {
   font-family: var(--font-body);
 }
 
-/* NÚMEROS */
-
+.number,
 .resource strong.number,
 .resource-row strong.number,
-.number,
+.panel-header small,
+.planet-row small,
+.planet-status,
 .preview-number {
-  font-family: var(--font-number) !important;
+  font-family: var(--font-number);
   font-variant-numeric: tabular-nums;
 }
 
-/* CONTROLES DE FUENTES */
-
-.font-control span {
-  font-family: var(--font-heading);
-}
-
-.font-control select {
+.nav-button,
+.action-button,
+.preset-button,
+.reset-button,
+.settings-button,
+.close-button,
+.font-control select,
+.preview-button {
   font-family: var(--font-button);
 }
 
 .font-preview {
   font-family: inherit;
-}
-
-/* VISTA PREVIA */
-
-.preview-title {
-  font-family: var(--font-title);
-}
-
-.preview-heading {
-  font-family: var(--font-heading);
-}
-
-.preview-body {
-  font-family: var(--font-body);
-}
-
-.preview-number {
-  font-family: var(--font-number) !important;
-}
-
-.preview-button {
-  font-family: var(--font-button);
 }
