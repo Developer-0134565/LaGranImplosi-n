@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import './App.css'
 import './styles/fonts.css'
 
@@ -41,6 +42,10 @@ const presets: Record<string, FontSettings> = {
 
 const defaultFonts: FontSettings = { ...presets.Deuteria }
 
+const allFonts = Array.from(
+  new Set(Object.values(fonts).flat()),
+)
+
 function isValidFont(role: FontRole, value: unknown): value is string {
   return typeof value === 'string' && fonts[role].includes(value)
 }
@@ -74,12 +79,23 @@ function sanitizeFontSettings(value: unknown): FontSettings {
 function loadSavedFonts(): FontSettings {
   try {
     const saved = localStorage.getItem(FONT_STORAGE_KEY)
+
     return saved
       ? sanitizeFontSettings(JSON.parse(saved))
       : { ...defaultFonts }
   } catch {
     return { ...defaultFonts }
   }
+}
+
+function getFontVariables(settings: FontSettings): CSSProperties {
+  return {
+    '--font-title': `"${settings.title}", sans-serif`,
+    '--font-heading': `"${settings.heading}", sans-serif`,
+    '--font-body': `"${settings.body}", sans-serif`,
+    '--font-number': `"${settings.number}", monospace`,
+    '--font-button': `"${settings.button}", sans-serif`,
+  } as CSSProperties
 }
 
 function applyFonts(settings: FontSettings) {
@@ -90,26 +106,20 @@ function applyFonts(settings: FontSettings) {
   root.style.setProperty('--font-body', `"${settings.body}", sans-serif`)
   root.style.setProperty('--font-number', `"${settings.number}", monospace`)
   root.style.setProperty('--font-button', `"${settings.button}", sans-serif`)
-
-  root.dataset.fontTitle = settings.title
-  root.dataset.fontHeading = settings.heading
-  root.dataset.fontBody = settings.body
-  root.dataset.fontNumber = settings.number
-  root.dataset.fontButton = settings.button
 }
 
 async function preloadFont(font: string) {
   try {
-    await document.fonts.load(`16px "${font}"`)
+    await document.fonts.load(`400 16px "${font}"`)
   } catch {
     // El fallback CSS se mantiene disponible si la fuente no carga.
   }
 }
 
-async function preloadAllFonts(settings: FontSettings) {
-  await Promise.all(
-    Array.from(new Set(Object.values(settings))).map(preloadFont),
-  )
+async function preloadAllFonts() {
+  // Esperamos a que el CSS que contiene @import de Google Fonts esté listo.
+  await document.fonts.ready
+  await Promise.all(allFonts.map(preloadFont))
 }
 
 function FontSelector({
@@ -152,12 +162,21 @@ function App() {
   )
   const [panelOpen, setPanelOpen] = useState(false)
 
+  const fontVariables = useMemo(
+    () => getFontVariables(fontSettings),
+    [fontSettings],
+  )
+
   useEffect(() => {
     const safeSettings = sanitizeFontSettings(fontSettings)
+
     applyFonts(safeSettings)
     localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(safeSettings))
-    void preloadAllFonts(safeSettings)
   }, [fontSettings])
+
+  useEffect(() => {
+    void preloadAllFonts()
+  }, [])
 
   function changeFont(role: FontRole, value: string) {
     if (!isValidFont(role, value)) {
@@ -185,7 +204,7 @@ function App() {
   }
 
   return (
-    <main className="game">
+    <main className="game" style={fontVariables}>
       <header className="topbar">
         <div className="logo">
           <span>LA GRAN</span>
