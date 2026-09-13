@@ -173,6 +173,17 @@ function App() {
     void preloadAllFonts()
   }, [])
 
+  useEffect(() => {
+    if (!panelOpen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPanelOpen(false)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [panelOpen])
+
   function changeFont(role: FontRole, value: string) {
     if (!isValidFont(role, value)) return
     setFontSettings((current) => ({ ...current, [role]: value }))
@@ -201,7 +212,7 @@ function App() {
           <div className="resource"><span>DEUTERIO</span><strong className="number">90.518</strong></div>
           <div className="resource"><span>ENERGÍA</span><strong className="number">0</strong></div>
         </div>
-        <button type="button" className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label="Abrir configuración">⚙</button>
+        <button type="button" className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label="Abrir configuración" aria-expanded={panelOpen} aria-controls="appearance-panel">⚙</button>
       </header>
 
       <div className="layout">
@@ -249,7 +260,7 @@ function App() {
       </div>
 
       {panelOpen && (
-        <aside className="style-panel">
+        <aside id="appearance-panel" className="style-panel" aria-label="Configuración de apariencia">
           <div className="style-header">
             <div><span>CONFIGURACIÓN</span><h2>APARIENCIA</h2></div>
             <button type="button" className="close-button" onClick={() => setPanelOpen(false)} aria-label="Cerrar configuración">×</button>
