@@ -1,0 +1,173 @@
+@import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Exo+2:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Michroma&family=Orbitron:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-title: 'Orbitron', sans-serif;
+  --font-heading: 'Rajdhani', sans-serif;
+  --font-body: 'Exo 2', sans-serif;
+  --font-number: 'Share Tech Mono', monospace;
+  --font-button: 'Oxanium', sans-serif;
+}
+
+.font-title {
+  font-family: var(--font-title) !important;
+}
+
+.font-heading {
+  font-family: var(--font-heading) !important;
+}
+
+.font-body {
+  font-family: var(--font-body) !important;
+}
+
+.font-number,
+.number {
+  font-family: var(--font-number) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-button {
+  font-family: var(--font-button) !important;
+}
+
+html {
+  font-family: var(--font-body);
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+button,
+select,
+input,
+textarea {
+  font-family: var(--font-button);
+}
+
+/* TÍTULO PRINCIPAL */
+
+.logo {
+  font-family: var(--font-title);
+}
+
+.logo strong {
+  font-family: var(--font-title);
+}
+
+/* ENCABEZADOS */
+
+.hero h1 {
+  font-family: var(--font-title);
+}
+
+.panel-header {
+  font-family: var(--font-heading);
+}
+
+.panel-header span {
+  font-family: var(--font-heading);
+}
+
+.panel-header small {
+  font-family: var(--font-heading);
+}
+
+.style-header h2 {
+  font-family: var(--font-heading);
+}
+
+.section-title {
+  font-family: var(--font-heading);
+}
+
+.eyebrow {
+  font-family: var(--font-heading);
+}
+
+.player-card strong {
+  font-family: var(--font-heading);
+}
+
+.nav-button {
+  font-family: var(--font-button);
+}
+
+.action-button {
+  font-family: var(--font-button);
+}
+
+.preset-button {
+  font-family: var(--font-button);
+}
+
+.reset-button {
+  font-family: var(--font-button);
+}
+
+.settings-button {
+  font-family: var(--font-button);
+}
+
+.close-button {
+  font-family: var(--font-button);
+}
+
+/* TEXTO NORMAL */
+
+body,
+.content,
+.panel,
+.resource-row,
+.planet-row,
+.system-message,
+.system-message p,
+.hero p {
+  font-family: var(--font-body);
+}
+
+/* NÚMEROS */
+
+.resource strong.number,
+.resource-row strong.number,
+.number,
+.preview-number {
+  font-family: var(--font-number) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* CONTROLES DE FUENTES */
+
+.font-control span {
+  font-family: var(--font-heading);
+}
+
+.font-control select {
+  font-family: var(--font-button);
+}
+
+.font-preview {
+  font-family: inherit;
+}
+
+/* VISTA PREVIA */
+
+.preview-title {
+  font-family: var(--font-title);
+}
+
+.preview-heading {
+  font-family: var(--font-heading);
+}
+
+.preview-body {
+  font-family: var(--font-body);
+}
+
+.preview-number {
+  font-family: var(--font-number) !important;
+}
+
+.preview-button {
+  font-family: var(--font-button);
+}
