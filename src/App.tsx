@@ -70,6 +70,22 @@ function loadSavedFonts(): FontSettings {
   }
 }
 
+function saveFontSettings(settings: FontSettings) {
+  try {
+    localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // La aplicación sigue funcionando aunque el navegador bloquee el almacenamiento.
+  }
+}
+
+function clearSavedFonts() {
+  try {
+    localStorage.removeItem(FONT_STORAGE_KEY)
+  } catch {
+    // No impedir el cambio visual si el almacenamiento no está disponible.
+  }
+}
+
 function fontStack(font: string, fallback: string) {
   return `"${font}", ${fallback}`
 }
@@ -150,7 +166,7 @@ function App() {
   useEffect(() => {
     const safeSettings = sanitizeFontSettings(fontSettings)
     applyFonts(safeSettings)
-    localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(safeSettings))
+    saveFontSettings(safeSettings)
   }, [fontSettings])
 
   useEffect(() => {
@@ -169,7 +185,7 @@ function App() {
 
   function resetFonts() {
     setFontSettings({ ...defaultFonts })
-    localStorage.removeItem(FONT_STORAGE_KEY)
+    clearSavedFonts()
   }
 
   return (
