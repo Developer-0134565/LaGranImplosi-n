@@ -4,7 +4,7 @@
 **Repositorio:** `Developer-0134565/LaGranImplosi-n`  
 **Supabase:** `LaGranImplosión` (`evtfsbntvuqmahiskekd`)  
 **Rama auditada:** `main`  
-**Último commit observado:** `f7323f6b474c3e2692b0ec3a055bc731f26ef945` — conexión del overview con Supabase.
+**Último commit observado:** `3504ec24893e0a9f39c5003785a3ddb0a433b704` — conexión de identidad del jugador y estados reales del overview.
 
 > Este documento distingue entre **implementado**, **conectado**, **auditado** y **pendiente**. La existencia de tablas o funciones no se considera por sí sola una prueba de que una mecánica esté terminada.
 
@@ -12,39 +12,29 @@
 
 ### Backend / Supabase
 
-Estado del proyecto remoto: **ACTIVE_HEALTHY**.
+Proyecto remoto: **ACTIVE_HEALTHY**.
 
-Conteo actual verificado directamente en PostgreSQL:
+La base de datos remota está por delante del historial versionado visible en Git. La comprobación actual muestra migraciones aplicadas hasta `20260913101718_tighten_start_fleet_colonize_mission`, mientras que ese archivo y otras migraciones posteriores a la última sincronización de Git todavía no están presentes en `supabase/migrations` del repositorio.
 
-- **55 tablas públicas**.
-- **214 funciones PL/pgSQL públicas**.
-- **3 planetas activos**.
-- **4 lifeforms**.
-- **48 edificios de lifeforms**.
-- **72 investigaciones de lifeforms**.
-- **5 batallas persistidas**.
-- **10 rondas de combate**.
-- **232 disparos persistidos**.
-- **32 resultados de expedición**.
-
-RLS está habilitado en las tablas revisadas y el modelo ya incluye separación entre jugador autenticado y jugador invitado.
+Esto queda marcado como **desfase de historial**, no como permiso para inventar SQL retrospectivo.
 
 ### Frontend / GitHub
 
-El frontend ya **no es una pantalla puramente estática**. `src/App.tsx` actualmente:
+El frontend ya no es una pantalla puramente estática. `src/App.tsx` actualmente:
 
 - consume `planets` y `planet_resources` desde Supabase;
 - determina el planeta principal mediante `is_homeworld`;
-- muestra recursos reales del planeta seleccionado por la consulta;
+- muestra recursos reales;
 - genera coordenadas reales;
-- muestra la lista real de planetas visibles según RLS;
+- muestra planetas visibles según RLS;
 - presenta estados de carga y error;
-- mantiene la configuración tipográfica dinámica;
-- persiste las fuentes en `localStorage`;
+- mantiene configuración tipográfica dinámica;
+- persiste y sanea las fuentes en `localStorage`;
 - precarga las fuentes con `document.fonts`;
-- tiene controles de accesibilidad básicos para el panel de apariencia.
+- aplica las variables tipográficas también al contenedor `.game`;
+- incluye controles básicos de accesibilidad para el panel de apariencia.
 
-El commit `f7323f6` es un hito: el primer tramo del frontend ya está conectado al backend real.
+El último commit observado es `3504ec2`, posterior a la conexión inicial del overview.
 
 ## 2. Backend implementado
 
@@ -62,11 +52,11 @@ Entrypoints principales auditados recientemente: `start_building`, `start_resear
 
 Implementado: movimientos, distancia y tiempo, carga, velocidad, worker, retorno idempotente, transporte, despliegue, ataque, espionaje, reciclaje, expedición, colonización, resolución de llegadas, comprobación de propietario, comprobación de universo de destino e integración con efectos de lifeforms y objetos.
 
+La base remota ya separa colonización en `start_colonize_fleet`; `start_fleet` ya no acepta `COLONIZE`. La migración que materializa ese cambio aún debe sincronizarse con Git.
+
 ### Expediciones
 
 Implementado: slots, puntos efectivos, distancia y fórmula de tiempo, hold, retrasos, speedups, recursos, naves, materia oscura, objetos, comerciantes, piratas, aliens, agujeros negros, retornos normales y acelerados, persistencia de resultados, presupuestos de recompensa, integración con worker e idempotencia del combate de expedición.
-
-La secuencia de migraciones recientes incluye auditorías específicas de timing y alineación con OGameX donde ya se decidió usar esa referencia.
 
 ### Objetos de expedición
 
@@ -120,6 +110,7 @@ Existe infraestructura para monitor económico, monitor energético, siguiente a
 - Cliente Supabase mediante `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - Layout principal, topbar, sidebar y overview.
 - Consulta real de planetas y recursos.
+- Identidad del jugador derivada del planeta cargado.
 - Estados de carga/error.
 - Panel de apariencia.
 - Presets y selectores tipográficos.
@@ -133,37 +124,39 @@ La incidencia anterior de tipografías quedó identificada como un bloqueo exter
 
 ### Pendiente
 
-1. Resolver identidad del jugador actual de forma formal.
-2. Completar autenticación.
-3. Eliminar datos hardcodeados que aún queden fuera del overview conectado.
-4. Convertir navegación lateral en navegación funcional.
-5. Pantallas de planetas, edificios/colas, investigación, astillero/flota y movimientos.
-6. Galaxia.
-7. Espionaje.
-8. Expediciones.
-9. Lifeforms.
-10. Combate e informes.
-11. Optimización / siguiente acción.
-12. Gestión de errores RPC.
-13. Protección contra doble envío.
-14. Hooks/servicios de dominio para separar presentación y Supabase.
-15. Pruebas frontend ↔ Supabase y E2E.
+1. Completar autenticación formal.
+2. Sustituir cualquier dato hardcodeado que quede fuera del overview conectado.
+3. Convertir navegación lateral en navegación funcional.
+4. Pantallas de planetas, edificios/colas, investigación, astillero/flota y movimientos.
+5. Galaxia.
+6. Espionaje.
+7. Expediciones.
+8. Lifeforms.
+9. Combate e informes.
+10. Optimización / siguiente acción.
+11. Gestión de errores RPC.
+12. Protección contra doble envío.
+13. Hooks/servicios de dominio para separar presentación y Supabase.
+14. Pruebas frontend ↔ Supabase y E2E.
 
-## 4. Riesgos encontrados en esta auditoría
+## 4. Hallazgos confirmados en la auditoría actual
 
 ### R1 — Desfase entre migraciones remotas y migraciones versionadas en Git — ALTA
 
-La base remota registra muchas migraciones aplicadas, mientras que `supabase/migrations` contiene solo un subconjunto reciente.
+La base remota registra migraciones que no están presentes como archivos en `supabase/migrations` de `main`.
 
-Ejemplo confirmado: la base registra `20260913043732_harden_internal_rpc_permissions`, mientras el repositorio contiene `20260913044000_harden_internal_rpc_permissions.sql`.
+Confirmado actualmente:
 
-Esto **no debe corregirse inventando una migración nueva**. Primero hay que reconstruir el historial real y determinar qué migraciones fueron aplicadas directamente, renombradas o no sincronizadas con Git.
+- remoto: `20260913101718_tighten_start_fleet_colonize_mission`;
+- remoto: `20260913101031_tighten_game_rpc_execute_acl`;
+- remoto: `20260913101019_revoke_anon_remaining_game_action_rpcs`;
+- en Git no existe, al menos, el archivo `supabase/migrations/20260913101718_tighten_start_fleet_colonize_mission.sql`.
 
-**Acción:** auditoría de migraciones antes de modificar esquema.
+No se debe inventar el contenido histórico. Primero hay que reconstruirlo a partir de los cambios verificables de producción y, si es necesario, materializar una migración de sincronización explícita.
 
-### R2 — SECURITY DEFINER accesible por anon — ALTA / decisión arquitectónica pendiente
+### R2 — SECURITY DEFINER expuesto a authenticated — ADVERTENCIA CONTROLADA
 
-El advisor de Supabase detecta actualmente **7 funciones SECURITY DEFINER** ejecutables por `anon` y `authenticated`:
+Supabase detecta 7 funciones `SECURITY DEFINER` ejecutables por `authenticated`:
 
 - `start_building`
 - `start_colonize_fleet`
@@ -173,13 +166,13 @@ El advisor de Supabase detecta actualmente **7 funciones SECURITY DEFINER** ejec
 - `start_research`
 - `start_ship`
 
-No se revocará `anon` automáticamente porque estas funciones contienen una ruta explícita para jugadores invitados (`is_guest=true`) cuando `auth.uid()` es NULL.
+La auditoría directa de las funciones confirma que validan `auth.uid()` contra `players.user_id` y que la ruta anónima exige `is_guest=true` cuando `auth.uid()` es NULL. Por tanto, **no se revocará authenticated ni anon a ciegas**.
 
-La solución correcta es clasificar cada RPC como invitado, autenticado, interno/worker o no expuesto.
+La siguiente acción correcta es clasificar cada RPC como guest/authenticated/internal y revisar si la exposición pública coincide con esa clasificación.
 
 ### R3 — `public.strict` sin primary key — MEDIA/BAJA
 
-La tabla contiene actualmente solo `dark_matter` y no tiene PK. No se añade una clave artificial sin conocer su propósito.
+La tabla contiene actualmente una sola columna (`dark_matter`), una fila y ninguna constraint. No se añade una PK artificial sin conocer su propósito.
 
 ### R4 — 36 índices marcados como no usados — BAJA
 
@@ -189,9 +182,13 @@ No se eliminan. El proyecto todavía tiene poca carga y varias rutas de combate/
 
 Hay infraestructura histórica V1/V2 y rutas nuevas. Parte de lo legacy ya está en cuarentena. Falta cerrar el grafo de llamadas para garantizar que ninguna ruta de producción alcance mutadores antiguos.
 
-### R6 — README probablemente desactualizado — BAJA
+### R6 — CI sin estado publicado para el último commit — MEDIA/BAJA
 
-Debe revisarse después de cerrar la sincronización de migraciones y la arquitectura frontend.
+El workflow `.github/workflows/ci.yml` existe y ejecuta `npm ci`, lint y build, pero el commit `3504ec2` no devuelve estados de commit publicados mediante la integración consultada. Debe comprobarse la ejecución real de GitHub Actions antes de considerar CI verde.
+
+### R7 — Monitor anteriormente desactualizado — CORREGIDO
+
+Este documento seguía señalando `f7323f6` como último commit. Se actualiza ahora a `3504ec2` y se incorpora el desfase real de migraciones detectado directamente en la base remota.
 
 ## 5. Prioridad de la siguiente fase
 
@@ -200,7 +197,8 @@ Debe revisarse después de cerrar la sincronización de migraciones y la arquite
 1. Reconstruir correspondencia `supabase migration list` ↔ `supabase/migrations`.
 2. Detectar migraciones aplicadas pero ausentes de Git.
 3. Detectar archivos Git no aplicados.
-4. No alterar producción hasta cerrar esta matriz.
+4. Reconstruir únicamente cambios verificables.
+5. No alterar producción para corregir el historial sin una matriz de correspondencia.
 
 ### Fase 2 — Seguridad RPC
 
