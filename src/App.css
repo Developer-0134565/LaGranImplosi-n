@@ -442,6 +442,69 @@ nav {
   color: #cbe7f4;
 }
 
+.font-preview {
+  display: block;
+  margin-top: 2px;
+  padding: 6px 8px;
+  border: 1px solid rgba(76, 166, 215, 0.1);
+  background: rgba(5, 15, 24, 0.55);
+  color: #a9d8e9;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.style-preview {
+  margin: -4px 0 30px;
+  padding: 16px;
+  border: 1px solid rgba(76, 166, 215, 0.14);
+  background: rgba(8, 20, 31, 0.55);
+}
+
+.style-preview .section-title {
+  margin-bottom: 16px;
+}
+
+.preview-title {
+  margin-bottom: 10px;
+  color: #e8faff;
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+
+.preview-heading {
+  margin-bottom: 8px;
+  color: #b9d8e8;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.preview-body {
+  margin-bottom: 10px;
+  color: #7899aa;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.preview-number {
+  margin-bottom: 12px;
+  color: #d9f4ff;
+  font-size: 13px;
+}
+
+.preview-button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(70, 178, 225, 0.4);
+  background: rgba(25, 95, 130, 0.22);
+  color: #bcecff;
+  letter-spacing: 1px;
+}
+
+.preview-button:hover {
+  background: rgba(40, 125, 165, 0.35);
+}
+
 .reset-button {
   width: 100%;
   padding: 12px;
