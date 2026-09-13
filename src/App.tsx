@@ -2,9 +2,26 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import './App.css'
 import './styles/fonts.css'
+import { supabase } from './lib/supabase'
 
 type FontRole = 'title' | 'heading' | 'body' | 'number' | 'button'
 type FontSettings = Record<FontRole, string>
+
+type Planet = {
+  id: string
+  name: string
+  galaxy: number
+  system: number
+  position: number
+  is_homeworld: boolean
+  is_destroyed: boolean
+  planet_resources: Array<{
+    metal: number | string
+    crystal: number | string
+    deuterium: number | string
+    energy: number | string
+  }>
+}
 
 const FONT_STORAGE_KEY = 'lagranimplosion-fonts'
 
@@ -131,6 +148,17 @@ async function preloadAllFonts() {
   await Promise.all(allFonts.map(preloadFont))
 }
 
+function formatNumber(value: number | string | undefined) {
+  if (value === undefined) return '—'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '—'
+  return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(number)
+}
+
+function coordinates(planet: Pick<Planet, 'galaxy' | 'system' | 'position'>) {
+  return `[${planet.galaxy}:${planet.system}:${planet.position}]`
+}
+
 function FontSelector({
   role,
   label,
@@ -160,8 +188,13 @@ function FontSelector({
 function App() {
   const [fontSettings, setFontSettings] = useState<FontSettings>(() => loadSavedFonts())
   const [panelOpen, setPanelOpen] = useState(false)
+  const [planets, setPlanets] = useState<Planet[]>([])
+  const [gameDataLoading, setGameDataLoading] = useState(true)
+  const [gameDataError, setGameDataError] = useState<string | null>(null)
 
   const fontVariables = useMemo(() => getFontVariables(fontSettings), [fontSettings])
+  const homeworld = planets.find((planet) => planet.is_homeworld) ?? planets[0]
+  const homeworldResources = homeworld?.planet_resources[0]
 
   useEffect(() => {
     const safeSettings = sanitizeFontSettings(fontSettings)
@@ -183,6 +216,40 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [panelOpen])
+
+  useEffect(() => {
+    let active = true
+
+    async function loadGameData() {
+      setGameDataLoading(true)
+      setGameDataError(null)
+
+      const { data, error } = await supabase
+        .from('planets')
+        .select('id,name,galaxy,system,position,is_homeworld,is_destroyed,planet_resources(metal,crystal,deuterium,energy)')
+        .eq('is_destroyed', false)
+        .order('galaxy', { ascending: true })
+        .order('system', { ascending: true })
+        .order('position', { ascending: true })
+
+      if (!active) return
+
+      if (error) {
+        setGameDataError('No se han podido cargar los datos del imperio.')
+        setPlanets([])
+      } else {
+        setPlanets((data ?? []) as Planet[])
+      }
+
+      setGameDataLoading(false)
+    }
+
+    void loadGameData()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   function changeFont(role: FontRole, value: string) {
     if (!isValidFont(role, value)) return
@@ -207,10 +274,10 @@ function App() {
           <strong>IMPLOSIÓN</strong>
         </div>
         <div className="top-resources">
-          <div className="resource"><span>METAL</span><strong className="number">100.000</strong></div>
-          <div className="resource"><span>CRISTAL</span><strong className="number">86.719</strong></div>
-          <div className="resource"><span>DEUTERIO</span><strong className="number">90.518</strong></div>
-          <div className="resource"><span>ENERGÍA</span><strong className="number">0</strong></div>
+          <div className="resource"><span>METAL</span><strong className="number">{formatNumber(homeworldResources?.metal)}</strong></div>
+          <div className="resource"><span>CRISTAL</span><strong className="number">{formatNumber(homeworldResources?.crystal)}</strong></div>
+          <div className="resource"><span>DEUTERIO</span><strong className="number">{formatNumber(homeworldResources?.deuterium)}</strong></div>
+          <div className="resource"><span>ENERGÍA</span><strong className="number">{formatNumber(homeworldResources?.energy)}</strong></div>
         </div>
         <button type="button" className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label={panelOpen ? 'Cerrar configuración' : 'Abrir configuración'} aria-expanded={panelOpen} aria-controls="appearance-panel">⚙</button>
       </header>
@@ -233,22 +300,24 @@ function App() {
 
         <section className="content">
           <div className="hero">
-            <div><span className="eyebrow">SISTEMA 1 · IMPERIO</span><h1>DEV HOMEWORLD</h1><p>[1:1:1] · Planeta principal</p></div>
-            <div className="planet-status">ONLINE</div>
+            <div><span className="eyebrow">{homeworld ? `SISTEMA ${homeworld.system} · IMPERIO` : 'SISTEMA · IMPERIO'}</span><h1>{homeworld?.name ?? 'DEV HOMEWORLD'}</h1><p>{homeworld ? `${coordinates(homeworld)} · ${homeworld.is_homeworld ? 'Planeta principal' : 'Planeta'}` : 'Cargando planeta principal…'}</p></div>
+            <div className="planet-status">{gameDataLoading ? 'CARGANDO' : gameDataError ? 'ERROR' : 'ONLINE'}</div>
           </div>
           <div className="dashboard-grid">
             <article className="panel">
-              <div className="panel-header"><span>RECURSOS</span><small>PRODUCCIÓN</small></div>
-              <div className="resource-row"><span>🪨 Metal</span><strong className="number">100.000</strong></div>
-              <div className="resource-row"><span>💎 Cristal</span><strong className="number">86.719</strong></div>
-              <div className="resource-row"><span>💧 Deuterio</span><strong className="number">90.518</strong></div>
-              <div className="resource-row"><span>⚡ Energía</span><strong className="number">0</strong></div>
+              <div className="panel-header"><span>RECURSOS</span><small>{homeworld ? 'PLANETA ACTUAL' : 'SIN DATOS'}</small></div>
+              <div className="resource-row"><span>🪨 Metal</span><strong className="number">{formatNumber(homeworldResources?.metal)}</strong></div>
+              <div className="resource-row"><span>💎 Cristal</span><strong className="number">{formatNumber(homeworldResources?.crystal)}</strong></div>
+              <div className="resource-row"><span>💧 Deuterio</span><strong className="number">{formatNumber(homeworldResources?.deuterium)}</strong></div>
+              <div className="resource-row"><span>⚡ Energía</span><strong className="number">{formatNumber(homeworldResources?.energy)}</strong></div>
+              {gameDataError && <small>{gameDataError}</small>}
             </article>
             <article className="panel">
-              <div className="panel-header"><span>PLANETAS</span><small>3 COLONIAS</small></div>
-              <div className="planet-row"><span>🌍 Dev Homeworld</span><small>[1:1:1]</small></div>
-              <div className="planet-row"><span>🌍 TEST FLEET TARGET</span><small>[1:2:1]</small></div>
-              <div className="planet-row"><span>🌍 Colony 1:2:2</span><small>[1:2:2]</small></div>
+              <div className="panel-header"><span>PLANETAS</span><small>{planets.length} COLONIAS</small></div>
+              {planets.map((planet) => (
+                <div className="planet-row" key={planet.id}><span>🌍 {planet.name}</span><small>{coordinates(planet)}</small></div>
+              ))}
+              {!gameDataLoading && planets.length === 0 && <div className="planet-row"><span>No hay planetas visibles</span><small>—</small></div>}
             </article>
             <article className="panel wide">
               <div className="panel-header"><span>SISTEMA</span><small>ACTIVIDAD</small></div>
