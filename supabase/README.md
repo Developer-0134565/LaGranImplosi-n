@@ -5,7 +5,10 @@ The live project contains a large migration history that predates the current Gi
 - `20260913043259_harden_api_security_and_indexes.sql`
 - `20260913043318_harden_lifeform_mutations_and_fix_legacy_combat.sql`
 - `20260913043356_lock_down_public_default_privileges.sql`
+- `20260913044000_harden_internal_rpc_permissions.sql`
 
 Do **not** reset or recreate the production database from this directory yet. The complete historical migration chain still needs to be reconstructed from the live project before a clean-from-zero deployment can be considered reproducible.
+
+The internal RPC hardening only removes direct Data API execution from functions that are implementation details. The `start_*` RPCs remain exposed intentionally because they are the current game action entrypoints; their writes are protected by the player-access trigger layer.
 
 These migrations are intentionally incremental and safe to reapply only through the normal Supabase migration mechanism; they should not be manually duplicated in SQL Editor.
