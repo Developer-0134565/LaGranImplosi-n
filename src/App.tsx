@@ -201,7 +201,7 @@ function App() {
           <div className="resource"><span>DEUTERIO</span><strong className="number">90.518</strong></div>
           <div className="resource"><span>ENERGÍA</span><strong className="number">0</strong></div>
         </div>
-        <button className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label="Abrir configuración">⚙</button>
+        <button type="button" className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label="Abrir configuración">⚙</button>
       </header>
 
       <div className="layout">
@@ -211,12 +211,12 @@ function App() {
             <div><small>INVITADO</small><strong>DevPlayer</strong></div>
           </div>
           <nav>
-            <button className="nav-button active">OVERVIEW</button>
-            <button className="nav-button">PLANETAS</button>
-            <button className="nav-button">FLOTA</button>
-            <button className="nav-button">INVESTIGACIÓN</button>
-            <button className="nav-button">CONSTRUCCIÓN</button>
-            <button className="nav-button">GALAXIA</button>
+            <button type="button" className="nav-button active">OVERVIEW</button>
+            <button type="button" className="nav-button">PLANETAS</button>
+            <button type="button" className="nav-button">FLOTA</button>
+            <button type="button" className="nav-button">INVESTIGACIÓN</button>
+            <button type="button" className="nav-button">CONSTRUCCIÓN</button>
+            <button type="button" className="nav-button">GALAXIA</button>
           </nav>
         </aside>
 
@@ -242,7 +242,7 @@ function App() {
             <article className="panel wide">
               <div className="panel-header"><span>SISTEMA</span><small>ACTIVIDAD</small></div>
               <div className="system-message"><span className="pulse" /><div><strong>Sistema operativo</strong><p>La infraestructura de La Gran Implosión está funcionando correctamente.</p></div></div>
-              <button className="action-button">ABRIR CENTRO DE CONTROL</button>
+              <button type="button" className="action-button">ABRIR CENTRO DE CONTROL</button>
             </article>
           </div>
         </section>
@@ -252,13 +252,13 @@ function App() {
         <aside className="style-panel">
           <div className="style-header">
             <div><span>CONFIGURACIÓN</span><h2>APARIENCIA</h2></div>
-            <button className="close-button" onClick={() => setPanelOpen(false)} aria-label="Cerrar configuración">×</button>
+            <button type="button" className="close-button" onClick={() => setPanelOpen(false)} aria-label="Cerrar configuración">×</button>
           </div>
           <section className="style-section">
             <span className="section-title">PRESETS</span>
             <div className="preset-grid">
               {Object.keys(presets).map((preset) => (
-                <button key={preset} className="preset-button" onClick={() => applyPreset(preset)}>{preset}</button>
+                <button type="button" key={preset} className="preset-button" onClick={() => applyPreset(preset)}>{preset}</button>
               ))}
             </div>
           </section>
@@ -276,9 +276,9 @@ function App() {
             <div className="preview-heading">CENTRO DE CONTROL</div>
             <div className="preview-body">Flota preparada para operaciones.</div>
             <div className="preview-number">1.234.567.890</div>
-            <button className="preview-button">INICIAR OPERACIÓN</button>
+            <button type="button" className="preview-button">INICIAR OPERACIÓN</button>
           </section>
-          <button className="reset-button" onClick={resetFonts}>RESTAURAR PREDETERMINADO</button>
+          <button type="button" className="reset-button" onClick={resetFonts}>RESTAURAR PREDETERMINADO</button>
         </aside>
       )}
     </main>
