@@ -2,470 +2,228 @@
 
 **Fecha de auditoría:** 2026-09-13  
 **Repositorio:** `Developer-0134565/LaGranImplosi-n`  
-**Supabase:** proyecto `LaGranImplosión` (`evtfsbntvuqmahiskekd`)  
-**Objetivo de este documento:** mantener un inventario técnico real y separar lo implementado de lo pendiente, sin asumir que una función existente está terminada solo porque existe.
+**Supabase:** `LaGranImplosión` (`evtfsbntvuqmahiskekd`)  
+**Rama auditada:** `main`  
+**Último commit observado:** `f7323f6b474c3e2692b0ec3a055bc731f26ef945` — conexión del overview con Supabase.
 
-## 1. Estado general
+> Este documento distingue entre **implementado**, **conectado**, **auditado** y **pendiente**. La existencia de tablas o funciones no se considera por sí sola una prueba de que una mecánica esté terminada.
+
+## 1. Estado actual
 
 ### Backend / Supabase
 
-El backend está considerablemente más avanzado que la interfaz actual. La base pública contiene **55 tablas** y **214 funciones PL/pgSQL**. Hay estructuras para economía, producción, colas, flotas, expediciones, combate, espionaje, colonización, lifeforms y optimización.
+Estado del proyecto remoto: **ACTIVE_HEALTHY**.
 
-RLS está activo en las tablas críticas revisadas: jugadores, planetas, recursos, edificios, naves, colas, flotas, combate y lifeforms.
+Conteo actual verificado directamente en PostgreSQL:
+
+- **55 tablas públicas**.
+- **214 funciones PL/pgSQL públicas**.
+- **3 planetas activos**.
+- **4 lifeforms**.
+- **48 edificios de lifeforms**.
+- **72 investigaciones de lifeforms**.
+- **5 batallas persistidas**.
+- **10 rondas de combate**.
+- **232 disparos persistidos**.
+- **32 resultados de expedición**.
+
+RLS está habilitado en las tablas revisadas y el modelo ya incluye separación entre jugador autenticado y jugador invitado.
 
 ### Frontend / GitHub
 
-El frontend es React + TypeScript + Vite. La aplicación ya contiene la interfaz base, configuración dinámica de tipografías y un cliente Supabase en `src/lib/supabase.ts`, pero `src/App.tsx` sigue siendo principalmente una pantalla de demostración: los recursos, planetas y estados mostrados son valores estáticos y la navegación todavía no ejecuta las operaciones reales del backend.
+El frontend ya **no es una pantalla puramente estática**. `src/App.tsx` actualmente:
 
-Esto es actualmente la **principal incongruencia arquitectónica**: el motor Supabase tiene mucha más funcionalidad que la UI que lo consume.
+- consume `planets` y `planet_resources` desde Supabase;
+- determina el planeta principal mediante `is_homeworld`;
+- muestra recursos reales del planeta seleccionado por la consulta;
+- genera coordenadas reales;
+- muestra la lista real de planetas visibles según RLS;
+- presenta estados de carga y error;
+- mantiene la configuración tipográfica dinámica;
+- persiste las fuentes en `localStorage`;
+- precarga las fuentes con `document.fonts`;
+- tiene controles de accesibilidad básicos para el panel de apariencia.
 
----
+El commit `f7323f6` es un hito: el primer tramo del frontend ya está conectado al backend real.
 
-## 2. Funciones implementadas en Supabase
+## 2. Backend implementado
 
-### Economía y producción
+### Economía / producción
 
-Implementado a nivel de funciones y estructuras:
+Hay infraestructura para costes, tiempos, producción planetaria, energía, almacenamiento, actualización temporal de recursos, evaluación económica, ROI/payback, candidatos, ranking, siguiente acción, explicación de acciones y simulación de cadenas de construcción.
 
-- cálculo de costes de edificios e investigaciones;
-- cálculo de tiempos;
-- producción planetaria;
-- snapshots de producción;
-- consumo y balance energético;
-- almacenamiento;
-- actualización temporal de recursos;
-- producción virtual/simulada;
-- ROI y payback de acciones;
-- candidatos económicos y de optimización;
-- ranking de acciones;
-- siguiente acción y explicación de la siguiente acción;
-- evaluación temporal/económica/energética de acciones;
-- simulación y evaluación de cadenas de edificios.
+### Construcción / investigación / astillero
 
-Funciones clave presentes incluyen `calculate_building_cost`, `calculate_building_time`, `calculate_planet_production`, `calculate_planet_energy_balance`, `calculate_planet_storage`, `update_planet_resources`, `update_planet_resources_until`, `calculate_action_payback`, `evaluate_action_at_time`, `rank_building_sequences`, `evaluate_building_chain` y varias funciones auxiliares.
+Implementado: definiciones y requisitos, costes y tiempos, colas, finalización, protección de concurrencia, límites de nivel, comprobaciones de recursos, construcción de edificios, investigación, construcción de naves, procesamiento del astillero e integración con el tick planetario.
 
-### Construcción, investigación y astillero
-
-Implementado:
-
-- requisitos de edificios;
-- colas de edificios;
-- finalización de edificios;
-- requisitos de investigación;
-- colas de investigación;
-- finalización de investigación;
-- requisitos de naves;
-- cálculo de costes y tiempos de naves;
-- cola de astillero;
-- procesamiento de colas;
-- integración del astillero con el tick planetario;
-- protección de escrituras de las colas;
-- funciones `start_building`, `start_research` y `start_ship` con comprobación de propietario.
+Entrypoints principales auditados recientemente: `start_building`, `start_research`, `start_ship`.
 
 ### Flotas
 
-Implementado:
-
-- movimiento de flotas;
-- cálculo de distancia;
-- cálculo de tiempo;
-- capacidad de carga;
-- velocidad de flota;
-- worker de flotas;
-- retorno idempotente;
-- transporte;
-- despliegue;
-- ataque;
-- espionaje;
-- reciclaje;
-- expediciones;
-- colonización;
-- resolución de llegadas;
-- integración de efectos de lifeforms y objetos de expedición en velocidad;
-- protección de identidad del jugador en los entrypoints principales.
-
-Entry points relevantes: `start_fleet`, `start_colonize_fleet`, `process_fleet_movements`, `run_fleet_worker`, `resolve_attack_arrival`, `resolve_transport_arrival`, `resolve_deploy_arrival`, `resolve_espionage_arrival`, `resolve_colonize_arrival` y `calculate_fleet_time`.
+Implementado: movimientos, distancia y tiempo, carga, velocidad, worker, retorno idempotente, transporte, despliegue, ataque, espionaje, reciclaje, expedición, colonización, resolución de llegadas, comprobación de propietario, comprobación de universo de destino e integración con efectos de lifeforms y objetos.
 
 ### Expediciones
 
-Es una de las áreas más desarrolladas. El historial de migraciones muestra trabajo específico para:
+Implementado: slots, puntos efectivos, distancia y fórmula de tiempo, hold, retrasos, speedups, recursos, naves, materia oscura, objetos, comerciantes, piratas, aliens, agujeros negros, retornos normales y acelerados, persistencia de resultados, presupuestos de recompensa, integración con worker e idempotencia del combate de expedición.
 
-- fórmula de distancia y tiempo;
-- espera/hold de expedición;
-- retrasos;
-- speedups;
-- clase de expedición;
-- puntos efectivos;
-- capacidad de recursos;
-- presupuestos de recompensas;
-- recompensas de recursos;
-- recompensas de naves;
-- materia oscura;
-- objetos;
-- comerciantes;
-- piratas;
-- aliens;
-- agujeros negros;
-- retornos normales y acelerados;
-- integración con el worker;
-- idempotencia del combate de expedición;
-- alineación de fórmulas con OGameX donde ya se auditó.
-
-Funciones relevantes: `calculate_expedition_time`, `calculate_expedition_distance`, `calculate_expedition_points`, `calculate_expedition_effective_points`, `calculate_expedition_resource_reward`, `calculate_expedition_dark_matter_amount`, `resolve_expedition_arrival`, `resolve_expedition_return`, `resolve_expedition_pirates`, `resolve_expedition_aliens`, `resolve_expedition_black_hole`, `resolve_expedition_item` y `resolve_expedition_merchant`.
-
-Datos actuales observados: 32 resultados de expedición.
+La secuencia de migraciones recientes incluye auditorías específicas de timing y alineación con OGameX donde ya se decidió usar esa referencia.
 
 ### Objetos de expedición
 
-Implementado:
-
-- definiciones de objetos;
-- usos;
-- efectos activos;
-- consumo;
-- efectos sobre producción/energía/velocidad;
-- integración con los cálculos del motor.
+Implementado: definiciones, inventario, consumo, usos, efectos activos, snapshots de efecto e integración con producción, energía, construcción/investigación y velocidad.
 
 ### Lifeforms
 
-El **núcleo de Lifeforms sí existe**. La base contiene:
+El núcleo de Lifeforms está implementado en Supabase:
 
 - 4 lifeforms;
-- 48 definiciones de edificios de lifeforms;
-- 72 definiciones de investigaciones de lifeforms;
-- descubrimientos de jugadores;
-- lifeforms por planeta;
-- edificios por planeta;
-- investigaciones por planeta;
-- colas de edificios;
-- colas de investigación;
-- población/tick;
+- 48 edificios;
+- 72 investigaciones;
+- descubrimientos;
+- lifeform activa por planeta;
+- población T1/T2/T3;
+- experiencia y nivel;
+- tick de población;
+- edificios e investigaciones por planeta;
+- colas;
 - costes;
 - efectos;
 - integración con Dark Matter;
 - integración con velocidad de flota;
-- comprobaciones de lifeform activa y descubrimiento;
-- funciones `start_lifeform_building` y `start_lifeform_research`.
+- validación de descubrimiento y lifeform activa.
 
-**No se considera pendiente la existencia del núcleo.** Lo pendiente es la auditoría funcional completa y su integración real con la UI, además de verificar todos los efectos y niveles contra las reglas objetivo.
+Entrypoints: `start_lifeform_building` y `start_lifeform_research`.
+
+**Pendiente:** auditoría funcional exhaustiva de cada efecto/slot/tier y exposición completa desde frontend.
 
 ### Combate
 
-El motor de combate tiene una cantidad importante de infraestructura V1/V2/V3 y ha recibido una secuencia reciente de correcciones.
+Infraestructura presente: batallas, rondas, snapshots, unidades individuales, estado de unidades, ataques, daño, escudo/casco, rapidfire, selección de objetivos, ledger de disparos, pérdidas, debris, reparación de defensas, contadores finales, tecnologías de combate, pipeline de ataque normal, worker, combate de piratas/aliens y cuarentena de mutadores legacy.
 
-Implementado a nivel de backend:
+El núcleo está muy avanzado, pero todavía requiere una auditoría de regresión sistemática antes de declararlo cerrado.
 
-- batallas;
-- rondas;
-- snapshots;
-- unidades individuales;
-- estado de unidades;
-- ataques/daño;
-- casco/escudo;
-- daño pendiente;
-- rapidfire;
-- selección de objetivos;
-- generación de disparos;
-- resolución de disparos;
-- explosiones;
-- pérdidas;
-- debris;
-- reparación de defensas;
-- contadores finales;
-- resolución de batalla;
-- pipeline de ataque normal;
-- worker de flotas;
-- combate de piratas y aliens en expediciones;
-- persistencia del ledger de daño de disparos;
-- snapshots de escudo;
-- tecnologías de combate;
-- cuarentena de mutadores legacy.
+### Espionaje / colonización
 
-Funciones representativas: `generate_combat_round_v2`, `process_combat_round_v2`, `generate_combat_shot_v2`, `resolve_combat_shot_v2`, `resolve_combat_damage_v2`, `resolve_combat_rapidfire`, `create_next_combat_round_v2`, `expand_all_rapidfire_v2`, `finish_combat_battle`, `calculate_combat_total_debris`, `calculate_combat_ship_losses` y `calculate_combat_defense_losses`.
+Implementado: dispatch de espionaje, llegada, reportes, dispatch de colonización, validación de coordenadas y posición ocupada, consumo de nave colonia y llegada de colonización.
 
-Datos actuales: 5 batallas, 10 rondas y 232 disparos persistidos.
+### Monitor / optimización
 
-### Espionaje y colonización
+Existe infraestructura para monitor económico, monitor energético, siguiente acción, ranking, candidatos ejecutables/optimizables, ROI, simulación temporal y cadenas de construcción.
 
-El backend ya tiene una implementación para:
+**Pendiente:** conectar esta capa con la UI real y validar sus recomendaciones contra escenarios reproducibles.
 
-- reportes de espionaje;
-- dispatch de espionaje;
-- llegada de espionaje;
-- dispatch de colonización;
-- comprobación de coordenadas;
-- comprobación de posición ocupada;
-- consumo de nave colonia;
-- llegada de colonización.
+## 3. Frontend actual
 
-Hay 1 reporte de espionaje y 3 planetas actualmente en la base.
-
-### Monitorización / optimización
-
-Hay estructuras para:
-
-- `empire_economic_monitor`;
-- `empire_energy_monitor`;
-- `empire_next_action`;
-- `empire_action_ranking`;
-- candidatos de acción;
-- candidatos ejecutables;
-- candidatos de optimización;
-- ROI;
-- secuencias de construcción;
-- simulación de acciones;
-- acciones temporales;
-- explicación de siguiente acción.
-
-El motor de optimización existe, pero la interfaz todavía no expone este sistema de forma real.
-
----
-
-## 3. Estado del frontend
-
-### Ya implementado
+### Implementado
 
 - React 19 + TypeScript + Vite.
-- Layout base del juego.
-- Topbar.
-- Recursos de demostración.
-- Sidebar.
-- Dashboard base.
+- Cliente Supabase mediante `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Layout principal, topbar, sidebar y overview.
+- Consulta real de planetas y recursos.
+- Estados de carga/error.
 - Panel de apariencia.
-- Presets tipográficos.
-- Selectores por rol.
-- Persistencia de tipografías en `localStorage`.
-- Sanitización de configuraciones guardadas.
-- Aplicación dinámica de variables CSS.
-- Pre-carga de fuentes mediante `document.fonts`.
-- Preview de cada tipografía.
-- Cliente Supabase en `src/lib/supabase.ts`.
-- Uso de `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`, sin introducir claves secretas en frontend.
+- Presets y selectores tipográficos.
+- Persistencia y sanitización de fuentes.
+- Variables CSS dinámicas.
+- Pre-carga de Google Fonts.
+- Vista previa tipográfica.
+- Accesibilidad básica, cierre con Escape y focus visible.
 
-La implementación actual de tipografía está especialmente protegida contra valores inválidos y contra fallos de `localStorage`. El problema observado anteriormente con las fuentes no era únicamente código: Privacy Badger estaba bloqueando la carga de Google Fonts.
+La incidencia anterior de tipografías quedó identificada como un bloqueo externo de **Privacy Badger**, no como un fallo persistente del motor de selección.
 
-### Pendiente en frontend
+### Pendiente
 
-1. Conectar autenticación real.
-2. Sustituir los valores hardcodeados del dashboard por datos Supabase.
-3. Resolver jugador actual y planeta actual.
-4. Mostrar recursos calculados en tiempo real.
-5. Mostrar colas reales.
-6. Mostrar flotas reales.
-7. Mostrar investigación real.
-8. Mostrar edificios reales.
-9. Implementar navegación real entre módulos.
-10. Implementar galaxia.
-11. Implementar espionaje.
-12. Implementar expediciones.
-13. Implementar Lifeforms.
-14. Implementar combate/informes.
-15. Exponer el sistema de optimización y siguiente acción.
-16. Añadir estados de carga, errores y estados vacíos.
-17. Añadir protección contra doble envío de acciones.
-18. Validar permisos antes de presentar acciones ejecutables.
-19. Crear una capa de servicios/hooks para no llamar RPCs directamente desde componentes de presentación.
-20. Añadir pruebas de integración frontend ↔ Supabase.
+1. Resolver identidad del jugador actual de forma formal.
+2. Completar autenticación.
+3. Eliminar datos hardcodeados que aún queden fuera del overview conectado.
+4. Convertir navegación lateral en navegación funcional.
+5. Pantallas de planetas, edificios/colas, investigación, astillero/flota y movimientos.
+6. Galaxia.
+7. Espionaje.
+8. Expediciones.
+9. Lifeforms.
+10. Combate e informes.
+11. Optimización / siguiente acción.
+12. Gestión de errores RPC.
+13. Protección contra doble envío.
+14. Hooks/servicios de dominio para separar presentación y Supabase.
+15. Pruebas frontend ↔ Supabase y E2E.
 
----
+## 4. Riesgos encontrados en esta auditoría
 
-## 4. Errores / riesgos actuales
+### R1 — Desfase entre migraciones remotas y migraciones versionadas en Git — ALTA
 
-### R1 — Integración frontend/backend incompleta — ALTA
+La base remota registra muchas migraciones aplicadas, mientras que `supabase/migrations` contiene solo un subconjunto reciente.
 
-`src/lib/supabase.ts` existe, pero `App.tsx` no está consumiendo todavía el estado real de Supabase. La pantalla principal continúa usando valores de demostración.
+Ejemplo confirmado: la base registra `20260913043732_harden_internal_rpc_permissions`, mientras el repositorio contiene `20260913044000_harden_internal_rpc_permissions.sql`.
 
-### R2 — Advertencias SECURITY DEFINER — ALTA, pendiente de decisión arquitectónica
+Esto **no debe corregirse inventando una migración nueva**. Primero hay que reconstruir el historial real y determinar qué migraciones fueron aplicadas directamente, renombradas o no sincronizadas con Git.
 
-Supabase detecta 8 funciones `SECURITY DEFINER` ejecutables por `anon` y `authenticated`.
+**Acción:** auditoría de migraciones antes de modificar esquema.
 
-No se debe eliminar este acceso automáticamente: las funciones `start_*` contienen explícitamente una bifurcación para jugadores invitados (`is_guest`) cuando `auth.uid()` es NULL. Por tanto, revocar `anon` indiscriminadamente rompe el modelo de invitado existente.
+### R2 — SECURITY DEFINER accesible por anon — ALTA / decisión arquitectónica pendiente
 
-La solución correcta pendiente es auditar función por función y decidir qué RPC debe ser:
+El advisor de Supabase detecta actualmente **7 funciones SECURITY DEFINER** ejecutables por `anon` y `authenticated`:
 
-- público para invitados;
-- solo `authenticated`;
-- solo interno/worker;
-- o `SECURITY INVOKER`.
+- `start_building`
+- `start_colonize_fleet`
+- `start_fleet`
+- `start_lifeform_building`
+- `start_lifeform_research`
+- `start_research`
+- `start_ship`
 
-Los entrypoints de juego revisados ya comprueban la correspondencia entre jugador y usuario autenticado y rechazan un jugador ajeno.
+No se revocará `anon` automáticamente porque estas funciones contienen una ruta explícita para jugadores invitados (`is_guest=true`) cuando `auth.uid()` es NULL.
 
-### R3 — Tabla `public.strict` sin primary key — MEDIA/BAJA
+La solución correcta es clasificar cada RPC como invitado, autenticado, interno/worker o no expuesto.
 
-El linter detecta `public.strict` sin primary key. La tabla solo contiene actualmente `dark_matter` como columna `numeric`. No se ha añadido una PK porque no conocemos todavía su propósito semántico y hacerlo a ciegas podría cambiar el diseño previsto.
+### R3 — `public.strict` sin primary key — MEDIA/BAJA
 
-### R4 — Índices marcados como no usados — BAJA / NO TOCAR AÚN
+La tabla contiene actualmente solo `dark_matter` y no tiene PK. No se añade una clave artificial sin conocer su propósito.
 
-El linter informa 36 índices no utilizados. Esto no demuestra que sean inútiles: el proyecto todavía tiene poca carga y el motor tiene rutas que pueden no haberse ejecutado suficientemente. No eliminarlos hasta disponer de tráfico/pruebas representativas.
+### R4 — 36 índices marcados como no usados — BAJA
 
-### R5 — Funciones legacy y múltiples generaciones del combate — MEDIA
+No se eliminan. El proyecto todavía tiene poca carga y varias rutas de combate/lifeforms/expediciones pueden no haberse ejecutado suficientemente.
 
-Existen funciones V1/V2/V3 y funciones históricas relacionadas con combate. Algunas ya están explícitamente puestas en cuarentena, pero hay que completar el mapa de llamadas para garantizar que ningún worker o RPC real termine usando accidentalmente una ruta legacy.
+### R5 — Varias generaciones de combate — MEDIA
 
-### R6 — README desactualizado — BAJA
+Hay infraestructura histórica V1/V2 y rutas nuevas. Parte de lo legacy ya está en cuarentena. Falta cerrar el grafo de llamadas para garantizar que ninguna ruta de producción alcance mutadores antiguos.
 
-El README sigue describiendo el repositorio como el template inicial de React/Vite, mientras que el proyecto ya contiene un backend de juego muy avanzado. Debe actualizarse cuando cerremos la primera auditoría estructural.
+### R6 — README probablemente desactualizado — BAJA
 
----
+Debe revisarse después de cerrar la sincronización de migraciones y la arquitectura frontend.
 
-## 5. Auditorías pendientes prioritarias
+## 5. Prioridad de la siguiente fase
 
-### A. Seguridad Supabase
+### Fase 1 — Integridad de repositorio y migraciones
 
-- mapear grants de todas las funciones públicas;
-- clasificar RPC públicas / autenticadas / internas;
-- verificar `SECURITY DEFINER` y `search_path` en todas las funciones sensibles;
-- revisar todas las políticas RLS, no solo las tablas principales;
-- comprobar que ningún RPC permita cambiar `player_id` de otro usuario;
-- revisar funciones de lectura que devuelvan información de otros jugadores;
-- revisar guest access de forma específica;
-- revisar exposición de funciones internas de workers.
+1. Reconstruir correspondencia `supabase migration list` ↔ `supabase/migrations`.
+2. Detectar migraciones aplicadas pero ausentes de Git.
+3. Detectar archivos Git no aplicados.
+4. No alterar producción hasta cerrar esta matriz.
 
-### B. Integridad económica
+### Fase 2 — Seguridad RPC
 
-- recursos y almacenamiento;
-- producción por tick;
-- energía;
-- costes;
-- tiempos;
-- colas;
-- cancelaciones;
-- concurrencia;
-- doble ejecución;
-- límites de nivel;
-- efectos de objetos y lifeforms.
+1. Auditar los 7 `SECURITY DEFINER` expuestos.
+2. Verificar todos los grants.
+3. Clasificar guest/authenticated/internal.
+4. Revisar RLS de todas las tablas de juego.
 
-### C. Combate V2
+### Fase 3 — Integridad de motor
 
-- verificar pipeline canónico de ataque;
-- eliminar rutas legacy no alcanzables;
-- validar orden de rondas;
-- validar snapshots;
-- validar daño de escudo/casco;
-- validar rapidfire;
-- validar explosión;
-- validar pérdidas;
-- validar debris;
-- validar reparación;
-- comprobar idempotencia del worker;
-- crear casos de regresión reproducibles.
+Economía → colas → flotas → expediciones → lifeforms → combate → espionaje/colonización.
 
-### D. Expediciones
+### Fase 4 — Frontend
 
-- comprobar fórmulas finales frente a OGameX/OGame cuando proceda;
-- verificar cada outcome;
-- comprobar pesos y límites;
-- revisar tiempos y hold;
-- revisar speedup;
-- revisar recompensa de naves;
-- revisar Dark Matter;
-- revisar objetos;
-- revisar comerciante;
-- revisar piratas;
-- revisar aliens;
-- revisar agujero negro;
-- comprobar que un evento no pueda ejecutarse dos veces.
+Identidad → servicios/hooks → navegación → módulos → RPCs → estados/errores → pruebas.
 
-### E. Lifeforms
+## 6. Regla de trabajo
 
-- validar los 4 lifeforms;
-- validar los 48 edificios;
-- validar las 72 investigaciones;
-- validar requisitos de población;
-- validar tiers y slots;
-- validar efectos acumulativos;
-- validar efectos de fleet speed y demás estadísticas;
-- validar costes y tiempos;
-- validar interacción con producción/energía;
-- validar descubrimientos;
-- validar que las acciones no puedan ejecutarse sobre un lifeform no activo.
-
-### F. Flotas
-
-- ataque;
-- transporte;
-- despliegue;
-- reciclaje;
-- espionaje;
-- colonización;
-- expedición;
-- retorno;
-- consumo/restauración de naves;
-- cargo;
-- velocidad;
-- evolución del universo;
-- concurrencia de movimientos.
-
-### G. Frontend
-
-- integración real con Supabase;
-- autenticación/guest;
-- servicios RPC;
-- estado global;
-- caché/refresco;
-- manejo de errores;
-- protección contra doble acción;
-- sincronización temporal;
-- UI de colas;
-- UI de informes.
-
----
-
-## 6. Próxima secuencia recomendada
-
-No ampliar funcionalidades grandes todavía. El orden recomendado es:
-
-1. **Cerrar auditoría de seguridad RPC/RLS.**
-2. **Mapear frontend ↔ backend y eliminar incongruencias de contrato.**
-3. **Crear una capa de servicios Supabase estable.**
-4. **Conectar Overview a datos reales.**
-5. **Probar recursos/producción/colas con datos reales.**
-6. **Conectar edificios/investigación/flota.**
-7. **Auditar y exponer expediciones.**
-8. **Auditar Lifeforms antes de crear una UI grande.**
-9. **Cerrar combate V2 con regresiones.**
-10. **Después ampliar Galaxy, espionaje, informes y optimización visual.**
-
-## 7. Principio de mantenimiento
-
-- No inventar reglas si el backend o una referencia fiable no las define.
-- No eliminar funciones antiguas hasta demostrar que son inalcanzables.
-- No eliminar índices únicamente porque el linter los marque como no usados.
-- No modificar fórmulas económicas o de combate sin un caso reproducible.
-- Preferir migraciones pequeñas y reversibles.
-- Después de cada cambio de backend: revisar advisors + ejecutar pruebas de regresión.
-- Cuando OGameX aporte una implementación más completa, usarlo como referencia primaria para esa mecánica; OGame clásico como contraste.
-
-## 8. Estado de la auditoría actual
-
-**Backend:** 🟡 avanzado, pero requiere auditoría de contratos y seguridad antes de considerarlo cerrado.  
-**Combate:** 🟡 motor V2 avanzado; requiere regresión y limpieza final de rutas legacy.  
-**Expediciones:** 🟡 muy avanzado; requiere auditoría final de outcomes y regresiones.  
-**Lifeforms:** 🟡 núcleo implementado; falta auditoría funcional completa y UI.  
-**Flotas:** 🟡 núcleo implementado; falta cobertura completa de pruebas y UI.  
-**Frontend:** 🔴 todavía principalmente demostrativo respecto al backend real.  
-**Optimización:** 🟡 motor de datos/candidatos presente; UI y validación final pendientes.  
-**Seguridad:** 🟡 RLS activo y guards presentes, pero quedan warnings de `SECURITY DEFINER` que deben resolverse mediante clasificación de RPC, no mediante revocaciones ciegas.  
-**Rendimiento:** 🟢 sin problemas críticos observados; los 36 índices no usados quedan en observación hasta disponer de carga representativa.
-
-## 9. Datos de referencia observados durante esta auditoría
-
-- 55 tablas públicas.
-- 214 funciones públicas.
-- 4 lifeforms.
-- 48 edificios de lifeforms.
-- 72 investigaciones de lifeforms.
-- 16 naves.
-- 8 defensas.
-- 8 edificios base.
-- 16 investigaciones base.
-- 5 batallas.
-- 10 rondas de combate.
-- 232 disparos.
-- 46 movimientos de flota.
-- 32 resultados de expedición.
-- 1 reporte de espionaje.
-- 3 planetas.
-- 1 jugador.
-
-Estos números son una fotografía de la base en el momento de la auditoría, no límites del diseño.
+- No crear tablas duplicadas.
+- No crear funciones paralelas si ya existe una ruta canónica.
+- No renombrar estructuras sin necesidad.
+- No eliminar índices legacy sin evidencia.
+- No revocar permisos de invitados sin entender el modelo guest.
+- No modificar producción para solucionar un warning sin reproducir el problema.
+- Cuando OGameX sea una referencia más completa, usarlo como referencia primaria y OGame clásico como contraste.
+- Toda corrección importante debe quedar reflejada en Git y en este monitor.
