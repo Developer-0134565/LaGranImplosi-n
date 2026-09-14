@@ -16,10 +16,10 @@ type Planet = {
   position: number
   is_homeworld: boolean
   is_destroyed: boolean
-  players: {
+  players: Array<{
     username: string
     is_guest: boolean
-  } | null
+  }>
   planet_resources: Array<{
     metal: number | string
     crystal: number | string
@@ -200,7 +200,7 @@ function App() {
   const fontVariables = useMemo(() => getFontVariables(fontSettings), [fontSettings])
   const homeworld = planets.find((planet) => planet.is_homeworld) ?? planets[0]
   const homeworldResources = homeworld?.planet_resources[0]
-  const currentPlayer = homeworld?.players
+  const currentPlayer = homeworld?.players[0] ?? null
   const playerLabel = currentPlayer?.is_guest ? 'INVITADO' : 'JUGADOR'
   const gameStatus = gameDataLoading ? 'CARGANDO' : gameDataError ? 'ERROR' : planets.length > 0 ? 'ONLINE' : 'SIN DATOS'
 
