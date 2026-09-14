@@ -1,6 +1,6 @@
--- Integrate the universe evolution curve over elapsed resource time.
--- Resource production uses economy_rate * production_rate, so both
--- contain the universe evolution multiplier and the combined factor is evolution^2.
+-- Integrate universe evolution over the actual elapsed resource interval.
+-- Resource production uses economy_rate * production_rate, so the evolution
+-- component is evolution^2 and must be integrated piecewise over the curve.
 
 CREATE OR REPLACE FUNCTION public.calculate_universe_evolution_production_seconds(
     p_universe_id uuid,
@@ -73,11 +73,142 @@ BEGIN
         v_weighted_seconds := v_weighted_seconds + v_dt * (v_x0*v_x0 + v_x0*v_x1 + v_x1*v_x1) / 3.0;
         v_cursor := v_seg_end;
     END LOOP;
+
     RETURN v_weighted_seconds;
 END;
 $function$;
 
--- update_planet_resources() and get_current_planet_resources() use the helper
--- above to integrate evolution^2 across the actual elapsed interval instead
--- of applying the current rate to all past time. The live database definitions
--- contain the full function bodies applied by this migration.
+CREATE OR REPLACE FUNCTION public.update_planet_resources(p_planet_id uuid)
+RETURNS TABLE(planet_id uuid, metal numeric, crystal numeric, deuterium numeric, energy numeric, elapsed_seconds numeric, metal_produced numeric, crystal_produced numeric, deuterium_produced numeric)
+LANGUAGE plpgsql
+SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE
+    v_last_calculated_at timestamptz;
+    v_now timestamptz := now();
+    v_elapsed_seconds numeric;
+    v_metal numeric;
+    v_crystal numeric;
+    v_deuterium numeric;
+    v_energy numeric;
+    v_metal_per_hour numeric;
+    v_crystal_per_hour numeric;
+    v_deuterium_per_hour numeric;
+    v_energy_per_hour numeric;
+    v_economy_rate numeric;
+    v_production_rate numeric;
+    v_weighted_evolution_seconds numeric;
+    v_current_combined_rate numeric;
+    v_metal_base_per_hour numeric;
+    v_crystal_base_per_hour numeric;
+    v_deuterium_base_per_hour numeric;
+    v_metal_produced numeric;
+    v_crystal_produced numeric;
+    v_deuterium_produced numeric;
+    v_metal_capacity numeric;
+    v_crystal_capacity numeric;
+    v_deuterium_capacity numeric;
+    v_universe_id uuid;
+BEGIN
+    SELECT pr.last_calculated_at, pr.metal, pr.crystal, pr.deuterium, pr.energy INTO v_last_calculated_at, v_metal, v_crystal, v_deuterium, v_energy
+    FROM public.planet_resources AS pr WHERE pr.planet_id = p_planet_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'No existe planet_resources para el planeta %', p_planet_id; END IF;
+
+    SELECT p.universe_id INTO v_universe_id FROM public.planets p WHERE p.id = p_planet_id;
+    IF v_universe_id IS NULL THEN RAISE EXCEPTION 'Planet % does not exist', p_planet_id; END IF;
+
+    v_elapsed_seconds := GREATEST(0, EXTRACT(EPOCH FROM (v_now - v_last_calculated_at)));
+
+    SELECT pp.metal_per_hour, pp.crystal_per_hour, pp.deuterium_per_hour, pp.energy_per_hour INTO v_metal_per_hour, v_crystal_per_hour, v_deuterium_per_hour, v_energy_per_hour
+    FROM public.calculate_planet_production(p_planet_id) AS pp;
+
+    SELECT r.economy, r.production INTO v_economy_rate, v_production_rate FROM public.calculate_universe_rates(v_universe_id) r;
+    v_current_combined_rate := v_economy_rate * v_production_rate;
+    v_weighted_evolution_seconds := public.calculate_universe_evolution_production_seconds(v_universe_id, v_last_calculated_at, v_now);
+
+    IF v_current_combined_rate > 0 THEN
+        v_metal_base_per_hour := v_metal_per_hour / v_current_combined_rate;
+        v_crystal_base_per_hour := v_crystal_per_hour / v_current_combined_rate;
+        v_deuterium_base_per_hour := v_deuterium_per_hour / v_current_combined_rate;
+        v_metal_produced := v_metal_base_per_hour * v_weighted_evolution_seconds / 3600.0;
+        v_crystal_produced := v_crystal_base_per_hour * v_weighted_evolution_seconds / 3600.0;
+        v_deuterium_produced := v_deuterium_base_per_hour * v_weighted_evolution_seconds / 3600.0;
+    ELSE
+        v_metal_produced := 0; v_crystal_produced := 0; v_deuterium_produced := 0;
+    END IF;
+
+    SELECT s.metal_capacity, s.crystal_capacity, s.deuterium_capacity INTO v_metal_capacity, v_crystal_capacity, v_deuterium_capacity
+    FROM public.calculate_planet_storage(p_planet_id) AS s;
+
+    v_metal := LEAST(v_metal_capacity, GREATEST(0, v_metal + v_metal_produced));
+    v_crystal := LEAST(v_crystal_capacity, GREATEST(0, v_crystal + v_crystal_produced));
+    v_deuterium := LEAST(v_deuterium_capacity, GREATEST(0, v_deuterium + v_deuterium_produced));
+
+    UPDATE public.planet_resources AS pr SET metal = v_metal, crystal = v_crystal, deuterium = v_deuterium, last_calculated_at = v_now, updated_at = v_now WHERE pr.planet_id = p_planet_id;
+
+    planet_id := p_planet_id; metal := v_metal; crystal := v_crystal; deuterium := v_deuterium; energy := v_energy;
+    elapsed_seconds := v_elapsed_seconds; metal_produced := v_metal_produced; crystal_produced := v_crystal_produced; deuterium_produced := v_deuterium_produced;
+    RETURN NEXT;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_current_planet_resources(p_planet_id uuid)
+RETURNS TABLE(planet_id uuid, metal numeric, crystal numeric, deuterium numeric, energy numeric, elapsed_seconds numeric, projected_metal numeric, projected_crystal numeric, projected_deuterium numeric)
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE
+    v_last_calculated_at timestamptz;
+    v_metal numeric;
+    v_crystal numeric;
+    v_deuterium numeric;
+    v_energy numeric;
+    v_elapsed_seconds numeric;
+    v_metal_per_hour numeric;
+    v_crystal_per_hour numeric;
+    v_deuterium_per_hour numeric;
+    v_metal_capacity numeric;
+    v_crystal_capacity numeric;
+    v_deuterium_capacity numeric;
+    v_universe_id uuid;
+    v_economy_rate numeric;
+    v_production_rate numeric;
+    v_current_combined_rate numeric;
+    v_weighted_evolution_seconds numeric;
+    v_metal_produced numeric;
+    v_crystal_produced numeric;
+    v_deuterium_produced numeric;
+    v_now timestamptz := now();
+BEGIN
+    SELECT pr.last_calculated_at, pr.metal, pr.crystal, pr.deuterium, pr.energy INTO v_last_calculated_at, v_metal, v_crystal, v_deuterium, v_energy
+    FROM public.planet_resources AS pr WHERE pr.planet_id = p_planet_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'No existe planet_resources para el planeta %', p_planet_id; END IF;
+
+    SELECT p.universe_id INTO v_universe_id FROM public.planets p WHERE p.id = p_planet_id;
+    v_elapsed_seconds := GREATEST(0, EXTRACT(EPOCH FROM (v_now - v_last_calculated_at)));
+
+    SELECT pp.metal_per_hour, pp.crystal_per_hour, pp.deuterium_per_hour INTO v_metal_per_hour, v_crystal_per_hour, v_deuterium_per_hour
+    FROM public.calculate_planet_production(p_planet_id) AS pp;
+
+    SELECT r.economy, r.production INTO v_economy_rate, v_production_rate FROM public.calculate_universe_rates(v_universe_id) r;
+    v_current_combined_rate := v_economy_rate * v_production_rate;
+    v_weighted_evolution_seconds := public.calculate_universe_evolution_production_seconds(v_universe_id, v_last_calculated_at, v_now);
+
+    IF v_current_combined_rate > 0 THEN
+        v_metal_produced := (v_metal_per_hour / v_current_combined_rate) * v_weighted_evolution_seconds / 3600.0;
+        v_crystal_produced := (v_crystal_per_hour / v_current_combined_rate) * v_weighted_evolution_seconds / 3600.0;
+        v_deuterium_produced := (v_deuterium_per_hour / v_current_combined_rate) * v_weighted_evolution_seconds / 3600.0;
+    ELSE
+        v_metal_produced := 0; v_crystal_produced := 0; v_deuterium_produced := 0;
+    END IF;
+
+    SELECT s.metal_capacity, s.crystal_capacity, s.deuterium_capacity INTO v_metal_capacity, v_crystal_capacity, v_deuterium_capacity FROM public.calculate_planet_storage(p_planet_id) AS s;
+
+    planet_id := p_planet_id; metal := ROUND(v_metal, 6); crystal := ROUND(v_crystal, 6); deuterium := ROUND(v_deuterium, 6); energy := ROUND(v_energy, 6); elapsed_seconds := ROUND(v_elapsed_seconds, 6);
+    projected_metal := ROUND(LEAST(v_metal_capacity, GREATEST(0, v_metal + v_metal_produced)), 6);
+    projected_crystal := ROUND(LEAST(v_crystal_capacity, GREATEST(0, v_crystal + v_crystal_produced)), 6);
+    projected_deuterium := ROUND(LEAST(v_deuterium_capacity, GREATEST(0, v_deuterium + v_deuterium_produced)), 6);
+    RETURN NEXT;
+END;
+$function$;
