@@ -1,0 +1,168 @@
+/* User-selectable dashboard structures. Templates change layout, density and panel geometry without touching game data. */
+.game { --template-gap: 14px; --template-radius: 4px; --template-panel-opacity: .78; }
+
+.template-switcher { display: grid; gap: 8px; }
+.template-filter { display:flex; flex-wrap:wrap; gap:5px; }
+.template-filter button, .template-card { font-family:var(--font-button); border:1px solid rgba(91,255,190,.16); background:rgba(4,20,20,.78); color:#bcebdc; cursor:pointer; }
+.template-filter button { padding:5px 8px; font-size:9px; }
+.template-filter button.active { border-color:rgba(92,255,193,.55); box-shadow:0 0 12px rgba(63,255,181,.1); color:#fff; }
+.template-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; max-height:290px; overflow:auto; padding-right:2px; }
+.template-card { text-align:left; padding:9px; min-height:70px; transition:.15s ease; }
+.template-card:hover { transform:translateY(-1px); border-color:rgba(92,255,193,.4); }
+.template-card.selected { border-color:#65ffc1; background:rgba(23,75,62,.35); box-shadow:inset 0 0 18px rgba(62,255,181,.08),0 0 12px rgba(62,255,181,.08); }
+.template-card strong { display:block; font-size:10px; margin-bottom:4px; }
+.template-card small { display:block; color:#659e8f; font-size:8px; line-height:1.35; }
+.template-meta { display:flex; justify-content:space-between; gap:5px; margin-top:5px; color:#3ecf9b; font-size:7px; text-transform:uppercase; }
+
+/* Default/deuteria */
+.template-deuteria .layout { gap:12px; }
+
+/* Command Center */
+.template-command .topbar { min-height:72px; }
+.template-command .layout { grid-template-columns:64px minmax(0,1fr); }
+.template-command .content { grid-template-columns:minmax(0,1fr) 220px; }
+.template-command .dashboard-grid > .panel:nth-child(1) { grid-row:1; }
+.template-command .dashboard-grid > .panel:nth-child(2) { grid-row:1 / 4; }
+.template-command .dashboard-grid > .panel:nth-child(3) { grid-row:2 / 4; }
+
+/* Orbital */
+.template-orbital .content { grid-template-columns:minmax(0,1fr) 160px; }
+.template-orbital .hero { min-height:280px; align-items:center; justify-content:center; text-align:center; position:relative; }
+.template-orbital .hero::before { content:''; position:absolute; width:230px; height:230px; border:1px solid rgba(77,255,190,.18); border-radius:50%; box-shadow:0 0 35px rgba(50,255,190,.08), inset 0 0 35px rgba(50,255,190,.04); }
+.template-orbital .hero > div { position:relative; }
+
+/* Neon Grid */
+.template-neon .layout { gap:8px; }
+.template-neon .panel, .template-neon .player-card { border-radius:0; border-color:rgba(75,255,193,.25); box-shadow:0 0 0 1px rgba(75,255,193,.03),0 0 22px rgba(25,255,180,.04); }
+.template-neon .dashboard-grid { gap:8px; }
+.template-neon .nav-button.active { background:rgba(64,255,181,.12); }
+
+/* Military Ops */
+.template-military { --template-gap:8px; }
+.template-military .topbar { border-bottom:2px solid rgba(129,255,118,.35); }
+.template-military .layout { grid-template-columns:185px minmax(0,1fr); }
+.template-military .sidebar { border-right:2px solid rgba(129,255,118,.18); }
+.template-military .nav-button { justify-content:flex-start; padding-left:13px; font-size:10px; }
+.template-military .nav-button::before { display:none; }
+.template-military .dashboard-grid > .panel { border-radius:2px; }
+
+/* Fleet Command */
+.template-fleet .layout { grid-template-columns:minmax(150px,220px) minmax(0,1fr); }
+.template-fleet .content { grid-template-columns:1fr; }
+.template-fleet .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:auto auto; gap:var(--template-gap); }
+.template-fleet .dashboard-grid > .panel:nth-child(1) { grid-column:1; grid-row:1; }
+.template-fleet .dashboard-grid > .panel:nth-child(2) { grid-column:2; grid-row:1 / 3; max-height:none; }
+.template-fleet .dashboard-grid > .panel:nth-child(3) { grid-column:1; grid-row:2; }
+
+/* War Room */
+.template-warroom .layout { grid-template-columns:280px minmax(0,1fr); }
+.template-warroom .content { grid-template-columns:1fr; }
+.template-warroom .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.template-warroom .dashboard-grid > .panel:nth-child(1), .template-warroom .dashboard-grid > .panel:nth-child(2) { grid-column:auto; grid-row:auto; max-height:none; }
+.template-warroom .dashboard-grid > .panel:nth-child(3) { grid-column:1 / -1; grid-row:auto; }
+
+/* Science Lab */
+.template-science .content { grid-template-columns:1fr; }
+.template-science .hero { border-left:3px solid rgba(111,172,255,.55); }
+.template-science .dashboard-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.template-science .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+
+/* Economy */
+.template-economy .content { grid-template-columns:1fr; }
+.template-economy .top-resources { flex:1; }
+.template-economy .dashboard-grid { display:grid; grid-template-columns:2fr 1fr; gap:10px; }
+.template-economy .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+.template-economy .dashboard-grid > .panel:nth-child(1) { grid-row:span 2!important; }
+
+/* Galaxy Map */
+.template-galaxy .layout { grid-template-columns:58px minmax(0,1fr); }
+.template-galaxy .content { grid-template-columns:1fr; }
+.template-galaxy .hero { min-height:310px; border:1px dashed rgba(75,255,190,.22); background-image:radial-gradient(circle,rgba(78,255,190,.09) 1px,transparent 1px); background-size:28px 28px; }
+.template-galaxy .dashboard-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.template-galaxy .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+
+/* Classic Empire */
+.template-classic .topbar { border-radius:0 0 8px 8px; }
+.template-classic .layout { grid-template-columns:190px minmax(0,1fr); }
+.template-classic .content { grid-template-columns:1fr; }
+.template-classic .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.template-classic .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+.template-classic .dashboard-grid > .panel:nth-child(3) { grid-column:1 / -1!important; }
+
+/* Portal */
+.template-portal .layout { display:block; }
+.template-portal .sidebar { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px; min-height:54px; border-bottom:1px solid rgba(70,255,190,.15); }
+.template-portal .player-card { min-width:190px; }
+.template-portal .sidebar nav { display:flex; flex:1; overflow:auto; }
+.template-portal .nav-button { min-width:100px; }
+.template-portal .content { min-height:calc(100vh - 140px); }
+.template-portal .content { grid-template-columns:1fr; }
+.template-portal .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.template-portal .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+.template-portal .dashboard-grid > .panel:nth-child(3) { grid-column:1 / -1!important; }
+
+/* Card Deck */
+.template-cards .layout { display:block; }
+.template-cards .sidebar { display:none; }
+.template-cards .content { display:block; }
+.template-cards .hero { margin-bottom:10px; }
+.template-cards .dashboard-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.template-cards .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; border-radius:14px; }
+.template-cards .dashboard-grid > .panel:nth-child(3) { grid-column:1 / -1!important; }
+
+/* Minimal */
+.template-minimal .topbar { background:transparent; border-bottom:1px solid rgba(255,255,255,.08); }
+.template-minimal .sidebar { width:48px; }
+.template-minimal .player-card { display:none; }
+.template-minimal .content { grid-template-columns:1fr; }
+.template-minimal .dashboard-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.template-minimal .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; background:rgba(3,10,11,.42); border-color:rgba(255,255,255,.08); }
+
+/* Terminal */
+.template-terminal { --font-body: "Share Tech Mono", monospace; --font-heading:"Share Tech Mono",monospace; --font-button:"Share Tech Mono",monospace; }
+.template-terminal .topbar, .template-terminal .panel, .template-terminal .player-card { border-radius:0; }
+.template-terminal .topbar::before { content:'SYSTEM://ONLINE'; font-family:var(--font-number); font-size:8px; color:#4cffb2; position:absolute; left:50%; transform:translateX(-50%); bottom:3px; }
+.template-terminal .layout { grid-template-columns:210px 1fr; }
+.template-terminal .nav-button { justify-content:flex-start; padding-left:12px; font-size:10px; }
+.template-terminal .nav-button::before { display:none; }
+
+/* Vertical Tower */
+.template-vertical .layout { display:block; }
+.template-vertical .sidebar { display:flex; gap:8px; align-items:center; min-height:48px; }
+.template-vertical .player-card { display:none; }
+.template-vertical .sidebar nav { display:flex; flex:1; }
+.template-vertical .nav-button { flex:1; }
+.template-vertical .content { display:block; }
+.template-vertical .dashboard-grid { display:grid; grid-template-columns:1fr; gap:8px; }
+.template-vertical .dashboard-grid > .panel { max-height:none!important; }
+
+/* Split Screen */
+.template-split .layout { grid-template-columns:58px minmax(0,1fr); }
+.template-split .content { grid-template-columns:1fr; }
+.template-split .hero { display:none; }
+.template-split .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; min-height:calc(100vh - 95px); gap:8px; }
+.template-split .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+.template-split .dashboard-grid > .panel:nth-child(3) { grid-column:1 / -1!important; max-height:220px; }
+
+/* Command Deck */
+.template-commanddeck .layout { display:block; }
+.template-commanddeck .content { grid-template-columns:1fr; }
+.template-commanddeck .sidebar { position:fixed; left:0; right:0; bottom:0; z-index:20; height:58px; border-top:1px solid rgba(70,255,190,.22); background:rgba(2,10,11,.96); display:flex; }
+.template-commanddeck .player-card { display:none; }
+.template-commanddeck .sidebar nav { display:flex; width:100%; }
+.template-commanddeck .nav-button { flex:1; }
+.template-commanddeck .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.template-commanddeck .dashboard-grid > .panel { grid-column:auto!important; grid-row:auto!important; max-height:none; }
+.template-commanddeck .dashboard-grid > .panel:nth-child(3) { grid-column:1 / -1!important; }
+
+@media (max-width:850px) {
+  .template-card-grid { grid-template-columns:1fr 1fr; }
+  .template-warroom .layout, .template-military .layout, .template-fleet .layout, .template-terminal .layout { grid-template-columns:1fr; }
+  .template-warroom .sidebar, .template-military .sidebar, .template-fleet .sidebar, .template-terminal .sidebar { display:flex; min-height:48px; }
+}
+
+@media (max-width:600px) {
+  .template-card-grid { grid-template-columns:1fr; max-height:250px; }
+  .template-science .dashboard-grid, .template-economy .dashboard-grid, .template-galaxy .dashboard-grid, .template-cards .dashboard-grid { grid-template-columns:1fr; }
+  .template-cards .dashboard-grid > .panel:nth-child(3), .template-galaxy .dashboard-grid > .panel:nth-child(3) { grid-column:auto!important; }
+}
