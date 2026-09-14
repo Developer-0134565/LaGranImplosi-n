@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import './App.css'
 import './styles/fonts.css'
+import './styles/dashboard-reference.css'
 import { supabase } from './lib/supabase'
 
 type FontRole = 'title' | 'heading' | 'body' | 'number' | 'button'
@@ -360,12 +361,12 @@ function App() {
           <section className="style-preview">
             <span className="section-title">VISTA PREVIA</span>
             <div className="preview-title">LA GRAN IMPLOSIÓN</div>
-            <div className="preview-heading">CENTRO DE CONTROL</div>
-            <div className="preview-body">Flota preparada para operaciones.</div>
+            <div className="preview-heading">ENCABEZADO DEL SISTEMA</div>
+            <div className="preview-body">Texto de interfaz para comprobar la tipografía seleccionada.</div>
             <div className="preview-number">1.234.567.890</div>
-            <button type="button" className="preview-button">INICIAR OPERACIÓN</button>
+            <button type="button" className="preview-button">BOTÓN DE PRUEBA</button>
           </section>
-          <button type="button" className="reset-button" onClick={resetFonts}>RESTAURAR PREDETERMINADO</button>
+          <button type="button" className="reset-button" onClick={resetFonts}>RESTABLECER TIPOGRAFÍA</button>
         </aside>
       )}
     </main>
