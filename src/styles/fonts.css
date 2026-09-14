@@ -74,6 +74,8 @@ textarea {
   font-family: var(--font-button) !important;
 }
 
+/* The font picker preview is intentionally controlled by its inline fontFamily
+   so each selected font is visibly previewed before applying it elsewhere. */
 .font-preview {
   font-family: inherit;
 }
