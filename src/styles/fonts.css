@@ -11,21 +11,21 @@
 
 html,
 body {
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body);
 }
 
 button,
 select,
 input,
 textarea {
-  font-family: var(--font-button) !important;
+  font-family: var(--font-button);
 }
 
 .logo,
 .logo strong,
 .hero h1,
 .preview-title {
-  font-family: var(--font-title) !important;
+  font-family: var(--font-title);
 }
 
 .panel-header,
@@ -37,7 +37,7 @@ textarea {
 .preview-heading,
 .style-header h2,
 .system-message strong {
-  font-family: var(--font-heading) !important;
+  font-family: var(--font-heading);
 }
 
 .game,
@@ -49,7 +49,7 @@ textarea {
 .system-message p,
 .hero p,
 .preview-body {
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body);
 }
 
 .number,
@@ -59,7 +59,7 @@ textarea {
 .planet-row small,
 .planet-status,
 .preview-number {
-  font-family: var(--font-number) !important;
+  font-family: var(--font-number);
   font-variant-numeric: tabular-nums;
 }
 
@@ -71,7 +71,7 @@ textarea {
 .close-button,
 .font-control select,
 .preview-button {
-  font-family: var(--font-button) !important;
+  font-family: var(--font-button);
 }
 
 /* The font picker preview is intentionally controlled by its inline fontFamily
