@@ -1,13 +1,17 @@
+interface Env {
+  ASSETS: Fetcher
+}
+
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    const url = new URL(request.url)
 
-    if (url.pathname.startsWith("/api/")) {
+    if (url.pathname.startsWith('/api/')) {
       return Response.json({
-        name: "Cloudflare",
-      });
+        name: 'Cloudflare',
+      })
     }
 
-    return env.ASSETS.fetch(request);
+    return env.ASSETS.fetch(request)
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env>
