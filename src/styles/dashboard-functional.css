@@ -1,3 +1,5 @@
+@import './deuteria-inspired.css';
+
 .management-view { grid-column: 1 / -1; min-width: 0; padding: 2px 0 24px; }
 .view-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px; padding:16px 18px; border:1px solid rgba(76,255,174,.2); background:linear-gradient(145deg,rgba(5,25,23,.88),rgba(2,10,11,.94)); }
 .view-heading h1 { margin:5px 0 3px; font-family:var(--font-title); font-size:clamp(22px,3vw,32px); letter-spacing:1.5px; color:#edfff9; }
