@@ -8,6 +8,7 @@ import './ui-scale'
 import App from './App.tsx'
 import './styles/deuteria-original.css'
 import './template-neo-fix'
+import './widget-visibility-toggle'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
