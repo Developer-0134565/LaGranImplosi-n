@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import './styles/fonts.css'
-import './styles/deuteria-original.css'
 import { supabase } from './lib/supabase'
 import { useTemporalSync } from './use-temporal-sync'
 
