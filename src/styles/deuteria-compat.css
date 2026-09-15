@@ -1,12 +1,18 @@
 :root{--neo-sidebar-width:132px}
 
-/* Keep the Deuteria/OGameX compact navigation language: the extra entries use
-   the same row geometry as the native navigation instead of introducing a
-   second visual button system. */
+/* Deuteria/OGameX compact navigation */
 .neo-nav-extra{min-height:32px!important;padding:7px 8px!important}
 .neo-nav-extra .lgi-extra-icon{display:grid!important;place-items:center;width:17px!important;height:17px!important;flex:0 0 17px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:var(--neo-dim)!important;font:700 13px var(--font-button)!important;line-height:1!important}
-.neo-nav-extra:hover .lgi-extra-icon,.neo-nav-extra.active .lgi-extra-icon{color:var(--neo-accent)!important;border:0!important;box-shadow:none!important}
+.neo-nav-extra:hover .lgi-extra-icon,.neo-nav-extra.active .lgi-extra-icon{color:var(--neo-accent)!important}
 .neo-nav-extra.active{box-shadow:inset 2px 0 var(--neo-accent)!important}
+
+/* The appearance drawer lives inside .game, which is globally zoomed.
+   Cancel that zoom locally so the whole configuration window remains visible. */
+.style-panel{zoom:calc(1 / var(--lgi-ui-scale, 1.75))!important;top:0!important;right:0!important;width:min(420px,100vw)!important;height:100vh!important;max-height:100vh!important;overflow-x:hidden!important;overflow-y:auto!important;padding:20px!important;z-index:10000!important}
+.style-panel .style-header{position:sticky!important;top:-20px!important;z-index:3!important;padding:4px 0 14px!important;background:linear-gradient(180deg,rgba(5,20,18,.99) 72%,rgba(5,20,18,0))!important}
+.style-panel .font-control{min-width:0!important}
+.style-panel select{width:100%!important;min-width:0!important}
+.style-panel .template-card-grid{grid-template-columns:1fr!important}
 
 /* Utility panels opened by sidebar modules belong to the same visual system. */
 #lgi-sidebar-utility-panel{font-family:var(--font-body)!important;color:var(--neo-text)!important;background:var(--neo-surface)!important;border:1px solid var(--neo-line-strong)!important;border-radius:var(--neo-radius)!important;box-shadow:var(--neo-shadow)!important;backdrop-filter:blur(12px)!important;zoom:var(--lgi-ui-scale,1.75)}
@@ -14,6 +20,17 @@
 #lgi-sidebar-utility-panel .lgi-action:hover{border-color:var(--neo-accent)!important;color:var(--neo-accent)!important}
 #lgi-sidebar-utility-panel input,#lgi-sidebar-utility-panel textarea{font-family:var(--font-body)!important;background:rgba(5,7,12,.72)!important;border-color:var(--neo-line)!important;color:var(--neo-text)!important}
 
+/* Buildings: keep the same compact Deuteria/OGameX card language and make the
+   starter economy visible without inventing a second component system. */
+.neo-definition{min-width:0!important;overflow:hidden!important}
+.neo-definition .neo-panel-title{display:flex!important;align-items:flex-start!important;gap:10px!important}
+.neo-definition .neo-panel-title>div{min-width:0!important;flex:1!important}
+.neo-definition .neo-panel-title strong{display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.neo-definition .neo-panel-title small{display:block!important;margin-top:3px!important;color:var(--neo-dim)!important;line-height:1.35!important}
+.neo-definition .neo-level{font-family:var(--font-number)!important;color:var(--neo-accent)!important}
+.neo-definition button{width:100%!important;margin-top:10px!important}
+
 @media(max-width:760px){
   .neo-nav-extra .lgi-extra-icon{width:17px!important;flex-basis:17px!important}
+  .style-panel{width:100vw!important;padding:16px!important}
 }
