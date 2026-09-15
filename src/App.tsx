@@ -9,153 +9,101 @@ import { dashboardTemplates, defaultTemplate, getTemplate, TEMPLATE_STORAGE_KEY,
 
 type FontRole = 'title' | 'heading' | 'body' | 'number' | 'button'
 type FontSettings = Record<FontRole, string>
+type View = 'overview' | 'planets' | 'buildings' | 'research' | 'shipyard' | 'defense' | 'fleet' | 'galaxy' | 'expedition'
 
-type Planet = {
-  id: string
-  name: string
-  galaxy: number
-  system: number
-  position: number
-  is_homeworld: boolean
-  is_destroyed: boolean
-  players: Array<{ username: string; is_guest: boolean }>
-  planet_resources: Array<{ metal: number | string; crystal: number | string; deuterium: number | string; energy: number | string }>
-}
+type Planet = { id: string; name: string; galaxy: number; system: number; position: number; is_homeworld: boolean; is_destroyed: boolean; players: Array<{ id: string; username: string; is_guest: boolean }>; planet_resources: Array<{ metal: number | string; crystal: number | string; deuterium: number | string; energy: number | string }> }
+type Definition = { id: string; name: string; description?: string | null; [key: string]: unknown }
+type QueueRow = { id: string; building_id?: string; research_id?: string; ship_id?: string; defense_id?: string; target_level?: number; quantity?: number; finishes_at: string; status: string }
 
 const FONT_STORAGE_KEY = 'lagranimplosion-fonts'
-
-const fonts: Record<FontRole, string[]> = {
-  title: ['Orbitron', 'Audiowide', 'Michroma', 'Oxanium'],
-  heading: ['Rajdhani', 'Oxanium', 'Exo 2', 'Space Grotesk'],
-  body: ['Exo 2', 'Inter', 'Space Grotesk', 'Rajdhani'],
-  number: ['Share Tech Mono', 'JetBrains Mono', 'Orbitron'],
-  button: ['Oxanium', 'Rajdhani', 'Orbitron', 'Exo 2'],
-}
-
-const presets: Record<string, FontSettings> = {
-  Deuteria: { title: 'Orbitron', heading: 'Rajdhani', body: 'Exo 2', number: 'Share Tech Mono', button: 'Oxanium' },
-  Militar: { title: 'Michroma', heading: 'Oxanium', body: 'Exo 2', number: 'Share Tech Mono', button: 'Rajdhani' },
-  'Sci-Fi moderno': { title: 'Audiowide', heading: 'Space Grotesk', body: 'Inter', number: 'JetBrains Mono', button: 'Oxanium' },
-}
-
+const fonts: Record<FontRole, string[]> = { title: ['Orbitron', 'Audiowide', 'Michroma', 'Oxanium'], heading: ['Rajdhani', 'Oxanium', 'Exo 2', 'Space Grotesk'], body: ['Exo 2', 'Inter', 'Space Grotesk', 'Rajdhani'], number: ['Share Tech Mono', 'JetBrains Mono', 'Orbitron'], button: ['Oxanium', 'Rajdhani', 'Orbitron', 'Exo 2'] }
+const presets: Record<string, FontSettings> = { Deuteria: { title: 'Orbitron', heading: 'Rajdhani', body: 'Exo 2', number: 'Share Tech Mono', button: 'Oxanium' }, Militar: { title: 'Michroma', heading: 'Oxanium', body: 'Exo 2', number: 'Share Tech Mono', button: 'Rajdhani' }, 'Sci-Fi moderno': { title: 'Audiowide', heading: 'Space Grotesk', body: 'Inter', number: 'JetBrains Mono', button: 'Oxanium' } }
 const defaultFonts: FontSettings = { ...presets.Deuteria }
 const allFonts = Array.from(new Set(Object.values(fonts).flat()))
+const navItems: Array<{ id: View; label: string; icon: string }> = [
+  { id: 'overview', label: 'OVERVIEW', icon: '⌂' }, { id: 'planets', label: 'PLANETAS', icon: '◉' }, { id: 'buildings', label: 'EDIFICIOS', icon: '▦' }, { id: 'research', label: 'INVESTIGACIÓN', icon: '⚗' }, { id: 'shipyard', label: 'HANGAR', icon: '✦' }, { id: 'defense', label: 'DEFENSAS', icon: '⬢' }, { id: 'fleet', label: 'FLOTA', icon: '➤' }, { id: 'galaxy', label: 'GALAXIA', icon: '✧' }, { id: 'expedition', label: 'EXPEDICIONES', icon: '◎' }]
 
 function isValidFont(role: FontRole, value: unknown): value is string { return typeof value === 'string' && fonts[role].includes(value) }
-function sanitizeFontSettings(value: unknown): FontSettings {
-  if (!value || typeof value !== 'object') return { ...defaultFonts }
-  const parsed = value as Partial<FontSettings>
-  return {
-    title: isValidFont('title', parsed.title) ? parsed.title : defaultFonts.title,
-    heading: isValidFont('heading', parsed.heading) ? parsed.heading : defaultFonts.heading,
-    body: isValidFont('body', parsed.body) ? parsed.body : defaultFonts.body,
-    number: isValidFont('number', parsed.number) ? parsed.number : defaultFonts.number,
-    button: isValidFont('button', parsed.button) ? parsed.button : defaultFonts.button,
-  }
-}
-function loadSavedFonts(): FontSettings {
-  try { const saved = localStorage.getItem(FONT_STORAGE_KEY); return saved ? sanitizeFontSettings(JSON.parse(saved)) : { ...defaultFonts } } catch { return { ...defaultFonts } }
-}
+function sanitizeFontSettings(value: unknown): FontSettings { if (!value || typeof value !== 'object') return { ...defaultFonts }; const p = value as Partial<FontSettings>; return { title: isValidFont('title', p.title) ? p.title : defaultFonts.title, heading: isValidFont('heading', p.heading) ? p.heading : defaultFonts.heading, body: isValidFont('body', p.body) ? p.body : defaultFonts.body, number: isValidFont('number', p.number) ? p.number : defaultFonts.number, button: isValidFont('button', p.button) ? p.button : defaultFonts.button } }
+function loadSavedFonts(): FontSettings { try { const saved = localStorage.getItem(FONT_STORAGE_KEY); return saved ? sanitizeFontSettings(JSON.parse(saved)) : { ...defaultFonts } } catch { return { ...defaultFonts } } }
 function saveFontSettings(settings: FontSettings) { try { localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(settings)) } catch {} }
 function clearSavedFonts() { try { localStorage.removeItem(FONT_STORAGE_KEY) } catch {} }
-function loadSavedTemplate(): DashboardTemplate {
-  try { return getTemplate(localStorage.getItem(TEMPLATE_STORAGE_KEY)) } catch { return defaultTemplate }
-}
+function loadSavedTemplate(): DashboardTemplate { try { return getTemplate(localStorage.getItem(TEMPLATE_STORAGE_KEY)) } catch { return defaultTemplate } }
 function saveTemplate(template: DashboardTemplate) { try { localStorage.setItem(TEMPLATE_STORAGE_KEY, template.id) } catch {} }
 function fontStack(font: string, fallback: string) { return `"${font}", ${fallback}` }
-function getFontVariables(settings: FontSettings): CSSProperties {
-  return { '--font-title': fontStack(settings.title, 'sans-serif'), '--font-heading': fontStack(settings.heading, 'sans-serif'), '--font-body': fontStack(settings.body, 'sans-serif'), '--font-number': fontStack(settings.number, 'monospace'), '--font-button': fontStack(settings.button, 'sans-serif') } as CSSProperties
-}
-function applyFonts(settings: FontSettings) {
-  const variables = getFontVariables(settings) as Record<string, string>
-  const targets: HTMLElement[] = [document.documentElement]
-  const game = document.querySelector<HTMLElement>('.game')
-  if (game) targets.push(game)
-  targets.forEach((target) => Object.entries(variables).forEach(([name, value]) => target.style.setProperty(name, value)))
-}
-async function preloadFont(font: string) {
-  try { await Promise.all([document.fonts.load(`400 16px "${font}"`), document.fonts.load(`600 16px "${font}"`), document.fonts.load(`700 16px "${font}"`)]) } catch {}
-}
-async function preloadAllFonts() { await document.fonts.ready; await Promise.all(allFonts.map(preloadFont)) }
-function formatNumber(value: number | string | undefined) { if (value === undefined) return '—'; const number = Number(value); if (!Number.isFinite(number)) return '—'; return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(number) }
-function coordinates(planet: Pick<Planet, 'galaxy' | 'system' | 'position'>) { return `[${planet.galaxy}:${planet.system}:${planet.position}]` }
+function getFontVariables(settings: FontSettings): CSSProperties { return { '--font-title': fontStack(settings.title, 'sans-serif'), '--font-heading': fontStack(settings.heading, 'sans-serif'), '--font-body': fontStack(settings.body, 'sans-serif'), '--font-number': fontStack(settings.number, 'monospace'), '--font-button': fontStack(settings.button, 'sans-serif') } as CSSProperties }
+function formatNumber(value: number | string | undefined) { if (value === undefined) return '—'; const n = Number(value); return Number.isFinite(n) ? new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(n) : '—' }
+function coordinates(p: Pick<Planet, 'galaxy' | 'system' | 'position'>) { return `[${p.galaxy}:${p.system}:${p.position}]` }
+function formatTime(value?: string) { if (!value) return '—'; return new Date(value).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
 
-function FontSelector({ role, label, value, onChange }: { role: FontRole; label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="font-control"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{fonts[role].map((font) => <option key={font} value={font}>{font}</option>)}</select><strong className="font-preview" style={{ fontFamily: `"${value}", sans-serif` }}>{value}</strong></label>
-}
-
-function TemplatePicker({ selected, onChange }: { selected: DashboardTemplate; onChange: (template: DashboardTemplate) => void }) {
-  const [category, setCategory] = useState<'TODAS' | DashboardTemplate['category']>('TODAS')
-  const categories: Array<'TODAS' | DashboardTemplate['category']> = ['TODAS', 'HUD', 'TÁCTICA', 'ESTRATÉGICA', 'CLÁSICA', 'EXPERIMENTAL']
-  const visible = category === 'TODAS' ? dashboardTemplates : dashboardTemplates.filter((template) => template.category === category)
-  return <div className="template-switcher">
-    <div className="template-filter">{categories.map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>
-    <div className="template-card-grid">
-      {visible.map((template) => <button type="button" key={template.id} className={`template-card${selected.id === template.id ? ' selected' : ''}`} onClick={() => onChange(template)}><strong>{template.name}</strong><small>{template.description}</small><span className="template-meta"><span>{template.category}</span>{selected.id === template.id && <span>ACTIVA</span>}</span></button>)}
-    </div>
-  </div>
-}
+function FontSelector({ role, label, value, onChange }: { role: FontRole; label: string; value: string; onChange: (value: string) => void }) { return <label className="font-control"><span>{label}</span><select value={value} onChange={(e) => onChange(e.target.value)}>{fonts[role].map((font) => <option key={font}>{font}</option>)}</select><strong className="font-preview" style={{ fontFamily: `"${value}", sans-serif` }}>{value}</strong></label> }
+function TemplatePicker({ selected, onChange }: { selected: DashboardTemplate; onChange: (template: DashboardTemplate) => void }) { const [category, setCategory] = useState<'TODAS' | DashboardTemplate['category']>('TODAS'); const categories: Array<'TODAS' | DashboardTemplate['category']> = ['TODAS', 'HUD', 'TÁCTICA', 'ESTRATÉGICA', 'CLÁSICA', 'EXPERIMENTAL']; const visible = category === 'TODAS' ? dashboardTemplates : dashboardTemplates.filter((t) => t.category === category); return <div className="template-switcher"><div className="template-filter">{categories.map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="template-card-grid">{visible.map((t) => <button type="button" key={t.id} className={`template-card${selected.id === t.id ? ' selected' : ''}`} onClick={() => onChange(t)}><strong>{t.name}</strong><small>{t.description}</small><span className="template-meta"><span>{t.category}</span>{selected.id === t.id && <span>ACTIVA</span>}</span></button>)}</div></div> }
 
 function App() {
   const [fontSettings, setFontSettings] = useState<FontSettings>(() => loadSavedFonts())
   const [template, setTemplate] = useState<DashboardTemplate>(() => loadSavedTemplate())
   const [panelOpen, setPanelOpen] = useState(false)
+  const [view, setView] = useState<View>('overview')
   const [planets, setPlanets] = useState<Planet[]>([])
-  const [gameDataLoading, setGameDataLoading] = useState(true)
-  const [gameDataError, setGameDataError] = useState<string | null>(null)
+  const [definitions, setDefinitions] = useState<Definition[]>([])
+  const [owned, setOwned] = useState<Record<string, number>>({})
+  const [queues, setQueues] = useState<QueueRow[]>([])
+  const [galaxies, setGalaxies] = useState<Array<{ galaxy: number; system_count: number; is_special: boolean; next_system_expansion_at: string | null }>>([])
+  const [fleetRows, setFleetRows] = useState<Array<{ id: string; mission_type: string; status: string; destination_galaxy: number; destination_system: number; destination_position: number; arrives_at: string; returns_at: string | null }>>([])
+  const [loading, setLoading] = useState(true)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const fontVariables = useMemo(() => getFontVariables(fontSettings), [fontSettings])
-  const homeworld = planets.find((planet) => planet.is_homeworld) ?? planets[0]
-  const homeworldResources = homeworld?.planet_resources[0]
-  const currentPlayer = homeworld?.players[0] ?? null
-  const playerLabel = currentPlayer?.is_guest ? 'INVITADO' : 'JUGADOR'
-  const gameStatus = gameDataLoading ? 'CARGANDO' : gameDataError ? 'ERROR' : planets.length > 0 ? 'ONLINE' : 'SIN DATOS'
+  const homeworld = planets.find((p) => p.is_homeworld) ?? planets[0]
+  const resources = homeworld?.planet_resources[0]
+  const currentPlayer = homeworld?.players[0]
 
-  useEffect(() => { const safeSettings = sanitizeFontSettings(fontSettings); applyFonts(safeSettings); saveFontSettings(safeSettings) }, [fontSettings])
-  useEffect(() => { void preloadAllFonts() }, [])
-  useEffect(() => { if (!panelOpen) return; function handleKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') setPanelOpen(false) }; window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown) }, [panelOpen])
-  useEffect(() => {
-    let active = true
-    async function loadGameData() {
-      setGameDataLoading(true); setGameDataError(null)
-      const { data, error } = await supabase.from('planets').select('id,name,galaxy,system,position,is_homeworld,is_destroyed,players(username,is_guest),planet_resources(metal,crystal,deuterium,energy)').eq('is_destroyed', false).order('galaxy', { ascending: true }).order('system', { ascending: true }).order('position', { ascending: true })
-      if (!active) return
-      if (error) { setGameDataError('No se han podido cargar los datos del imperio.'); setPlanets([]) } else setPlanets((data ?? []) as Planet[])
-      setGameDataLoading(false)
-    }
-    void loadGameData(); return () => { active = false }
-  }, [])
+  useEffect(() => { const vars = getFontVariables(fontSettings) as Record<string, string>; Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v)); saveFontSettings(fontSettings) }, [fontSettings])
+  useEffect(() => { void Promise.all(allFonts.map(async (font) => { try { await document.fonts.load(`400 16px "${font}"`) } catch {} })) }, [])
+  useEffect(() => { let active = true; async function load() { setLoading(true); const { data, error: e } = await supabase.from('planets').select('id,name,galaxy,system,position,is_homeworld,is_destroyed,players(id,username,is_guest),planet_resources(metal,crystal,deuterium,energy)').eq('is_destroyed', false).order('galaxy').order('system').order('position'); if (!active) return; if (e) { setError(e.message); setPlanets([]) } else setPlanets((data ?? []) as Planet[]); setLoading(false) } void load(); return () => { active = false } }, [])
+  useEffect(() => { if (!panelOpen) return; const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanelOpen(false) }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn) }, [panelOpen])
+  useEffect(() => { if (!homeworld || view === 'overview' || view === 'planets') return; void loadView(view) }, [view, homeworld?.id])
 
-  function changeFont(role: FontRole, value: string) { if (isValidFont(role, value)) setFontSettings((current) => ({ ...current, [role]: value })) }
-  function applyPreset(name: string) { const preset = presets[name]; if (preset) setFontSettings({ ...preset }) }
-  function resetFonts() { setFontSettings({ ...defaultFonts }); clearSavedFonts() }
+  async function loadView(nextView: View) {
+    if (!homeworld || !currentPlayer) return
+    setViewLoading(true); setError(null)
+    try {
+      if (nextView === 'buildings') { const [{ data: defs, error: de }, { data: rows, error: oe }] = await Promise.all([supabase.from('building_definitions').select('id,name,description,max_level').order('id'), supabase.from('planet_buildings').select('building_id,level').eq('planet_id', homeworld.id)]); if (de) throw de; if (oe) throw oe; setDefinitions((defs ?? []) as Definition[]); setOwned(Object.fromEntries((rows ?? []).map((r: { building_id: string; level: number }) => [r.building_id, r.level]))); const { data: q, error: qe } = await supabase.from('building_queue').select('id,building_id,target_level,finishes_at,status').eq('planet_id', homeworld.id).in('status', ['BUILDING','QUEUED']).order('finishes_at'); if (!qe) setQueues((q ?? []) as QueueRow[]) }
+      if (nextView === 'research') { const [{ data: defs, error: de }, { data: rows, error: oe }] = await Promise.all([supabase.from('research_definitions').select('id,name,description,max_level').order('id'), supabase.from('player_research').select('research_id,level').eq('player_id', currentPlayer.id)]); if (de) throw de; if (oe) throw oe; setDefinitions((defs ?? []) as Definition[]); setOwned(Object.fromEntries((rows ?? []).map((r: { research_id: string; level: number }) => [r.research_id, r.level]))); const { data: q, error: qe } = await supabase.from('research_queue').select('id,research_id,target_level,finishes_at,status').eq('player_id', currentPlayer.id).in('status', ['RESEARCHING','QUEUED']).order('finishes_at'); if (!qe) setQueues((q ?? []) as QueueRow[]) }
+      if (nextView === 'shipyard') { const { data: defs, error: de } = await supabase.from('ship_definitions').select('id,name,description,ship_type,base_metal,base_crystal,base_deuterium,attack,shield,hull,cargo_capacity,speed').order('ship_type').order('id'); if (de) throw de; setDefinitions((defs ?? []) as Definition[]); const { data: rows } = await supabase.from('planet_ships').select('ship_id,quantity').eq('planet_id', homeworld.id); setOwned(Object.fromEntries((rows ?? []).map((r: { ship_id: string; quantity: number }) => [r.ship_id, r.quantity]))); const { data: q } = await supabase.from('shipyard_queue').select('id,ship_id,quantity,finishes_at,status').eq('planet_id', homeworld.id).in('status', ['BUILDING','QUEUED']).order('finishes_at'); setQueues((q ?? []) as QueueRow[]) }
+      if (nextView === 'defense') { const { data: defs, error: de } = await supabase.from('defense_definitions').select('id,name,metal_cost,crystal_cost,deuterium_cost,attack,shield,hull').order('id'); if (de) throw de; setDefinitions((defs ?? []) as Definition[]); const { data: rows } = await supabase.from('planet_defenses').select('defense_id,quantity').eq('planet_id', homeworld.id); setOwned(Object.fromEntries((rows ?? []).map((r: { defense_id: string; quantity: number }) => [r.defense_id, r.quantity]))); const { data: q } = await supabase.from('defense_queue').select('id,defense_id,quantity,finishes_at,status').eq('planet_id', homeworld.id).in('status', ['BUILDING','QUEUED']).order('finishes_at'); setQueues((q ?? []) as QueueRow[]) }
+      if (nextView === 'fleet' || nextView === 'expedition') { const { data, error: fe } = await supabase.from('fleet_movements').select('id,mission_type,status,destination_galaxy,destination_system,destination_position,arrives_at,returns_at').eq('player_id', currentPlayer.id).order('created_at', { ascending: false }).limit(30); if (fe) throw fe; setFleetRows((data ?? []) as typeof fleetRows) }
+      if (nextView === 'galaxy') { const { data, error: ge } = await supabase.from('universe_galaxies').select('galaxy,system_count,is_special,next_system_expansion_at').order('galaxy').limit(100); if (ge) throw ge; setGalaxies((data ?? []) as typeof galaxies) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cargar el menú.') } finally { setViewLoading(false) }
+  }
+
+  async function refreshPlanet() { if (!homeworld) return; const { data } = await supabase.from('planets').select('id,name,galaxy,system,position,is_homeworld,is_destroyed,players(id,username,is_guest),planet_resources(metal,crystal,deuterium,energy)').eq('id', homeworld.id).maybeSingle(); if (data) setPlanets((current) => current.map((p) => p.id === homeworld.id ? data as Planet : p)) }
+  async function action(type: 'building' | 'research' | 'ship' | 'defense', id: string) {
+    if (!homeworld || !currentPlayer) return; setBusyId(id); setNotice(null); setError(null)
+    const rpc = type === 'building' ? 'start_building' : type === 'research' ? 'start_research' : type === 'ship' ? 'start_ship' : 'start_defense'
+    const args = type === 'building' ? { p_player_id: currentPlayer.id, p_planet_id: homeworld.id, p_building_id: id } : type === 'research' ? { p_player_id: currentPlayer.id, p_planet_id: homeworld.id, p_research_id: id } : type === 'ship' ? { p_player_id: currentPlayer.id, p_planet_id: homeworld.id, p_ship_id: id, p_quantity: 1 } : { p_player_id: currentPlayer.id, p_planet_id: homeworld.id, p_defense_id: id, p_quantity: 1 }
+    const { error: e } = await supabase.rpc(rpc, args)
+    if (e) setError(e.message); else { setNotice(`${type === 'building' ? 'Construcción' : type === 'research' ? 'Investigación' : type === 'ship' ? 'Nave' : 'Defensa'} iniciada correctamente.`); await refreshPlanet(); await loadView(view) }
+    setBusyId(null)
+  }
+  function changeFont(role: FontRole, value: string) { if (isValidFont(role, value)) setFontSettings((c) => ({ ...c, [role]: value })) }
   function changeTemplate(next: DashboardTemplate) { setTemplate(next); saveTemplate(next) }
+  function openView(next: View) { setView(next); setNotice(null); setError(null) }
 
-  return <main className={`game ${template.layout}`} style={fontVariables}>
-    <header className="topbar">
-      <div className="logo"><span>LA GRAN</span><strong>IMPLOSIÓN</strong></div>
-      <div className="top-resources"><div className="resource"><span>METAL</span><strong className="number">{formatNumber(homeworldResources?.metal)}</strong></div><div className="resource"><span>CRISTAL</span><strong className="number">{formatNumber(homeworldResources?.crystal)}</strong></div><div className="resource"><span>DEUTERIO</span><strong className="number">{formatNumber(homeworldResources?.deuterium)}</strong></div><div className="resource"><span>ENERGÍA</span><strong className="number">{formatNumber(homeworldResources?.energy)}</strong></div></div>
-      <button type="button" className="settings-button" onClick={() => setPanelOpen((current) => !current)} aria-label={panelOpen ? 'Cerrar configuración' : 'Abrir configuración'} aria-expanded={panelOpen} aria-controls="appearance-panel">⚙</button>
-    </header>
-    <div className="layout">
-      <aside className="sidebar"><div className="player-card"><div className="player-avatar">👤</div><div><small>{playerLabel}</small><strong>{currentPlayer?.username ?? 'Cargando jugador…'}</strong></div></div><nav><button type="button" className="nav-button active">OVERVIEW</button><button type="button" className="nav-button">PLANETAS</button><button type="button" className="nav-button">FLOTA</button><button type="button" className="nav-button">INVESTIGACIÓN</button><button type="button" className="nav-button">CONSTRUCCIÓN</button><button type="button" className="nav-button">GALAXIA</button></nav></aside>
-      <section className="content">
-        <div className="hero"><div><span className="eyebrow">{homeworld ? `SISTEMA ${homeworld.system} · IMPERIO` : 'SISTEMA · IMPERIO'}</span><h1>{homeworld?.name ?? 'Cargando planeta…'}</h1><p>{homeworld ? `${coordinates(homeworld)} · ${homeworld.is_homeworld ? 'Planeta principal' : 'Planeta'}` : 'Esperando datos del imperio…'}</p></div><div className="planet-status">{gameStatus}</div></div>
-        <div className="dashboard-grid">
-          <article className="panel"><div className="panel-header"><span>RECURSOS</span><small>{homeworld ? 'PLANETA ACTUAL' : 'SIN DATOS'}</small></div><div className="resource-row"><span>🪨 Metal</span><strong className="number">{formatNumber(homeworldResources?.metal)}</strong></div><div className="resource-row"><span>💎 Cristal</span><strong className="number">{formatNumber(homeworldResources?.crystal)}</strong></div><div className="resource-row"><span>💧 Deuterio</span><strong className="number">{formatNumber(homeworldResources?.deuterium)}</strong></div><div className="resource-row"><span>⚡ Energía</span><strong className="number">{formatNumber(homeworldResources?.energy)}</strong></div>{gameDataError && <small>{gameDataError}</small>}</article>
-          <article className="panel"><div className="panel-header"><span>PLANETAS</span><small>{planets.length} PLANETAS</small></div>{planets.map((planet) => <div className="planet-row" key={planet.id}><span>🌍 {planet.name}</span><small>{coordinates(planet)}</small></div>)}{!gameDataLoading && planets.length === 0 && <div className="planet-row"><span>No hay planetas visibles</span><small>—</small></div>}</article>
-          <article className="panel wide"><div className="panel-header"><span>SISTEMA</span><small>ESTADO</small></div><div className="system-message"><span className="pulse" /><div><strong>{gameDataError ? 'Sin conexión con los datos' : planets.length > 0 ? 'Datos del imperio cargados' : 'Esperando datos del imperio'}</strong><p>{gameDataError ? gameDataError : 'La vista general está conectada a los datos disponibles de Supabase.'}</p></div></div><button type="button" className="action-button">ABRIR CENTRO DE CONTROL</button></article>
-        </div>
-      </section>
-    </div>
-    {panelOpen && <aside id="appearance-panel" className="style-panel" role="dialog" aria-modal="true" aria-label="Configuración de apariencia">
-      <div className="style-header"><div><span>CONFIGURACIÓN</span><h2>APARIENCIA</h2></div><button type="button" className="close-button" onClick={() => setPanelOpen(false)} aria-label="Cerrar configuración">×</button></div>
-      <section className="style-section"><span className="section-title">PLANTILLAS DE ESTRUCTURA</span><p className="template-help">Elige una estructura completa para la interfaz. La plantilla solo cambia la presentación; tus datos y lógica de juego permanecen intactos.</p><TemplatePicker selected={template} onChange={changeTemplate} /></section>
-      <section className="style-section"><span className="section-title">PRESETS DE TIPOGRAFÍA</span><div className="preset-grid">{Object.keys(presets).map((preset) => <button type="button" key={preset} className="preset-button" onClick={() => applyPreset(preset)}>{preset}</button>)}</div></section>
-      <section className="style-section"><span className="section-title">TIPOGRAFÍA</span><FontSelector role="title" label="Títulos" value={fontSettings.title} onChange={(value) => changeFont('title', value)} /><FontSelector role="heading" label="Encabezados" value={fontSettings.heading} onChange={(value) => changeFont('heading', value)} /><FontSelector role="body" label="Texto" value={fontSettings.body} onChange={(value) => changeFont('body', value)} /><FontSelector role="number" label="Números" value={fontSettings.number} onChange={(value) => changeFont('number', value)} /><FontSelector role="button" label="Botones" value={fontSettings.button} onChange={(value) => changeFont('button', value)} /></section>
-      <section className="style-preview"><span className="section-title">PLANTILLA ACTIVA</span><div className="preview-title">{template.name}</div><div className="preview-body">{template.description}</div><div className="preview-number">{template.category}</div></section>
-      <button type="button" className="reset-button" onClick={() => changeTemplate(defaultTemplate)}>RESTABLECER PLANTILLA</button><button type="button" className="reset-button" onClick={resetFonts}>RESTABLECER TIPOGRAFÍA</button>
-    </aside>}
-  </main>
+  const title = navItems.find((n) => n.id === view)?.label ?? 'OVERVIEW'
+  const renderDefinitionMenu = (kind: 'building' | 'research' | 'ship' | 'defense') => <div className="management-view"><div className="view-heading"><div><span className="eyebrow">CENTRO DE CONTROL · {title}</span><h1>{kind === 'building' ? 'Edificios' : kind === 'research' ? 'Investigaciones' : kind === 'ship' ? 'Hangar' : 'Defensas'}</h1><p>{homeworld ? `${homeworld.name} ${coordinates(homeworld)}` : 'Sin planeta seleccionado'}</p></div><div className="view-badge">{definitions.length} ELEMENTOS</div></div>{queues.length > 0 && <div className="queue-strip"><strong>COLA ACTIVA</strong>{queues.map((q) => <span key={q.id}>{q.building_id ?? q.research_id ?? q.ship_id ?? q.defense_id} · {formatTime(q.finishes_at)}</span>)}</div>}<div className="definition-grid">{definitions.map((d) => { const level = owned[d.id] ?? 0; const max = Number(d.max_level ?? 999); return <article className="definition-card" key={d.id}><div className="definition-top"><span className="definition-icon">{kind === 'building' ? '▦' : kind === 'research' ? '⚗' : kind === 'ship' ? '✦' : '⬢'}</span><div><strong>{d.name}</strong><small>NIVEL {kind === 'building' || kind === 'research' ? `${level} / ${max}` : `×${formatNumber(level)}`}</small></div></div><p>{d.description ?? 'Elemento disponible en el centro de control.'}</p>{kind === 'ship' && <div className="stat-line"><span>ATAQUE {formatNumber(Number(d.attack))}</span><span>ESCUDO {formatNumber(Number(d.shield))}</span><span>CARGA {formatNumber(Number(d.cargo_capacity))}</span></div>}{kind === 'defense' && <div className="stat-line"><span>ATAQUE {formatNumber(Number(d.attack))}</span><span>ESCUDO {formatNumber(Number(d.shield))}</span><span>CASCO {formatNumber(Number(d.hull))}</span></div>}<button type="button" className="action-button" disabled={busyId === d.id || ((kind === 'building' || kind === 'research') && level >= max)} onClick={() => void action(kind, d.id)}>{busyId === d.id ? 'PROCESANDO…' : kind === 'building' ? `MEJORAR A NIVEL ${level + 1}` : kind === 'research' ? `INVESTIGAR NIVEL ${level + 1}` : kind === 'ship' ? 'CONSTRUIR 1' : 'CONSTRUIR 1'}</button></article>})}</div></div>
+
+  const renderView = () => {
+    if (view === 'overview') return <><div className="hero"><div><span className="eyebrow">{homeworld ? `SISTEMA ${homeworld.system} · IMPERIO` : 'SISTEMA · IMPERIO'}</span><h1>{homeworld?.name ?? 'Cargando planeta…'}</h1><p>{homeworld ? `${coordinates(homeworld)} · ${homeworld.is_homeworld ? 'Planeta principal' : 'Planeta'}` : 'Esperando datos del imperio…'}</p></div><div className="planet-status">{loading ? 'CARGANDO' : error ? 'ERROR' : 'ONLINE'}</div></div><div className="dashboard-grid"><article className="panel"><div className="panel-header"><span>RECURSOS</span><small>PLANETA ACTUAL</small></div>{[['🪨 Metal', resources?.metal], ['💎 Cristal', resources?.crystal], ['💧 Deuterio', resources?.deuterium], ['⚡ Energía', resources?.energy]].map(([label, value]) => <div className="resource-row" key={String(label)}><span>{label}</span><strong className="number">{formatNumber(value as string | number | undefined)}</strong></div>)}</article><article className="panel"><div className="panel-header"><span>PLANETAS</span><small>{planets.length} PLANETAS</small></div>{planets.map((p) => <button className="planet-row planet-row-button" type="button" key={p.id} onClick={() => openView('planets')}><span>🌍 {p.name}</span><small>{coordinates(p)}</small></button>)}</article><article className="panel wide"><div className="panel-header"><span>ACCESO RÁPIDO</span><small>CENTRO DE CONTROL</small></div><div className="quick-grid">{navItems.slice(2, 8).map((n) => <button type="button" key={n.id} onClick={() => openView(n.id)}>{n.icon}<span>{n.label}</span></button>)}</div></article></div></>
+    if (view === 'planets') return <div className="management-view"><div className="view-heading"><div><span className="eyebrow">IMPERIO · COLONIAS</span><h1>Planetas</h1><p>Selecciona el mundo activo para los centros de control.</p></div></div><div className="planet-management-grid">{planets.map((p) => <article className={`planet-management-card${p.id === homeworld?.id ? ' active' : ''}`} key={p.id}><div><span>PLANETA</span><h2>{p.name}</h2><p>{coordinates(p)}</p></div><div className="planet-mini-res"><span>M {formatNumber(p.planet_resources[0]?.metal)}</span><span>C {formatNumber(p.planet_resources[0]?.crystal)}</span><span>D {formatNumber(p.planet_resources[0]?.deuterium)}</span></div><button type="button" className="action-button" onClick={() => { if (p.id === homeworld?.id) setNotice('Este planeta ya es el planeta activo.'); else setNotice('El selector de planeta quedará conectado a la flota/colonias en la siguiente capa.') }}>ABRIR PLANETA</button></article>)}</div></div>
+    if (view === 'fleet' || view === 'expedition') return <div className="management-view"><div className="view-heading"><div><span className="eyebrow">CENTRO DE OPERACIONES</span><h1>{view === 'fleet' ? 'Flota' : 'Expediciones'}</h1><p>Movimientos registrados para {currentPlayer?.username ?? 'el jugador'}.</p></div></div><div className="movement-list">{fleetRows.length ? fleetRows.map((f) => <article className="movement-row" key={f.id}><strong>{f.mission_type}</strong><span>{f.status}</span><span>[{f.destination_galaxy}:{f.destination_system}:{f.destination_position}]</span><span>LLEGA {formatTime(f.arrives_at)}</span></article>) : <div className="empty-state">No hay movimientos activos registrados.</div>}</div></div>
+    if (view === 'galaxy') return <div className="management-view"><div className="view-heading"><div><span className="eyebrow">UNIVERSO · CARTOGRAFÍA</span><h1>Galaxia</h1><p>Estado de las galaxias generadas del universo.</p></div></div><div className="galaxy-grid">{galaxies.map((g) => <article key={g.galaxy}><strong>G{g.galaxy}</strong><span>{g.system_count} sistemas</span><small>{g.is_special ? 'ESPECIAL' : 'NORMAL'} · {g.next_system_expansion_at ? `PRÓXIMO ${formatTime(g.next_system_expansion_at)}` : 'SIN EVENTO'}</small></article>)}</div></div>
+    return renderDefinitionMenu(view === 'buildings' ? 'building' : view === 'research' ? 'research' : view === 'shipyard' ? 'ship' : 'defense')
+  }
+
+  return <main className={`game ${template.layout}`} style={fontVariables}><header className="topbar"><div className="logo"><span>LA GRAN</span><strong>IMPLOSIÓN</strong></div><div className="top-resources"><div className="resource"><span>METAL</span><strong className="number">{formatNumber(resources?.metal)}</strong></div><div className="resource"><span>CRISTAL</span><strong className="number">{formatNumber(resources?.crystal)}</strong></div><div className="resource"><span>DEUTERIO</span><strong className="number">{formatNumber(resources?.deuterium)}</strong></div><div className="resource"><span>ENERGÍA</span><strong className="number">{formatNumber(resources?.energy)}</strong></div></div><button type="button" className="settings-button" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>⚙</button></header><div className="layout"><aside className="sidebar"><div className="player-card"><div className="player-avatar">👤</div><div><small>{currentPlayer?.is_guest ? 'INVITADO' : 'JUGADOR'}</small><strong>{currentPlayer?.username ?? 'Cargando…'}</strong></div></div><nav>{navItems.map((n) => <button type="button" key={n.id} className={`nav-button${view === n.id ? ' active' : ''}`} onClick={() => openView(n.id)} title={n.label}><span className="nav-icon">{n.icon}</span><span>{n.label}</span></button>)}</nav></aside><section className="content">{(notice || error) && <div className={`global-notice${error ? ' error' : ''}`}>{error ?? notice}<button type="button" onClick={() => { setError(null); setNotice(null) }}>×</button></div>}{viewLoading && <div className="loading-line">CARGANDO MÓDULO…</div>}{renderView()}</section></div>{panelOpen && <aside id="appearance-panel" className="style-panel" role="dialog" aria-modal="true"><div className="style-header"><div><span>CONFIGURACIÓN</span><h2>APARIENCIA</h2></div><button type="button" className="close-button" onClick={() => setPanelOpen(false)}>×</button></div><section className="style-section"><span className="section-title">PLANTILLAS DE ESTRUCTURA</span><p className="template-help">Cambia la estructura visual sin tocar los datos del juego.</p><TemplatePicker selected={template} onChange={changeTemplate} /></section><section className="style-section"><span className="section-title">PRESETS DE TIPOGRAFÍA</span><div className="preset-grid">{Object.keys(presets).map((p) => <button type="button" key={p} className="preset-button" onClick={() => setFontSettings(presets[p])}>{p}</button>)}</div></section><section className="style-section"><span className="section-title">TIPOGRAFÍA</span><FontSelector role="title" label="Títulos" value={fontSettings.title} onChange={(v) => changeFont('title', v)} /><FontSelector role="heading" label="Encabezados" value={fontSettings.heading} onChange={(v) => changeFont('heading', v)} /><FontSelector role="body" label="Texto" value={fontSettings.body} onChange={(v) => changeFont('body', v)} /><FontSelector role="number" label="Números" value={fontSettings.number} onChange={(v) => changeFont('number', v)} /><FontSelector role="button" label="Botones" value={fontSettings.button} onChange={(v) => changeFont('button', v)} /></section><button type="button" className="reset-button" onClick={() => changeTemplate(defaultTemplate)}>RESTABLECER PLANTILLA</button><button type="button" className="reset-button" onClick={() => setFontSettings({ ...defaultFonts })}>RESTABLECER TIPOGRAFÍA</button></aside>}</main>
 }
 
 export default App
