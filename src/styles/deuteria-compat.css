@@ -1,0 +1,19 @@
+:root{--neo-sidebar-width:132px}
+
+/* Keep the Deuteria/OGameX compact navigation language: the extra entries use
+   the same row geometry as the native navigation instead of introducing a
+   second visual button system. */
+.neo-nav-extra{min-height:32px!important;padding:7px 8px!important}
+.neo-nav-extra .lgi-extra-icon{display:grid!important;place-items:center;width:17px!important;height:17px!important;flex:0 0 17px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:var(--neo-dim)!important;font:700 13px var(--font-button)!important;line-height:1!important}
+.neo-nav-extra:hover .lgi-extra-icon,.neo-nav-extra.active .lgi-extra-icon{color:var(--neo-accent)!important;border:0!important;box-shadow:none!important}
+.neo-nav-extra.active{box-shadow:inset 2px 0 var(--neo-accent)!important}
+
+/* Utility panels opened by sidebar modules belong to the same visual system. */
+#lgi-sidebar-utility-panel{font-family:var(--font-body)!important;color:var(--neo-text)!important;background:var(--neo-surface)!important;border:1px solid var(--neo-line-strong)!important;border-radius:var(--neo-radius)!important;box-shadow:var(--neo-shadow)!important;backdrop-filter:blur(12px)!important;zoom:var(--lgi-ui-scale,1.75)}
+#lgi-sidebar-utility-panel .lgi-close,#lgi-sidebar-utility-panel .lgi-action{border-color:var(--neo-line-strong)!important;background:var(--neo-surface-2)!important;color:var(--neo-text)!important;border-radius:6px!important}
+#lgi-sidebar-utility-panel .lgi-action:hover{border-color:var(--neo-accent)!important;color:var(--neo-accent)!important}
+#lgi-sidebar-utility-panel input,#lgi-sidebar-utility-panel textarea{font-family:var(--font-body)!important;background:rgba(5,7,12,.72)!important;border-color:var(--neo-line)!important;color:var(--neo-text)!important}
+
+@media(max-width:760px){
+  .neo-nav-extra .lgi-extra-icon{width:17px!important;flex-basis:17px!important}
+}
