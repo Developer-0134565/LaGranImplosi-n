@@ -14,7 +14,6 @@ import './widget-visibility-toggle'
 import './sidebar-complete'
 import './core-module-foundation'
 import './live-temporal-sync'
-import './frontend-definition-repair'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
