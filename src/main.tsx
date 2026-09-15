@@ -4,6 +4,7 @@ import './index.css'
 import './styles/admin-design.css'
 import './admin-design'
 import './dashboard-widget-editor'
+import './ui-scale'
 import App from './App.tsx'
 import './styles/deuteria-original.css'
 
