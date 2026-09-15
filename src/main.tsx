@@ -11,6 +11,7 @@ import './styles/deuteria-compat.css'
 import './template-neo-fix'
 import './widget-visibility-toggle'
 import './sidebar-complete'
+import './core-module-foundation'
 import './galaxy-mount'
 
 createRoot(document.getElementById('root')!).render(
