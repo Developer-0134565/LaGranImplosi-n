@@ -7,7 +7,6 @@ import './styles/current-template-compat.css'
 import './styles/typography-controls.css'
 import './ui-scale'
 import './style-controls'
-import './sidebar-complete'
 import App from './AppStable.tsx'
 
 createRoot(document.getElementById('root')!).render(
