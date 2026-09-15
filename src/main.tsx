@@ -5,7 +5,6 @@ import './styles/admin-design.css'
 import './admin-design'
 import './dashboard-widget-editor'
 import './ui-scale'
-import App from './App.tsx'
 import './styles/deuteria-original.css'
 import './styles/deuteria-compat.css'
 import './styles/core-modules.css'
@@ -14,6 +13,7 @@ import './widget-visibility-toggle'
 import './sidebar-complete'
 import './core-module-foundation'
 import './live-temporal-sync'
+import App from './AppStable.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
