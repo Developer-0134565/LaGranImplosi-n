@@ -1,9 +1,240 @@
-:root{--neo-bg:#05070c;--neo-surface:rgba(13,19,29,.86);--neo-surface-2:rgba(20,28,42,.5);--neo-line:rgba(126,180,255,.14);--neo-line-strong:rgba(126,180,255,.28);--neo-text:#d7e3f4;--neo-dim:#8fa3bd;--neo-faint:#5c6f88;--neo-accent:#35d0ff;--neo-accent-2:#2ab3ff;--neo-gold:#ffd75e;--neo-ok:#5dd88a;--neo-danger:#ff6b6b;--neo-radius:12px;--neo-shadow:0 8px 28px rgba(0,0,0,.45)}
-body{background:radial-gradient(ellipse at 50% 0,rgba(53,208,255,.055),transparent 38%),linear-gradient(180deg,#020409,#070b12 48%,#03050a);color:var(--neo-text)}
-.game{width:min(100%,1280px);padding:10px}.topbar{grid-template-columns:210px minmax(0,1fr) 42px;min-height:54px;background:var(--neo-surface);border:1px solid var(--neo-line-strong);border-radius:12px;box-shadow:var(--neo-shadow)}.logo{padding:0 15px}.logo span{font-size:8px}.logo strong{font-size:16px}.top-resources{gap:0}.resource{padding:0 13px;background:var(--neo-surface-2)}.resource span{font-size:7px}.resource strong{font-size:14px}
-.layout{grid-template-columns:154px minmax(0,1fr);gap:8px}.sidebar{top:72px;padding:7px;background:var(--neo-surface);border:1px solid var(--neo-line-strong);border-radius:10px}.player-card{padding:9px;border-radius:8px}.sidebar nav{gap:1px}.nav-button{min-height:34px;border-radius:6px;font-size:8px}.nav-button.active{box-shadow:inset 3px 0 var(--neo-accent);background:rgba(53,208,255,.075)}
-.hero{min-height:92px;margin-bottom:8px;padding:17px 19px;border-radius:12px;background:linear-gradient(110deg,rgba(13,19,29,.94),rgba(20,28,42,.5));border:1px solid var(--neo-line-strong)}.hero h1{font-size:28px}.hero p{font-size:9px}.dashboard-grid{gap:8px}.panel{border-radius:12px;background:var(--neo-surface);border-color:var(--neo-line);box-shadow:var(--neo-shadow)}.panel-header{min-height:40px;padding:0 13px}.panel-header span{font-size:9px}.panel-header small{font-size:7px}.resource-row,.planet-row{min-height:43px;padding:0 13px}.resource-row span,.planet-row span{font-size:9px}.resource-row strong{font-size:11px}.quick-grid{gap:6px;padding:10px}.quick-grid button{min-height:54px;border-radius:7px;font-size:7px}
-.management-view .view-heading{border-radius:12px;background:var(--neo-surface);border-color:var(--neo-line);box-shadow:var(--neo-shadow)}.definition-grid{gap:8px}.definition-card,.planet-management-card,.movement-row,.galaxy-grid article{border-radius:10px;background:var(--neo-surface);border-color:var(--neo-line)}.definition-card{padding:13px}.definition-top strong{font-size:11px}.definition-card p{font-size:8px}.action-button{min-height:31px;border-radius:6px}.queue-strip{border-radius:8px;background:var(--neo-surface)}
-.style-panel{width:min(430px,94vw);background:rgba(5,7,12,.97);border-left:1px solid var(--neo-line-strong)}
-.template-deuteria .layout{grid-template-columns:154px minmax(0,1fr)}.template-deuteria .content{min-width:0}.template-deuteria .hero{border-radius:12px}.template-command .layout,.template-warroom .layout{gap:8px}.template-classic .layout{grid-template-columns:180px minmax(0,1fr)}
-@media(max-width:850px){.layout{grid-template-columns:1fr}.sidebar{top:0}.topbar{position:relative}.hero h1{font-size:23px}}
+:root{
+  --neo-bg:#05070c;
+  --neo-surface:rgba(13,19,29,.90);
+  --neo-surface-2:rgba(20,28,42,.52);
+  --neo-line:rgba(126,180,255,.14);
+  --neo-line-strong:rgba(126,180,255,.30);
+  --neo-text:#d7e3f4;
+  --neo-dim:#8fa3bd;
+  --neo-faint:#5c6f88;
+  --neo-accent:#35d0ff;
+  --neo-accent-2:#2ab3ff;
+  --neo-gold:#ffd75e;
+  --neo-ok:#5dd88a;
+  --neo-danger:#ff6b6b;
+  --neo-radius:12px;
+  --neo-shadow:0 8px 28px rgba(0,0,0,.45);
+}
+
+html,body,#root{min-height:100%;background:#05070c!important}
+body{
+  color:var(--neo-text)!important;
+  background:
+    radial-gradient(ellipse at 50% -10%,rgba(53,208,255,.10),transparent 42%),
+    linear-gradient(180deg,#020409 0%,#070b12 52%,#03050a 100%)!important;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif!important;
+}
+
+.game{
+  width:100%!important;
+  max-width:none!important;
+  min-height:100vh!important;
+  padding:8px!important;
+  overflow-x:hidden!important;
+  background:
+    radial-gradient(circle at 52% 18%,rgba(53,208,255,.045),transparent 32%),
+    transparent!important;
+}
+
+/* DEUTERIA TOP BAR */
+.topbar{
+  position:relative!important;
+  width:100%!important;
+  height:56px!important;
+  min-height:56px!important;
+  display:grid!important;
+  grid-template-columns:210px minmax(0,1fr) 42px!important;
+  gap:0!important;
+  align-items:stretch!important;
+  padding:0!important;
+  background:var(--neo-surface)!important;
+  border:1px solid var(--neo-line-strong)!important;
+  border-radius:12px!important;
+  box-shadow:var(--neo-shadow)!important;
+  backdrop-filter:blur(10px)!important;
+}
+.logo{
+  width:auto!important;
+  min-width:0!important;
+  justify-content:center!important;
+  padding:0 15px!important;
+  border-right:1px solid var(--neo-line)!important;
+  font-family:var(--font-title),sans-serif!important;
+}
+.logo span{font-size:8px!important;color:var(--neo-faint)!important;letter-spacing:1.6px!important}
+.logo strong{font-size:15px!important;color:var(--neo-text)!important;text-shadow:none!important;letter-spacing:1.5px!important}
+.top-resources{
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(90px,1fr))!important;
+  gap:0!important;
+}
+.resource{
+  height:auto!important;
+  min-width:0!important;
+  padding:0 13px!important;
+  justify-content:center!important;
+  background:var(--neo-surface-2)!important;
+  border-left:1px solid var(--neo-line)!important;
+  border-right:0!important;
+}
+.resource:first-child{border-left:0!important}
+.resource span{font-size:7px!important;letter-spacing:1.2px!important;color:var(--neo-dim)!important}
+.resource strong{font-size:13px!important;color:var(--neo-text)!important;text-shadow:none!important}
+.settings-button{
+  width:30px!important;height:30px!important;margin:auto!important;
+  border:1px solid var(--neo-line-strong)!important;border-radius:7px!important;
+  background:rgba(20,28,42,.55)!important;color:var(--neo-accent)!important;
+}
+
+/* DEUTERIA MAIN LAYOUT */
+.layout{
+  display:grid!important;
+  grid-template-columns:154px minmax(0,1fr)!important;
+  gap:8px!important;
+  min-height:calc(100vh - 72px)!important;
+  margin-top:8px!important;
+}
+.sidebar{
+  position:relative!important;
+  top:auto!important;
+  width:auto!important;
+  min-width:0!important;
+  padding:7px!important;
+  background:var(--neo-surface)!important;
+  border:1px solid var(--neo-line-strong)!important;
+  border-radius:10px!important;
+  box-shadow:var(--neo-shadow)!important;
+  backdrop-filter:blur(10px)!important;
+}
+.player-card{
+  height:auto!important;min-height:54px!important;margin:0 0 7px!important;padding:9px!important;
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;
+  gap:9px!important;border:1px solid var(--neo-line)!important;border-radius:8px!important;
+  background:rgba(20,28,42,.45)!important;
+}
+.player-card>div:last-child{display:block!important}
+.player-avatar{font-size:18px!important}
+.sidebar nav{gap:1px!important}
+.nav-button{
+  width:100%!important;height:auto!important;min-height:34px!important;
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;
+  gap:9px!important;padding:7px 9px!important;
+  border:1px solid transparent!important;border-radius:6px!important;
+  background:transparent!important;color:var(--neo-dim)!important;
+  font-size:8px!important;letter-spacing:.8px!important;text-align:left!important;
+}
+.nav-button:hover{background:rgba(53,208,255,.045)!important;color:var(--neo-text)!important;border-color:var(--neo-line)!important}
+.nav-button.active{
+  color:var(--neo-text)!important;background:rgba(53,208,255,.075)!important;
+  border-color:var(--neo-line)!important;box-shadow:inset 3px 0 var(--neo-accent)!important;
+}
+
+/* DEUTERIA CONTENT: compact card-based dashboard */
+.content{
+  position:relative!important;display:block!important;min-width:0!important;min-height:0!important;
+  padding:0!important;
+}
+.hero{
+  width:100%!important;min-height:116px!important;margin:0 0 8px!important;padding:18px 20px!important;
+  display:flex!important;align-items:flex-start!important;justify-content:space-between!important;
+  border:1px solid var(--neo-line-strong)!important;border-radius:12px!important;
+  background:linear-gradient(135deg,rgba(13,19,29,.94),rgba(20,28,42,.58))!important;
+  box-shadow:var(--neo-shadow)!important;overflow:hidden!important;
+}
+.hero::before,.hero::after{opacity:.22!important}
+.eyebrow{font-size:8px!important;letter-spacing:1.8px!important;color:var(--neo-accent)!important}
+.hero h1{font-size:24px!important;letter-spacing:1px!important;color:var(--neo-text)!important;text-shadow:none!important}
+.hero p{font-size:10px!important;color:var(--neo-dim)!important}
+.planet-status{border:1px solid var(--neo-line-strong)!important;background:rgba(20,28,42,.60)!important;color:var(--neo-ok)!important}
+
+.dashboard-grid{
+  width:100%!important;display:grid!important;
+  grid-template-columns:minmax(230px,.9fr) minmax(230px,.9fr) minmax(280px,1.3fr)!important;
+  gap:8px!important;
+}
+.panel{
+  min-width:0!important;min-height:0!important;padding:0!important;
+  border:1px solid var(--neo-line)!important;border-radius:12px!important;
+  background:var(--neo-surface)!important;box-shadow:var(--neo-shadow)!important;
+  overflow:hidden!important;backdrop-filter:blur(10px)!important;
+}
+.panel-header{
+  min-height:40px!important;padding:0 13px!important;display:flex!important;align-items:center!important;
+  border-bottom:1px solid var(--neo-line)!important;background:rgba(20,28,42,.38)!important;
+  font-size:9px!important;color:var(--neo-text)!important;
+}
+.panel-header small{font-size:7px!important;color:var(--neo-faint)!important}
+.resource-row,.planet-row{
+  min-height:43px!important;padding:0 13px!important;
+  border-bottom:1px solid rgba(126,180,255,.08)!important;
+  font-size:9px!important;background:transparent!important;
+}
+.resource-row:hover,.planet-row:hover{background:rgba(53,208,255,.035)!important}
+.resource-row span,.planet-row span{color:var(--neo-dim)!important}
+.resource-row strong,.number{color:var(--neo-text)!important;font-size:11px!important}
+.planet-row small{color:var(--neo-faint)!important}
+.quick-grid{padding:10px!important;gap:6px!important}
+.quick-grid button{
+  min-height:52px!important;border:1px solid var(--neo-line)!important;border-radius:8px!important;
+  background:rgba(20,28,42,.46)!important;color:var(--neo-dim)!important;font-size:7px!important;
+}
+.quick-grid button:hover{border-color:var(--neo-line-strong)!important;color:var(--neo-text)!important;background:rgba(53,208,255,.055)!important}
+.action-button{
+  min-height:31px!important;padding:6px 11px!important;border:1px solid var(--neo-line-strong)!important;
+  border-radius:6px!important;background:linear-gradient(180deg,rgba(53,208,255,.12),rgba(20,28,42,.45))!important;
+  color:var(--neo-text)!important;font-size:8px!important;
+}
+.action-button:hover{border-color:var(--neo-accent)!important;background:rgba(53,208,255,.12)!important}
+
+/* DEUTERIA MANAGEMENT VIEWS */
+.management-view{display:block!important}
+.management-view .view-heading{
+  margin:0 0 8px!important;padding:14px 16px!important;border:1px solid var(--neo-line)!important;
+  border-radius:12px!important;background:var(--neo-surface)!important;box-shadow:var(--neo-shadow)!important;
+}
+.definition-grid{gap:8px!important}
+.definition-card,.planet-management-card,.movement-row,.galaxy-grid article{
+  border:1px solid var(--neo-line)!important;border-radius:10px!important;
+  background:var(--neo-surface)!important;box-shadow:var(--neo-shadow)!important;
+}
+.definition-card:hover,.planet-management-card:hover,.movement-row:hover,.galaxy-grid article:hover{border-color:var(--neo-line-strong)!important}
+.definition-card{padding:13px!important}
+.definition-top strong{font-size:11px!important;color:var(--neo-text)!important}
+.definition-card p{font-size:8px!important;color:var(--neo-dim)!important}
+.queue-strip{border:1px solid var(--neo-line)!important;border-radius:8px!important;background:var(--neo-surface-2)!important}
+
+/* TEMPLATE SYSTEM REMAINS ACTIVE; templates alter this common Deuteria base. */
+.template-deuteria .layout,.template-command .layout,.template-warroom .layout{grid-template-columns:154px minmax(0,1fr)!important}
+.template-classic .layout{grid-template-columns:180px minmax(0,1fr)!important}
+.template-minimal .panel{box-shadow:none!important}
+.template-terminal .panel{border-radius:3px!important}
+.template-cards .panel{border-radius:15px!important}
+.template-galaxy .hero{min-height:150px!important}
+
+/* APPEARANCE PANEL */
+.style-panel{
+  width:min(430px,94vw)!important;height:100vh!important;top:0!important;right:0!important;z-index:30!important;
+  padding:18px!important;background:rgba(5,7,12,.98)!important;
+  border-left:1px solid var(--neo-line-strong)!important;box-shadow:-18px 0 45px rgba(0,0,0,.55)!important;
+}
+.style-header{border-bottom:1px solid var(--neo-line)!important;padding-bottom:12px!important}
+.style-header span{color:var(--neo-faint)!important}
+.style-header h2{font-size:17px!important;color:var(--neo-text)!important}
+
+@media(max-width:1050px){
+  .dashboard-grid{grid-template-columns:1fr 1fr!important}
+  .panel.wide{grid-column:1/-1!important}
+}
+@media(max-width:760px){
+  .game{padding:4px!important}
+  .topbar{grid-template-columns:145px minmax(0,1fr) 38px!important}
+  .top-resources{grid-template-columns:repeat(2,minmax(70px,1fr))!important}
+  .resource:nth-child(n+3){display:none!important}
+  .layout{grid-template-columns:1fr!important}
+  .sidebar{position:relative!important}
+  .sidebar nav{display:grid!important;grid-template-columns:repeat(3,1fr)!important}
+  .nav-button{justify-content:center!important;text-align:center!important}
+  .dashboard-grid{grid-template-columns:1fr!important}
+  .panel.wide{grid-column:auto!important}
+}
