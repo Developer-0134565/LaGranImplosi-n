@@ -11,13 +11,13 @@ async function mountGalaxy(){
   const active=document.querySelector('.neo-nav-item.active b')?.textContent?.trim().toUpperCase()
   if(active!=='GALAXIA')return
   const view=document.querySelector<HTMLElement>('.neo-main-view')
-  if(!view)return
-  if(view.classList.contains('galaxy-view'))return
+  if(!view||view.dataset.galaxyMounted==='1')return
   mounting=true
   try{
     const {data}=await supabase.from('planets').select('galaxy,system,position,players(id)').eq('is_homeworld',true).eq('is_destroyed',false).limit(1).maybeSingle()
     const player=Array.isArray(data?.players)?data?.players[0]:data?.players
     view.replaceChildren()
+    view.dataset.galaxyMounted='1'
     host=document.createElement('div')
     host.className='galaxy-react-host'
     view.appendChild(host)
