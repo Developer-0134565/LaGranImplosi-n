@@ -2,11 +2,24 @@ const STORAGE_KEY='lagranimplosion-ui-scale-v5'
 const DEFAULT_SCALE=1.75
 const MIN_SCALE=0.75
 const MAX_SCALE=1.75
+
 function clampScale(value:number){return Math.min(MAX_SCALE,Math.max(MIN_SCALE,Math.round(value*20)/20))}
 function readScale(){try{const raw=localStorage.getItem(STORAGE_KEY);if(raw===null)return DEFAULT_SCALE;const n=Number(raw);return Number.isFinite(n)?clampScale(n):DEFAULT_SCALE}catch{return DEFAULT_SCALE}}
 function persistScale(value:number){try{localStorage.setItem(STORAGE_KEY,String(value))}catch{}}
-function applyScale(scale:number){const value=clampScale(scale);document.documentElement.style.setProperty('--lgi-ui-scale',String(value));const game=document.querySelector('.game') as HTMLElement|null;if(game)game.style.zoom=String(value);const layer=document.getElementById('lagranimplosion-widget-layer') as HTMLElement|null;if(layer)layer.style.zoom=String(value);persistScale(value);return value}
-function installStyle(){if(document.getElementById('lgi-scale-style'))return;const s=document.createElement('style');s.id='lgi-scale-style';s.textContent=`.lgi-scale-section{margin-top:18px;padding-top:14px;border-top:1px solid rgba(126,180,255,.14)}.lgi-scale-section h4{margin:0 0 5px;color:#35d0ff;font:700 10px var(--font-heading);letter-spacing:1px}.lgi-scale-section p{margin:0 0 10px;color:#8fa3bd;font-size:9px}.lgi-scale-row{display:flex;align-items:center;gap:10px}.lgi-scale-row input{flex:1;accent-color:#35d0ff}.lgi-scale-value{min-width:54px;text-align:center;padding:6px 8px;border:1px solid rgba(53,208,255,.3);border-radius:6px;background:rgba(16,35,50,.8);color:#d7e3f4;font:700 10px var(--font-number)}.lgi-scale-presets{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}.lgi-scale-presets button{padding:6px 3px!important;font-size:9px!important}.lgi-scale-presets button.active{border-color:#35d0ff!important;color:#35d0ff!important}`;document.head.appendChild(s)}
-function addControls(panel:HTMLElement){if(panel.querySelector('.lgi-scale-section'))return;const section=document.createElement('section');section.className='lgi-scale-section';section.innerHTML=`<h4>ESCALA DE INTERFAZ</h4><p>Escala global del HUD. El valor inicial del juego es 175%.</p><div class="lgi-scale-row"><input id="lgi-scale-range" type="range" min="0.75" max="1.75" step="0.05"><span class="lgi-scale-value" id="lgi-scale-value"></span></div><div class="lgi-scale-presets"><button type="button" data-scale="1">100%</button><button type="button" data-scale="1.25">125%</button><button type="button" data-scale="1.5">150%</button><button type="button" data-scale="1.75">175%</button></div>`;panel.appendChild(section);const range=section.querySelector('#lgi-scale-range') as HTMLInputElement;const value=section.querySelector('#lgi-scale-value') as HTMLElement;const sync=(n:number)=>{const v=applyScale(n);range.value=String(v);value.textContent=`${Math.round(v*100)}%`;section.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach(b=>b.classList.toggle('active',Number(b.dataset.scale)===v))};range.addEventListener('input',()=>sync(Number(range.value)));section.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach(b=>b.addEventListener('click',()=>sync(Number(b.dataset.scale))));sync(readScale())}
-function watchSettings(){installStyle();applyScale(readScale());const observer=new MutationObserver(()=>{const value=readScale();const game=document.querySelector('.game') as HTMLElement|null;if(game)game.style.zoom=String(value);const layer=document.getElementById('lagranimplosion-widget-layer') as HTMLElement|null;if(layer)layer.style.zoom=String(value);const panel=document.querySelector('.style-panel') as HTMLElement|null;if(panel)addControls(panel)});observer.observe(document.body,{childList:true,subtree:true});const existing=document.querySelector('.style-panel') as HTMLElement|null;if(existing)addControls(existing)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchSettings,{once:true});else watchSettings()
+function applyScale(scale:number){const value=clampScale(scale);document.documentElement.style.setProperty('--lgi-ui-scale',String(value));const game=document.querySelector<HTMLElement>('.game');if(game)game.style.zoom=String(value);const layer=document.getElementById('lagranimplosion-widget-layer') as HTMLElement|null;if(layer)layer.style.zoom=String(value);persistScale(value);return value}
+
+function boot(){
+ const value=readScale()
+ applyScale(value)
+ const applyWhenReady=()=>{
+   const game=document.querySelector<HTMLElement>('.game')
+   if(!game)return false
+   game.style.zoom=String(value)
+   return true
+ }
+ if(applyWhenReady())return
+ const observer=new MutationObserver(()=>{if(applyWhenReady())observer.disconnect()})
+ observer.observe(document.getElementById('root')||document.body,{childList:true,subtree:true})
+}
+
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot()
