@@ -6,9 +6,10 @@
 .neo-nav-extra:hover .lgi-extra-icon,.neo-nav-extra.active .lgi-extra-icon{color:var(--neo-accent)!important}
 .neo-nav-extra.active{box-shadow:inset 2px 0 var(--neo-accent)!important}
 
-/* The appearance drawer lives inside .game, which is globally zoomed.
-   Cancel that zoom locally so the whole configuration window remains visible. */
-.style-panel{zoom:calc(1 / var(--lgi-ui-scale, 1.75))!important;top:0!important;right:0!important;width:min(420px,100vw)!important;height:100vh!important;max-height:100vh!important;overflow-x:hidden!important;overflow-y:auto!important;padding:20px!important;z-index:10000!important}
+/* The appearance drawer is inside .game, which is globally zoomed. Cancel the
+   inherited zoom and then re-apply the selected scale to the drawer itself.
+   Its CSS dimensions are reduced proportionally so 175% still fits the screen. */
+.style-panel{zoom:calc(1 / var(--lgi-ui-scale, 1.75))!important;transform:scale(var(--lgi-ui-scale, 1.75))!important;transform-origin:top right!important;top:0!important;right:0!important;width:min(calc(420px / var(--lgi-ui-scale, 1.75)),calc(100vw / var(--lgi-ui-scale, 1.75)))!important;height:calc(100vh / var(--lgi-ui-scale, 1.75))!important;max-height:calc(100vh / var(--lgi-ui-scale, 1.75))!important;overflow-x:hidden!important;overflow-y:auto!important;padding:20px!important;z-index:10000!important}
 .style-panel .style-header{position:sticky!important;top:-20px!important;z-index:3!important;padding:4px 0 14px!important;background:linear-gradient(180deg,rgba(5,20,18,.99) 72%,rgba(5,20,18,0))!important}
 .style-panel .font-control{min-width:0!important}
 .style-panel select{width:100%!important;min-width:0!important}
@@ -32,5 +33,5 @@
 
 @media(max-width:760px){
   .neo-nav-extra .lgi-extra-icon{width:17px!important;flex-basis:17px!important}
-  .style-panel{width:100vw!important;padding:16px!important}
+  .style-panel{width:calc(100vw / var(--lgi-ui-scale, 1.75))!important}
 }
