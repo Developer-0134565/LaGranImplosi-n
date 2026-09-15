@@ -1,4 +1,4 @@
-const STORAGE_KEY='lagranimplosion-ui-scale-v2'
+const STORAGE_KEY='lagranimplosion-ui-scale-v3'
 const DEFAULT_SCALE=1.75
 const MIN_SCALE=0.75
 const MAX_SCALE=1.75
