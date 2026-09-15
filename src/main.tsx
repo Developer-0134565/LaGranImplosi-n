@@ -7,6 +7,7 @@ import './dashboard-widget-editor'
 import './ui-scale'
 import App from './App.tsx'
 import './styles/deuteria-original.css'
+import './template-neo-fix'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
