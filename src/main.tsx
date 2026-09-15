@@ -8,10 +8,12 @@ import './ui-scale'
 import App from './App.tsx'
 import './styles/deuteria-original.css'
 import './styles/deuteria-compat.css'
+import './styles/core-modules.css'
 import './template-neo-fix'
 import './widget-visibility-toggle'
 import './sidebar-complete'
 import './core-module-foundation'
+import './core-modules-mount'
 import './galaxy-mount'
 
 createRoot(document.getElementById('root')!).render(
