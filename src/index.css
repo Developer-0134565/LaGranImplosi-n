@@ -31,3 +31,5 @@ body {
 * {
   box-sizing: border-box;
 }
+
+@import './styles/ogame-tabs.css';
