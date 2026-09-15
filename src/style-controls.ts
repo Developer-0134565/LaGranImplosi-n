@@ -34,7 +34,7 @@ function install(){
  document.body.appendChild(panel)
  const launcher=document.createElement('button'); launcher.id='typography-launcher'; launcher.className='typography-launcher'; launcher.type='button'; launcher.textContent='Aa'; launcher.title='Tamaño y fuentes'; document.body.appendChild(launcher)
  launcher.onclick=()=>panel.classList.toggle('open'); panel.querySelector('[data-close]')!.addEventListener('click',()=>panel.classList.remove('open'))
- panel.querySelectorAll<HTMLInputElement>('input[data-size]').forEach(i=>i.addEventListener('input',()=>{const k=i.dataset.size as keyof Settings;s={...s,[k]:Number(i.value)};const out=panel.querySelector<HTMLOutput>(`[data-out="${k}"]`);if(out)out.value=`${Math.round(Number(i.value)*100)}%`;apply(s)}))
+ panel.querySelectorAll<HTMLInputElement>('input[data-size]').forEach(i=>i.addEventListener('input',()=>{const k=i.dataset.size as keyof Settings;s={...s,[k]:Number(i.value)};const out=panel.querySelector<HTMLElement>(`[data-out="${k}"]`);if(out)out.textContent=`${Math.round(Number(i.value)*100)}%`;apply(s)}))
  panel.querySelectorAll<HTMLSelectElement>('select[data-font]').forEach(i=>i.addEventListener('change',()=>{const k=i.dataset.font as string;s={...s,[`${k}Font`]:i.value};apply(s)}))
  panel.querySelector('[data-reset]')!.addEventListener('click',()=>{s={...defaults};apply(s);panel.remove();launcher.remove();install()})
 }
