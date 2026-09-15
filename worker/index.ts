@@ -1,6 +1,7 @@
 interface Env {
   ASSETS: Fetcher
   IP_HASH_SALT?: string
+  DEV_IP_HASH?: string
 }
 
 function bytesToHex(bytes: ArrayBuffer) {
@@ -20,9 +21,10 @@ export default {
       const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
       const country = (request.cf?.country ?? request.headers.get('CF-IPCountry') ?? 'XX').toUpperCase()
       const ipHash = await hashVisitorIp(ip, env.IP_HASH_SALT ?? '')
+      const isDeveloper = Boolean(env.DEV_IP_HASH && ipHash === env.DEV_IP_HASH)
 
       return Response.json(
-        { country, ipHash },
+        { country, ipHash, isDeveloper },
         {
           headers: {
             'Cache-Control': 'no-store',
