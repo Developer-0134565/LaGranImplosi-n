@@ -1,147 +1,35 @@
 import { supabase } from './lib/supabase'
 
 const ADMIN_PLAYER_ID = '60f1043a-2fa6-416c-80db-2a83215b5404'
-const LAYER_ID = 'lagranimplosion-dashboard-widget-layer'
+const LAYER_ID = 'lagranimplosion-widget-layer'
 
-type WidgetType = 'image' | 'panel' | 'text' | 'button' | 'resource' | 'planet' | 'fleet' | 'galaxy'
-type Widget = {
-  id: string
-  widget_type: WidgetType
-  name: string
-  x: number
-  y: number
-  width: number
-  height: number
-  z_index: number
-  opacity: number
-  visible: boolean
-  config: Record<string, any>
-}
+type WidgetType = 'image'|'panel'|'text'|'button'|'resource'|'planet'|'fleet'|'galaxy'|'minimap'|'clock'|'alerts'|'queue'|'production'|'energy'|'storage'|'building'|'research'|'shipyard'|'defense'|'missions'|'chat'|'stats'|'evolution'|'universe_clock'|'ranking'|'quick_actions'
+type Widget={id:string;widget_type:WidgetType;name:string;x:number;y:number;width:number;height:number;z_index:number;opacity:number;visible:boolean;config:Record<string,any>}
 
-const WIDGETS: Array<{ type: WidgetType; icon: string; label: string; description: string }> = [
-  { type: 'image', icon: '🖼️', label: 'Imagen', description: 'Wallpaper, ilustración o textura' },
-  { type: 'panel', icon: '▣', label: 'Panel', description: 'Contenedor visual configurable' },
-  { type: 'text', icon: 'T', label: 'Texto', description: 'Título, texto libre o etiqueta' },
-  { type: 'button', icon: '🔘', label: 'Botón', description: 'Botón visual o de navegación' },
-  { type: 'resource', icon: '💰', label: 'Recursos', description: 'Metal, cristal, deuterio y energía' },
-  { type: 'planet', icon: '🪐', label: 'Planeta', description: 'Planeta y coordenadas actuales' },
-  { type: 'fleet', icon: '🚀', label: 'Flota', description: 'Movimientos y misiones' },
-  { type: 'galaxy', icon: '🌌', label: 'Galaxia', description: 'Estado y espacio del universo' },
-]
+const CATALOG:Record<WidgetType,string>={image:'🖼️ Imagen',panel:'▣ Panel',text:'T Texto',button:'🔘 Botón',resource:'💰 Recursos',planet:'🪐 Planeta',fleet:'🚀 Flota',galaxy:'🌌 Galaxia',minimap:'🗺️ Minimap',clock:'🕐 Reloj',alerts:'🚨 Alertas',queue:'📋 Cola',production:'📈 Producción',energy:'⚡ Energía',storage:'🏬 Almacenamiento',building:'🏗️ Construcción',research:'🔬 Investigación',shipyard:'🛠️ Astillero',defense:'🛡️ Defensa',missions:'🎯 Misiones',chat:'💬 Chat',stats:'📊 Estadísticas',evolution:'📈 Evolución',universe_clock:'⏱️ Reloj universo',ranking:'🏆 Ranking',quick_actions:'⚡ Acciones rápidas'}
 
-async function isAdmin() {
-  const { data, error } = await supabase.from('planets').select('players(id)').eq('is_destroyed', false)
-  if (error) return false
-  return (data ?? []).some((p: any) => (Array.isArray(p.players) ? p.players : [p.players]).some((x: any) => x?.id === ADMIN_PLAYER_ID))
-}
+const DATA_TYPES=new Set<WidgetType>(['resource','planet','fleet','galaxy','minimap','clock','alerts','queue','production','energy','storage','building','research','shipyard','defense','missions','chat','stats','evolution','universe_clock','ranking','quick_actions'])
 
-function ensureStyles() {
-  if (document.getElementById('dashboard-widget-editor-css')) return
-  const style = document.createElement('style')
-  style.id = 'dashboard-widget-editor-css'
-  style.textContent = `
-#${LAYER_ID}{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.lgi-widget{position:absolute;box-sizing:border-box;overflow:hidden;pointer-events:none;transform-origin:top left}
-.lgi-widget-image img{width:100%;height:100%;display:block;object-fit:cover}
-.lgi-widget-panel{width:100%;height:100%;border:1px solid rgba(126,180,255,.25);border-radius:12px;background:rgba(13,19,29,.72);backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.45)}
-.lgi-widget-text{width:100%;height:100%;padding:12px;color:#d7e3f4;font:700 22px/1.15 system-ui;display:flex;align-items:center;white-space:pre-wrap}
-.lgi-widget-button{margin:0;border:1px solid rgba(53,208,255,.4);border-radius:8px;background:rgba(16,35,50,.94);color:#d7e3f4;padding:10px 16px;font:700 13px system-ui;white-space:nowrap}
-.lgi-widget-data{width:100%;height:100%;box-sizing:border-box;padding:12px;border:1px solid rgba(126,180,255,.2);border-radius:10px;background:rgba(13,19,29,.78);color:#d7e3f4;font:12px/1.55 system-ui}
-.lgi-widget-data strong{display:block;color:#35d0ff;font-size:15px;margin-bottom:5px}
-.lgi-widget-admin-button{position:fixed;right:18px;bottom:18px;z-index:99999;padding:10px 14px;border:1px solid rgba(53,208,255,.45);border-radius:8px;background:rgba(10,16,26,.95);color:#35d0ff;cursor:pointer;font:700 12px system-ui;letter-spacing:.08em}
-.lgi-widget-toolbar{position:fixed;right:18px;bottom:62px;z-index:100000;width:390px;max-height:calc(100vh - 90px);overflow:auto;padding:16px;border:1px solid rgba(53,208,255,.4);border-radius:12px;background:rgba(10,16,26,.98);color:#d7e3f4;box-shadow:0 14px 40px rgba(0,0,0,.65);font:13px/1.4 system-ui;backdrop-filter:blur(14px)}
-.lgi-widget-toolbar h3{margin:0 0 5px;color:#35d0ff}.lgi-widget-toolbar .sub{color:#8fa3bd;margin-bottom:12px}.lgi-widget-toolbar label{display:block;margin:9px 0 4px;color:#8fa3bd;font-size:11px}.lgi-widget-toolbar input,.lgi-widget-toolbar select,.lgi-widget-toolbar textarea{width:100%;box-sizing:border-box;padding:8px;background:#0d131d;color:#d7e3f4;border:1px solid rgba(126,180,255,.2);border-radius:7px}.lgi-widget-toolbar textarea{min-height:65px;resize:vertical}.lgi-widget-toolbar input[type=range]{padding:0}.lgi-widget-toolbar .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.lgi-widget-toolbar .row{display:flex;gap:7px;margin-top:10px}.lgi-widget-toolbar button{flex:1;padding:8px;border:1px solid rgba(53,208,255,.35);border-radius:7px;background:#102332;color:#d7e3f4;cursor:pointer;font-weight:700}.lgi-widget-toolbar button:hover{border-color:#35d0ff}.lgi-widget-palette{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px}.lgi-widget-palette button{text-align:left;min-height:58px}.lgi-widget-list{border-top:1px solid rgba(126,180,255,.12);margin-top:12px;padding-top:10px}.lgi-widget-list button{width:100%;text-align:left;margin:3px 0}.lgi-widget-selected{outline:2px solid #35d0ff!important;outline-offset:-2px}
-` 
-  document.head.appendChild(style)
-}
+async function isAdmin(){const {data,error}=await supabase.from('planets').select('players(id)').eq('is_destroyed',false);if(error)return false;return(data??[]).some((p:any)=>(Array.isArray(p.players)?p.players:[p.players]).some((x:any)=>x?.id===ADMIN_PLAYER_ID))}
 
-function layer() {
-  let el = document.getElementById(LAYER_ID)
-  if (!el) { el = document.createElement('div'); el.id = LAYER_ID; document.body.prepend(el) }
-  return el
-}
+function styles(){if(document.getElementById('lgi-widget-css'))return;const s=document.createElement('style');s.id='lgi-widget-css';s.textContent=`
+#${LAYER_ID}{position:fixed;inset:0;z-index:25;pointer-events:none;overflow:hidden}.lgi-widget{position:absolute;box-sizing:border-box;pointer-events:auto;overflow:hidden;color:#d7e3f4}.lgi-widget.editing{outline:2px solid #35d0ff;outline-offset:-1px}.lgi-content{width:100%;height:100%;box-sizing:border-box;padding:12px;background:rgba(13,19,29,.78);border:1px solid rgba(126,180,255,.25);border-radius:10px;backdrop-filter:blur(8px);font:13px/1.45 system-ui}.lgi-content strong{display:block;color:#35d0ff;font-size:14px;margin-bottom:5px}.lgi-img{width:100%;height:100%;object-fit:cover;display:block}.lgi-btn{border:1px solid rgba(53,208,255,.4);border-radius:8px;background:rgba(16,35,50,.95);color:#d7e3f4;padding:9px 14px;font-weight:700}.lgi-handle{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 45%,#35d0ff 46%,#35d0ff 55%,transparent 56%)}#lgi-editor{position:fixed;right:16px;top:68px;width:370px;max-height:calc(100vh - 84px);overflow:auto;z-index:100000;padding:15px;background:rgba(8,14,23,.98);border:1px solid rgba(53,208,255,.45);border-radius:12px;color:#d7e3f4;box-shadow:0 18px 50px #000a;font:13px system-ui;backdrop-filter:blur(14px)}#lgi-editor h3{margin:0 0 5px;color:#35d0ff}#lgi-editor .sub{color:#8fa3bd;margin-bottom:12px}.lgi-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.lgi-grid button,#lgi-editor button{padding:8px;border:1px solid rgba(53,208,255,.28);border-radius:7px;background:#102332;color:#d7e3f4;cursor:pointer;font-weight:700}.lgi-grid button{text-align:left;min-height:42px}.lgi-list{margin-top:12px;border-top:1px solid #7eb4ff20;padding-top:10px}.lgi-list button{display:block;width:100%;margin:4px 0;text-align:left}.lgi-list .active{border-color:#35d0ff}.lgi-props{margin-top:10px}.lgi-props label{display:block;color:#8fa3bd;font-size:11px;margin:7px 0 3px}.lgi-props input,.lgi-props textarea,.lgi-props select{width:100%;box-sizing:border-box;padding:7px;background:#0d131d;color:#d7e3f4;border:1px solid #7eb4ff33;border-radius:6px}.lgi-props textarea{min-height:55px}.lgi-row{display:flex;gap:6px;margin-top:8px}.lgi-row button{flex:1}.lgi-admin{position:fixed;right:16px;bottom:16px;z-index:100001;padding:10px 14px;background:rgba(8,14,23,.96);border:1px solid #35d0ff66;border-radius:8px;color:#35d0ff;font-weight:800;cursor:pointer}`;document.head.appendChild(s)}
+function layer(){let l=document.getElementById(LAYER_ID);if(!l){l=document.createElement('div');l.id=LAYER_ID;document.body.appendChild(l)}return l}
+async function load():Promise<Widget[]>{const {data}=await supabase.from('dashboard_widgets').select('*').eq('player_id',ADMIN_PLAYER_ID).order('z_index');return(data??[]) as Widget[]}
+function defaults(t:WidgetType){const base={x:80,y:120,width:300,height:140,z_index:30,opacity:1,visible:true,config:{}} as any;if(t==='image')return{...base,width:600,height:340,config:{url:'',fit:'cover'}};if(t==='text')return{...base,width:330,height:80,config:{text:'LA GRAN IMPLOSIÓN',fontSize:22}};if(t==='button')return{...base,width:180,height:48,config:{text:'BOTÓN'}};return{...base,config:{title:CATALOG[t]}}}
+async function create(t:WidgetType){const d=defaults(t);const {data,error}=await supabase.from('dashboard_widgets').insert({player_id:ADMIN_PLAYER_ID,widget_type:t,name:CATALOG[t],...d}).select('*').single();if(error){alert(error.message);return null}return data as Widget}
+async function persist(w:Widget){const {error}=await supabase.from('dashboard_widgets').update({name:w.name,x:w.x,y:w.y,width:w.width,height:w.height,z_index:w.z_index,opacity:w.opacity,visible:w.visible,config:w.config,updated_at:new Date().toISOString()}).eq('id',w.id);if(error)console.error(error)}
 
-async function loadWidgets(): Promise<Widget[]> {
-  const { data } = await supabase.from('dashboard_widgets').select('id,widget_type,name,x,y,width,height,z_index,opacity,visible,config').eq('player_id', ADMIN_PLAYER_ID).order('z_index', { ascending: true })
-  return (data ?? []) as Widget[]
-}
+function paint(w:Widget,editing=false){const root=layer();let e=root.querySelector(`[data-widget-id="${w.id}"]`) as HTMLElement|null;if(!e){e=document.createElement('div');root.appendChild(e)}e.dataset.widgetId=w.id;e.className=`lgi-widget ${editing?'editing':''}`;e.style.cssText+=`left:${w.x}px;top:${w.y}px;width:${w.width}px;height:${w.height}px;z-index:${w.z_index};opacity:${w.opacity};display:${w.visible?'block':'none'};`;const c=w.config||{};if(w.widget_type==='image')e.innerHTML=c.url?`<img class="lgi-img" src="${String(c.url).replaceAll('"','&quot;')}" style="object-fit:${c.fit==='contain'?'contain':'cover'}">`:'';else if(w.widget_type==='text'){e.innerHTML=`<div class="lgi-content" style="font-size:${Number(c.fontSize||22)}px">${String(c.text||'Texto')}</div>`}else if(w.widget_type==='button'){e.innerHTML=`<button class="lgi-btn">${String(c.text||'BOTÓN')}</button>`}else{const extra=w.widget_type==='resource'?'Metal · Cristal · Deuterio · Energía':DATA_TYPES.has(w.widget_type)?'Datos dinámicos del juego':'Elemento visual';e.innerHTML=`<div class="lgi-content"><strong>${String(c.title||CATALOG[w.widget_type])}</strong>${extra}</div>`}if(editing){const h=document.createElement('span');h.className='lgi-handle';e.appendChild(h)}return e}
 
-function defaultWidget(type: WidgetType): Partial<Widget> {
-  const defaults: Record<WidgetType, Partial<Widget>> = {
-    image: { name: 'Imagen', width: 600, height: 340, config: { url: '', fit: 'cover' } },
-    panel: { name: 'Panel', width: 360, height: 180, config: { title: 'PANEL' } },
-    text: { name: 'Texto', width: 320, height: 80, config: { text: 'LA GRAN IMPLOSIÓN', fontSize: 22 } },
-    button: { name: 'Botón', width: 170, height: 44, config: { text: 'BOTÓN', action: '' } },
-    resource: { name: 'Recursos', width: 270, height: 150, config: { title: 'RECURSOS' } },
-    planet: { name: 'Planeta', width: 280, height: 120, config: { title: 'PLANETA' } },
-    fleet: { name: 'Flota', width: 320, height: 150, config: { title: 'MOVIMIENTOS DE FLOTA' } },
-    galaxy: { name: 'Galaxia', width: 320, height: 150, config: { title: 'UNIVERSO' } },
-  }
-  return { ...defaults[type], x: 40 + Math.random() * 80, y: 100 + Math.random() * 80, z_index: 10, opacity: 1, visible: true }
-}
+function drag(w:Widget,e:HTMLElement,onDone:()=>void){const sx=e.dataset.sx?0:0;void sx;const startX=(e as any).__pointerX||0;void startX}
 
-function renderWidget(w: Widget) {
-  const root = layer()
-  let el = root.querySelector(`[data-widget-id="${w.id}"]`) as HTMLElement | null
-  if (!el) { el = document.createElement('div'); root.appendChild(el) }
-  el.dataset.widgetId = w.id
-  el.className = `lgi-widget lgi-widget-${w.widget_type}`
-  el.style.left = `${w.x}px`; el.style.top = `${w.y}px`; el.style.width = `${w.width}px`; el.style.height = `${w.height}px`; el.style.zIndex = String(w.z_index); el.style.opacity = String(w.opacity)
-  const c = w.config ?? {}
-  if (w.widget_type === 'image') el.innerHTML = c.url ? `<img src="${String(c.url).replaceAll('"','&quot;')}" alt="${w.name}">` : ''
-  else if (w.widget_type === 'panel') el.innerHTML = `<div class="lgi-widget-panel"></div>`
-  else if (w.widget_type === 'text') { el.textContent = String(c.text ?? 'Texto'); el.style.fontSize = `${Number(c.fontSize ?? 22)}px` }
-  else if (w.widget_type === 'button') el.innerHTML = `<button class="lgi-widget-button">${String(c.text ?? 'BOTÓN')}</button>`
-  else { el.innerHTML = `<div class="lgi-widget-data"><strong>${String(c.title ?? w.name)}</strong>${w.widget_type === 'resource' ? 'METAL · CRISTAL · DEUTERIO · ENERGÍA' : w.widget_type === 'planet' ? 'Planeta · Coordenadas · Producción' : w.widget_type === 'fleet' ? 'Misiones · Llegadas · Retornos' : 'Galaxias · Sistemas · Espacio disponible'}</div>` }
-}
+function enableManipulation(w:Widget,e:HTMLElement,refresh:()=>void){e.onpointerdown=(ev)=>{if((ev.target as HTMLElement).classList.contains('lgi-handle'))return;ev.preventDefault();ev.stopPropagation();const sx=ev.clientX,sy=ev.clientY,ox=w.x,oy=w.y;const move=(m:PointerEvent)=>{w.x=Math.max(0,ox+m.clientX-sx);w.y=Math.max(0,oy+m.clientY-sy);e.style.left=`${w.x}px`;e.style.top=`${w.y}px`};const up=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);void persist(w);refresh()};document.addEventListener('pointermove',move);document.addEventListener('pointerup',up)};const h=e.querySelector('.lgi-handle') as HTMLElement|null;if(h)h.onpointerdown=(ev)=>{ev.preventDefault();ev.stopPropagation();const sx=ev.clientX,sy=ev.clientY,sw=w.width,sh=w.height;const move=(m:PointerEvent)=>{w.width=Math.max(70,sw+m.clientX-sx);w.height=Math.max(45,sh+m.clientY-sy);e.style.width=`${w.width}px`;e.style.height=`${w.height}px`};const up=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);void persist(w);refresh()};document.addEventListener('pointermove',move);document.addEventListener('pointerup',up)}}
 
-async function createWidget(type: WidgetType) {
-  const d = defaultWidget(type)
-  const { data, error } = await supabase.from('dashboard_widgets').insert({ player_id: ADMIN_PLAYER_ID, widget_type: type, name: d.name, x: d.x, y: d.y, width: d.width, height: d.height, z_index: d.z_index, opacity: d.opacity, visible: true, config: d.config }).select('id,widget_type,name,x,y,width,height,z_index,opacity,visible,config').single()
-  if (error) { alert(error.message); return null }
-  return data as Widget
-}
+function openEditor(widgets:Widget[]){if(document.getElementById('lgi-editor'))return;const panel=document.createElement('aside');panel.id='lgi-editor';panel.innerHTML=`<h3>🧩 CONSTRUCTOR DE INTERFAZ</h3><div class="sub">Mover y redimensionar sin romper la página</div><div class="lgi-grid" id="lgi-palette"></div><div class="lgi-list"><b>WIDGETS</b><div id="lgi-list"></div></div><div id="lgi-props" class="lgi-props"></div><div class="lgi-row"><button id="lgi-close">CERRAR</button><button id="lgi-reset">BORRAR TODO</button></div>`;document.body.appendChild(panel);const palette=panel.querySelector('#lgi-palette') as HTMLElement;Object.entries(CATALOG).forEach(([type,label])=>{const b=document.createElement('button');b.textContent=`${label} +`;b.onclick=async()=>{const n=await create(type as WidgetType);if(n){widgets.push(n);refresh()}};palette.appendChild(b)});const list=panel.querySelector('#lgi-list') as HTMLElement;const props=panel.querySelector('#lgi-props') as HTMLElement;let selected:Widget|null=null;
+ const refresh=()=>{widgets.forEach(w=>{const e=paint(w,!!selected);if(selected?.id===w.id)enableManipulation(w,e,refresh)});document.querySelectorAll('.lgi-widget').forEach(e=>{if(!widgets.some(w=>w.id===e.getAttribute('data-widget-id')))e.remove()});list.innerHTML='';widgets.forEach(w=>{const b=document.createElement('button');b.className=selected?.id===w.id?'active':'';b.textContent=`${w.visible?'👁':'🚫'} ${w.name}`;b.onclick=()=>{selected=w;refresh();showProps()};list.appendChild(b)});if(selected)showProps()}
+ const showProps=()=>{if(!selected)return;const w=selected;props.innerHTML=`<label>Nombre</label><input id="pn" value="${w.name}"><div class="lgi-grid"><div><label>X</label><input id="px" type="number" value="${w.x}"></div><div><label>Y</label><input id="py" type="number" value="${w.y}"></div><div><label>Ancho</label><input id="pw" type="number" value="${w.width}"></div><div><label>Alto</label><input id="ph" type="number" value="${w.height}"></div><div><label>Z</label><input id="pz" type="number" value="${w.z_index}"></div><div><label>Opacidad</label><input id="po" type="number" min="0" max="1" step=".05" value="${w.opacity}"></div></div><label>Texto / título</label><textarea id="pt">${String(w.config?.text||w.config?.title||'')}</textarea><label>URL de imagen</label><input id="pu" value="${String(w.config?.url||'')}"><div class="lgi-row"><button id="pa">APLICAR</button><button id="pd">ELIMINAR</button></div>`;props.querySelector('#pa')?.addEventListener('click',async()=>{w.name=(props.querySelector('#pn') as HTMLInputElement).value;w.x=Number((props.querySelector('#px') as HTMLInputElement).value);w.y=Number((props.querySelector('#py') as HTMLInputElement).value);w.width=Number((props.querySelector('#pw') as HTMLInputElement).value);w.height=Number((props.querySelector('#ph') as HTMLInputElement).value);w.z_index=Number((props.querySelector('#pz') as HTMLInputElement).value);w.opacity=Number((props.querySelector('#po') as HTMLInputElement).value);const text=(props.querySelector('#pt') as HTMLTextAreaElement).value;w.config={...w.config,text,title:text,url:(props.querySelector('#pu') as HTMLInputElement).value};await persist(w);refresh()});props.querySelector('#pd')?.addEventListener('click',async()=>{if(!confirm('¿Eliminar este widget?'))return;await supabase.from('dashboard_widgets').delete().eq('id',w.id);widgets.splice(widgets.indexOf(w),1);selected=null;refresh()})}
+ panel.querySelector('#lgi-close')?.addEventListener('click',()=>panel.remove());panel.querySelector('#lgi-reset')?.addEventListener('click',async()=>{if(!confirm('¿Borrar todos los widgets?'))return;await supabase.from('dashboard_widgets').delete().eq('player_id',ADMIN_PLAYER_ID);widgets.splice(0);selected=null;refresh()});refresh()}
 
-function openEditor(initial: Widget[], rerender: (w: Widget[]) => void) {
-  if (document.querySelector('.lgi-widget-toolbar')) return
-  const panel = document.createElement('section'); panel.className = 'lgi-widget-toolbar'
-  panel.innerHTML = `<h3>🧩 CONSTRUCTOR DE INTERFAZ</h3><div class="sub">Widgets independientes · no modifican el layout React</div><div class="lgi-widget-palette"></div><div class="lgi-widget-list"><b>ELEMENTOS ACTUALES</b><div class="widget-list-items"></div></div><div class="row"><button class="widget-close">CERRAR</button></div>`
-  document.body.appendChild(panel)
-  const palette = panel.querySelector('.lgi-widget-palette') as HTMLElement
-  WIDGETS.forEach(item => { const b = document.createElement('button'); b.innerHTML = `${item.icon} <b>${item.label}</b><br><small>${item.description}</small>`; b.onclick = async () => { const created = await createWidget(item.type); if (created) { initial.push(created); renderWidget(created); refreshList() } }; palette.appendChild(b) })
-  const list = panel.querySelector('.widget-list-items') as HTMLElement
-  function refreshList() { list.innerHTML = ''; initial.forEach(w => { const b = document.createElement('button'); b.textContent = `${w.visible ? '👁' : '🚫'} ${w.name} [${w.widget_type}]`; b.onclick = () => openProperties(w, initial, rerender, refreshList); list.appendChild(b) }) }
-  panel.querySelector('.widget-close')?.addEventListener('click', () => panel.remove())
-  refreshList()
-}
-
-function openProperties(w: Widget, all: Widget[], rerender: (w: Widget[]) => void, refreshList: () => void) {
-  const old = document.querySelector('.lgi-widget-properties'); old?.remove()
-  const p = document.createElement('section'); p.className = 'lgi-widget-toolbar lgi-widget-properties'; p.style.right = '425px'
-  p.innerHTML = `<h3>⚙️ ${w.name}</h3><label>Nombre</label><input class="name"><div class="grid"><div><label>X</label><input class="x" type="number"></div><div><label>Y</label><input class="y" type="number"></div><div><label>Ancho</label><input class="width" type="number"></div><div><label>Alto</label><input class="height" type="number"></div><div><label>Z-index</label><input class="z" type="number"></div><div><label>Opacidad</label><input class="opacity" type="number" min="0" max="1" step=".05"></div></div><label>Contenido / título</label><textarea class="text"></textarea><label>URL de imagen (solo Imagen)</label><input class="url" type="url"><div class="row"><button class="save">APLICAR</button><button class="delete">ELIMINAR</button><button class="close">CERRAR</button></div>`
-  document.body.appendChild(p)
-  ;(['name','x','y','width','height','z','opacity'] as const).forEach(k => { (p.querySelector(`.${k}`) as HTMLInputElement).value = String((w as any)[k]) })
-  ;(p.querySelector('.text') as HTMLTextAreaElement).value = String(w.config?.text ?? w.config?.title ?? w.name)
-  ;(p.querySelector('.url') as HTMLInputElement).value = String(w.config?.url ?? '')
-  p.querySelector('.save')?.addEventListener('click', async () => {
-    const config = { ...w.config, text: (p.querySelector('.text') as HTMLTextAreaElement).value, title: (p.querySelector('.text') as HTMLTextAreaElement).value, url: (p.querySelector('.url') as HTMLInputElement).value }
-    const patch = { name: (p.querySelector('.name') as HTMLInputElement).value, x: Number((p.querySelector('.x') as HTMLInputElement).value), y: Number((p.querySelector('.y') as HTMLInputElement).value), width: Number((p.querySelector('.width') as HTMLInputElement).value), height: Number((p.querySelector('.height') as HTMLInputElement).value), z_index: Number((p.querySelector('.z') as HTMLInputElement).value), opacity: Number((p.querySelector('.opacity') as HTMLInputElement).value), config, updated_at: new Date().toISOString() }
-    const { error } = await supabase.from('dashboard_widgets').update(patch).eq('id', w.id)
-    if (error) { alert(error.message); return }
-    Object.assign(w, patch); renderWidget(w); refreshList(); p.remove(); rerender(all)
-  })
-  p.querySelector('.delete')?.addEventListener('click', async () => { if (!confirm('¿Eliminar este widget?')) return; const { error } = await supabase.from('dashboard_widgets').delete().eq('id', w.id); if (error) { alert(error.message); return }; document.querySelector(`[data-widget-id="${w.id}"]`)?.remove(); const i = all.findIndex(x => x.id === w.id); if (i >= 0) all.splice(i, 1); refreshList(); p.remove(); rerender(all) })
-  p.querySelector('.close')?.addEventListener('click', () => p.remove())
-}
-
-async function boot() {
-  ensureStyles()
-  if (!(await isAdmin())) return
-  const widgets = await loadWidgets()
-  widgets.filter(w => w.visible).forEach(renderWidget)
-  const button = document.createElement('button'); button.className = 'lgi-widget-admin-button'; button.textContent = '🧩 WIDGETS'
-  button.onclick = () => openEditor(widgets, () => widgets.filter(w => w.visible).forEach(renderWidget))
-  document.body.appendChild(button)
-}
-
+async function boot(){styles();if(!(await isAdmin()))return;const widgets=await load();widgets.filter(w=>w.visible).forEach(w=>paint(w));const b=document.createElement('button');b.className='lgi-admin';b.textContent='🧩 WIDGETS';b.onclick=()=>openEditor(widgets);document.body.appendChild(b)}
 void boot()
