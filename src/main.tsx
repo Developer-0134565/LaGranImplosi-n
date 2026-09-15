@@ -13,7 +13,6 @@ import './template-neo-fix'
 import './widget-visibility-toggle'
 import './sidebar-complete'
 import './core-module-foundation'
-import './core-modules-mount'
 import './galaxy-mount'
 
 createRoot(document.getElementById('root')!).render(
