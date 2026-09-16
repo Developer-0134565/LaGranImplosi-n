@@ -1,0 +1,21 @@
+/* Frontend viewport/layer correction.
+   Keep the wallpaper behind the game chrome and let the long left menu scroll
+   instead of clipping its final entries. No game logic is changed. */
+html,body,#root{position:relative;z-index:0;isolation:isolate}
+body{background-color:#05080d!important;overflow:hidden!important}
+body::before,body::after{z-index:-2!important;pointer-events:none!important}
+.game{position:relative!important;z-index:1!important;background:transparent!important;isolation:isolate}
+.template-chrome,.template-planetstrip,.template-side{isolation:isolate}
+.template-side{
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(135,171,207,.35) transparent;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.template-side::-webkit-scrollbar{width:7px}
+.template-side::-webkit-scrollbar-track{background:transparent}
+.template-side::-webkit-scrollbar-thumb{background:rgba(135,171,207,.28);border-radius:4px}
+.template-side::-webkit-scrollbar-thumb:hover{background:rgba(79,195,247,.45)}
+@media(max-width:700px){.template-side{overflow-x:auto!important;overflow-y:hidden!important}}
