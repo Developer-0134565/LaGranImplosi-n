@@ -6,6 +6,7 @@ import './styles/ui-overhaul.css'
 import './styles/definition-ui.css'
 import { supabase } from './lib/supabase'
 import GalaxyView from './GalaxyView'
+import { coordinates, formatDuration, formatNumber, formatTime } from './lib/formatters'
 
 type FontRole='title'|'heading'|'body'|'number'|'button'
 type FontSettings=Record<FontRole,string>
@@ -29,10 +30,6 @@ function loadSavedFonts(){try{const saved=localStorage.getItem(FONT_STORAGE_KEY)
 function saveFontSettings(s:FontSettings){try{localStorage.setItem(FONT_STORAGE_KEY,JSON.stringify(s))}catch{}}
 function fontStack(font:string,fallback:string){return`\"${font}\", ${fallback}`}
 function getFontVariables(s:FontSettings):CSSProperties{return{'--font-title':fontStack(s.title,'sans-serif'),'--font-heading':fontStack(s.heading,'sans-serif'),'--font-body':fontStack(s.body,'sans-serif'),'--font-number':fontStack(s.number,'monospace'),'--font-button':fontStack(s.button,'sans-serif')} as CSSProperties}
-function formatNumber(value:number|string|undefined|null){if(value===undefined||value===null)return'—';const n=Number(value);return Number.isFinite(n)?new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(n):'—'}
-function formatDuration(value:number|string|undefined|null){const seconds=Number(value);if(!Number.isFinite(seconds)||seconds<=0)return'—';const total=Math.round(seconds);const days=Math.floor(total/86400);const hours=Math.floor((total%86400)/3600);const minutes=Math.floor((total%3600)/60);const secs=total%60;return days?`${days}d ${hours}h`:hours?`${hours}h ${minutes}m`:minutes?`${minutes}m ${secs}s`:`${secs}s`}
-function coordinates(p:Pick<Planet,'galaxy'|'system'|'position'>){return`[${p.galaxy}:${p.system}:${p.position}]`}
-function formatTime(value?:string|null){if(!value)return'—';return new Date(value).toLocaleString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function FontSelector({role,label,value,onChange}:{role:FontRole;label:string;value:string;onChange:(v:string)=>void}){return <label className="font-control"><span>{label}</span><select value={value} onChange={e=>onChange(e.target.value)}>{fonts[role].map(f=><option key={f}>{f}</option>)}</select><strong className="font-preview" style={{fontFamily:`\"${value}\",sans-serif`}}>{value}</strong></label>}
 
 function App(){
