@@ -17,6 +17,10 @@ body {
 
 body::before,
 body::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
   pointer-events: none !important;
   z-index: -1 !important;
 }
@@ -37,9 +41,16 @@ body::after {
   background: transparent !important;
 }
 
+/* Belt-and-braces: this selector must never become a foreground layer. */
 .template-frame-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: none !important;
+  background-image: none !important;
   pointer-events: none !important;
-  background: transparent !important;
+  z-index: -10000 !important;
 }
 
 img[src*="wallpaper"],
