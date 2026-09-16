@@ -1,24 +1,33 @@
-/* Frameoverlay: the image is used ONLY as a thin perimeter frame. */
+/* Frameoverlay: render the supplied JPG as a real border image only. */
 .template-frame-overlay{
   position:fixed!important;
   inset:0!important;
   z-index:10000!important;
   pointer-events:none!important;
   box-sizing:border-box!important;
-  padding:clamp(7px,0.72vw,12px)!important;
-  border:0!important;
-  background:url('/IMAGENES/Frameoverlay.jpg') center center / 100% 100% no-repeat!important;
-  /* Keep only the outer padding/border area visible; the centre is transparent. */
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0)!important;
-  -webkit-mask-composite:xor!important;
-  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0)!important;
-  mask-composite:exclude!important;
+  width:100vw!important;
+  height:100vh!important;
+  padding:0!important;
+  background:transparent!important;
+  border:18px solid transparent!important;
+  border-image-source:url('/IMAGENES/Frameoverlay.jpg')!important;
+  border-image-slice:12% 12% 12% 12%!important;
+  border-image-width:18px 18px 18px 18px!important;
+  border-image-outset:0!important;
+  border-image-repeat:stretch!important;
 }
 
+/* The JPG centre is deliberately discarded by border-image (no `fill`). */
 html,body,#root{
+  width:100%!important;
+  height:100%!important;
   background:#05080d url('/IMAGENES/wallpaper.jpg') center center / cover fixed no-repeat!important;
+  overflow:hidden!important;
 }
 
 @media (max-width:900px){
-  .template-frame-overlay{padding:6px!important}
+  .template-frame-overlay{
+    border-width:14px!important;
+    border-image-width:14px 14px 14px 14px!important;
+  }
 }
