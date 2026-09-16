@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './styles/template-chrome.css'
+import './styles/frontend-layer-fix.css'
 
 type NavTarget = 'OVERVIEW' | 'EDIFICIOS' | 'INVESTIGACIÓN' | 'HANGAR' | 'DEFENSAS' | 'FLOTA' | 'GALAXIA' | 'EXPEDICIONES' | 'MENSAJES'
 type PlanetChip = { name: string; coords: string }
