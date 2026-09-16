@@ -10,7 +10,7 @@ function renderOwnedPlanets(owned: PlanetRow[]) {
   const container = document.querySelector<HTMLElement>('[data-lg-role="owned-planets"]')
   if (!container) return false
 
-  const currentIds = Array.from(container.querySelectorAll<HTMLElement>('.owned-planet'))
+  const currentIds = Array.from(container.querySelectorAll<HTMLElement>('[data-lg-role="owned-planet"]'))
     .map((node) => node.dataset.planetId || '')
     .filter(Boolean)
   const nextIds = owned.map((planet) => planet.id)
@@ -23,12 +23,14 @@ function renderOwnedPlanets(owned: PlanetRow[]) {
   for (const planet of owned) {
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = `owned-planet${planet.is_homeworld ? ' homeworld' : ''}`
+    button.className = `owned-planet lg-owned-planet${planet.is_homeworld ? ' homeworld' : ''}`
+    button.dataset.lgRole = 'owned-planet'
     button.dataset.planetId = planet.id
     button.title = `${planet.name} [${planet.galaxy}:${planet.system}:${planet.position}]`
 
     const orb = document.createElement('span')
-    orb.className = 'owned-planet-orb'
+    orb.className = 'owned-planet-orb lg-owned-planet-orb'
+    orb.dataset.lgRole = 'owned-planet-orb'
     orb.setAttribute('aria-hidden', 'true')
     orb.textContent = '◉'
 
