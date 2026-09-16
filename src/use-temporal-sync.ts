@@ -22,14 +22,27 @@ export function useTemporalSync(playerId: string|undefined, home: TemporalPlanet
     if (!playerId || !home) return
     let alive = true
     let running = false
+    let resolvedUniverseId: string|undefined
 
     const sync = async () => {
       if (running) return
       running = true
       try {
+        if (!resolvedUniverseId) {
+          const { data: playerRow, error: playerError } = await supabase
+            .from('players')
+            .select('universe_id')
+            .eq('id', playerId)
+            .maybeSingle()
+
+          if (playerError || !playerRow?.universe_id || !alive) return
+          resolvedUniverseId = playerRow.universe_id
+        }
+
         const { data: ownedPlanets, error: planetsError } = await supabase
           .from('planets')
           .select('id')
+          .eq('universe_id', resolvedUniverseId)
           .eq('player_id', playerId)
           .eq('is_destroyed', false)
 
@@ -46,7 +59,13 @@ export function useTemporalSync(playerId: string|undefined, home: TemporalPlanet
           })
           if (error) continue
 
-          const { data } = await supabase.from('planets').select(SELECT).eq('id', planetId).maybeSingle()
+          const { data } = await supabase
+            .from('planets')
+            .select(SELECT)
+            .eq('universe_id', resolvedUniverseId)
+            .eq('id', planetId)
+            .maybeSingle()
+
           if (data) refreshed.set(planetId, data as TemporalPlanet)
         }
 
