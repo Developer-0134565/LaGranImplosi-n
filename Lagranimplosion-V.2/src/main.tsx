@@ -13,6 +13,7 @@ import './styles/frontend-runtime-fixes.css'
 import './styles/template-system.css'
 import './styles/template-layout-v2.css'
 import './styles/typography-controls.css'
+import './styles/v2-layout-fixes.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
