@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import './styles/template-chrome.css'
-import './styles/frontend-layer-fix.css'
+import { supabase } from './lib/supabase'
 
 type NavTarget = 'OVERVIEW' | 'EDIFICIOS' | 'INVESTIGACIÓN' | 'HANGAR' | 'DEFENSAS' | 'FLOTA' | 'GALAXIA' | 'EXPEDICIONES' | 'MENSAJES'
 type PlanetChip = { name: string; coords: string }
@@ -18,6 +17,11 @@ function clickSettings() {
   const button = document.querySelector<HTMLButtonElement>('.settings-button')
   if (button) button.click()
   else showModuleNotice('Opciones')
+}
+
+async function handleLogout() {
+  const { error } = await supabase.auth.signOut()
+  if (error) showModuleNotice(`Error al cerrar sesión: ${error.message}`)
 }
 
 function readResource(index: number) {
@@ -107,7 +111,7 @@ export default function TemplateChrome() {
         <button type="button" onClick={() => clickExistingNav('MENSAJES')}>Amigos</button>
         <button type="button" onClick={clickSettings}>Opciones</button>
         <button type="button" onClick={() => clickExistingNav('OVERVIEW')}>Vestíbulo</button>
-        <button type="button" onClick={() => showModuleNotice('Cerrar sesión')}>Cerrar sesión</button>
+        <button type="button" onClick={handleLogout}>Cerrar sesión</button>
         <span className="template-clock">{time}</span>
       </nav>
       <div className="template-mainbar">
