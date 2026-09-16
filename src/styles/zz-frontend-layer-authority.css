@@ -1,15 +1,33 @@
 /* Final layer authority.
-   This file is intentionally loaded last because several older viewport/fix sheets
-   contain overlapping z-index rules. Keep the wallpaper strictly as a background. */
+   This is a safety boundary while the frontend CSS is being consolidated.
+   The wallpaper is a background only; no full-screen image may become a foreground layer. */
 html,body,#root,.app-frame{position:relative!important;z-index:0!important;}
 body{background:#05080d url('/IMAGENES/wallpaper.jpg') center center/cover fixed no-repeat!important;}
+
+/* Keep page pseudo-elements behind the application. */
 body::before,body::after{pointer-events:none!important;z-index:-2!important;}
 
-/* The frame overlay was useful during the frame experiment, but it must never
-   become a full-screen foreground layer. The frame image is therefore disabled
-   until it is implemented as a non-covering decoration. */
-.template-frame-overlay{display:none!important;visibility:hidden!important;opacity:0!important;position:absolute!important;inset:auto!important;width:0!important;height:0!important;border:0!important;background:none!important;pointer-events:none!important;z-index:-1000!important;}
-.template-frame-edge{display:none!important;}
+/* The decorative frame is currently disabled. It must not paint over the UI. */
+.template-frame-overlay,
+.template-frame-edge,
+img[src*="Frameoverlay"],
+img[src*="frameoverlay"],
+img[src*="wallpaper"],
+img[src*="Wallpaper"]{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+  position:absolute!important;
+  inset:auto!important;
+  width:0!important;
+  height:0!important;
+  max-width:0!important;
+  max-height:0!important;
+  border:0!important;
+  background:none!important;
+  z-index:-1000!important;
+}
 
 .game{position:relative!important;z-index:1!important;background:transparent!important;}
 .template-chrome{position:fixed!important;z-index:5000!important;}
@@ -17,6 +35,5 @@ body::before,body::after{pointer-events:none!important;z-index:-2!important;}
 .template-side{position:fixed!important;z-index:4900!important;}
 .template-module-notice{z-index:8990!important;}
 
-/* Never allow an image named wallpaper to behave as a foreground element. */
-img[class*="wallpaper"],img[id*="wallpaper"]{position:static!important;z-index:auto!important;pointer-events:none!important;}
-body>img{pointer-events:none!important;}
+/* Never allow a direct body image to cover the application. */
+body>img{display:none!important;}
