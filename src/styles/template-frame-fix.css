@@ -1,37 +1,24 @@
-/* Frameoverlay: SOLO los bordes. El centro queda totalmente transparente. */
+/* Frameoverlay: the image is used ONLY as a thin perimeter frame. */
 .template-frame-overlay{
   position:fixed!important;
   inset:0!important;
-  z-index:4800!important;
+  z-index:10000!important;
   pointer-events:none!important;
   box-sizing:border-box!important;
-  background:transparent!important;
-  border:16px solid transparent!important;
-  border-image-source:url('/IMAGENES/Frameoverlay.jpg')!important;
-  border-image-slice:16!important;
-  border-image-width:16px!important;
-  border-image-outset:0!important;
-  border-image-repeat:stretch!important;
+  padding:clamp(7px,0.72vw,12px)!important;
+  border:0!important;
+  background:url('/IMAGENES/Frameoverlay.jpg') center center / 100% 100% no-repeat!important;
+  /* Keep only the outer padding/border area visible; the centre is transparent. */
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0)!important;
+  -webkit-mask-composite:xor!important;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0)!important;
+  mask-composite:exclude!important;
 }
 
-/* El wallpaper es el fondo real de toda la aplicación; Frameoverlay no lo tapa. */
 html,body,#root{
-  background:#05080d url('/IMAGENES/wallpaper.jpg') center center/cover fixed no-repeat!important;
-}
-
-/* Escala visual del marco: fino y discreto, sin invadir el contenido. */
-@media (max-width:1400px){
-  .template-frame-overlay{
-    border-width:12px!important;
-    border-image-slice:12!important;
-    border-image-width:12px!important;
-  }
+  background:#05080d url('/IMAGENES/wallpaper.jpg') center center / cover fixed no-repeat!important;
 }
 
 @media (max-width:900px){
-  .template-frame-overlay{
-    border-width:8px!important;
-    border-image-slice:8!important;
-    border-image-width:8px!important;
-  }
+  .template-frame-overlay{padding:6px!important}
 }
