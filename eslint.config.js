@@ -23,6 +23,7 @@ export default defineConfig([
     files: ['src/App.tsx'],
     rules: {
       'no-empty': 'off',
+      'no-useless-escape': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
