@@ -11,11 +11,12 @@ type TemporalPlanet = {
   player_id: string
   is_homeworld: boolean
   is_destroyed: boolean
+  universe_id?: string
   planet_resources?: Array<{ metal: number|string; crystal: number|string; deuterium: number|string; energy: number|string }>
 }
 
 const INTERVAL_MS = 10_000
-const SELECT = 'id,name,galaxy,system,position,player_id,is_homeworld,is_destroyed,planet_resources(metal,crystal,deuterium,energy)'
+const SELECT = 'id,name,galaxy,system,position,player_id,is_homeworld,is_destroyed,universe_id,planet_resources(metal,crystal,deuterium,energy)'
 
 export function useTemporalSync(playerId: string|undefined, home: TemporalPlanet|undefined, setPlanets: Dispatch<SetStateAction<TemporalPlanet[]>>) {
   useEffect(() => {
