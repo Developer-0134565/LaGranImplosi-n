@@ -20,18 +20,26 @@ function clickExistingNav(label: string) {
   item?.click()
 }
 
-function readResource(label: string) {
-  const nodes = Array.from(document.querySelectorAll<HTMLElement>('.neo-resource'))
-  const node = nodes.find((entry) => entry.textContent?.toUpperCase().includes(label))
-  return node?.textContent?.replace(label, '').trim().replace(/\s+/g, ' ') || '—'
+function readResource(index: number) {
+  const node = document.querySelectorAll<HTMLElement>('.neo-resource')[index]
+  return node?.textContent?.replace(/\s+/g, ' ').trim() || '—'
+}
+
+function readPlanet() {
+  const node = document.querySelector<HTMLElement>('.neo-planetbar')
+  return node?.textContent?.replace(/\s+/g, ' ').trim() || '—'
 }
 
 export default function TemplateChrome() {
   const [resources, setResources] = useState({ metal: '—', crystal: '—', deuterium: '—', energy: '—' })
+  const [planet, setPlanet] = useState('—')
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
-    const sync = () => setResources({ metal: readResource('METAL'), crystal: readResource('CRISTAL'), deuterium: readResource('DEUTERIO'), energy: readResource('ENERGÍA') })
+    const sync = () => {
+      setResources({ metal: readResource(0), crystal: readResource(1), deuterium: readResource(2), energy: readResource(3) })
+      setPlanet(readPlanet())
+    }
     sync()
     const id = window.setInterval(sync, 1000)
     return () => window.clearInterval(id)
@@ -65,7 +73,7 @@ export default function TemplateChrome() {
         <button className="template-resource template-deut" type="button" onClick={() => clickExistingNav('EDIFICIOS')}><i>◈</i><span><b>DEUTERIO</b><strong>{resources.deuterium}</strong></span></button>
         <div className="template-resource template-energy"><i>ϟ</i><span><b>ENERGÍA</b><strong>{resources.energy}</strong></span></div>
         <div className="template-resource template-dark"><i>✦</i><span><b>MATERIA OSCURA</b><strong>—</strong></span></div>
-        <div className="template-resource template-planet"><i>◎</i><span><b>PLANETA ACTUAL</b><strong>—</strong></span></div>
+        <div className="template-resource template-planet"><i>◎</i><span><b>PLANETA ACTUAL</b><strong>{planet}</strong></span></div>
       </div>
       <div className="template-actionbar">
         <div className="template-action-group">
