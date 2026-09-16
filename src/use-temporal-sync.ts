@@ -48,16 +48,14 @@ export function useTemporalSync(playerId: string|undefined, home: TemporalPlanet
 
         if (planetsError || !alive) return
 
-        const refreshed = new Map<string, TemporalPlanet>()
         const planetIds = (ownedPlanets ?? []).map(planet => planet.id)
-
-        for (const planetId of planetIds) {
+        const results = await Promise.all(planetIds.map(async planetId => {
           const { error } = await supabase.rpc('sync_current_planet_resources', {
             p_player_id: playerId,
             p_planet_id: planetId,
             p_until: new Date().toISOString(),
           })
-          if (error) continue
+          if (error || !alive) return null
 
           const { data } = await supabase
             .from('planets')
@@ -66,11 +64,15 @@ export function useTemporalSync(playerId: string|undefined, home: TemporalPlanet
             .eq('id', planetId)
             .maybeSingle()
 
-          if (data) refreshed.set(planetId, data as TemporalPlanet)
-        }
+          return data ? [planetId, data as TemporalPlanet] as const : null
+        }))
 
-        if (alive && refreshed.size) {
-          setPlanets(current => current.map(planet => refreshed.get(planet.id) ?? planet))
+        if (alive) {
+          const refreshed = new Map<string, TemporalPlanet>()
+          for (const result of results) {
+            if (result) refreshed.set(result[0], result[1])
+          }
+          if (refreshed.size) setPlanets(current => current.map(planet => refreshed.get(planet.id) ?? planet))
         }
       } finally {
         running = false
