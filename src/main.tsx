@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/template-eventbar.css'
 import './styles/template-frame-fix.css'
+import './styles/template-layout-fix.css'
 import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 
