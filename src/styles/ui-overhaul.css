@@ -1,43 +1,32 @@
 /* OGame-like empire rail and separated communications. */
-.neo-main{display:grid!important;grid-template-columns:minmax(0,1fr) 190px!important;gap:0!important;min-width:0!important;align-items:stretch!important}
-.neo-main-content{min-width:0;min-height:0;overflow:auto}
-.neo-owned-planets{grid-column:2;grid-row:1;order:2;margin:8px 8px 8px 0;border:1px solid var(--neo-line);border-radius:9px;background:rgba(13,19,29,.82);box-shadow:var(--neo-shadow);overflow:auto;align-self:stretch}
-.owned-planets-head{position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:2px;padding:10px 10px 8px;border-bottom:1px solid var(--neo-line);background:rgba(7,10,16,.97)}
-.owned-planets-head span{font:700 6px var(--font-heading);letter-spacing:1.5px;color:var(--neo-faint)}
-.owned-planets-head strong{font:700 9px var(--font-heading);letter-spacing:.8px;color:var(--neo-text)}
-.owned-planet{width:100%;display:flex;align-items:center;gap:8px;padding:9px 8px;border:0;border-bottom:1px solid rgba(126,180,255,.07);background:transparent;color:var(--neo-text);text-align:left;cursor:pointer}
-.owned-planet:hover,.owned-planet.homeworld{background:rgba(53,208,255,.045)}
-.owned-planet.homeworld{box-shadow:inset 2px 0 var(--neo-accent)}
-.owned-planet-orb{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border:1px solid rgba(117,180,255,.45);border-radius:50%;background:radial-gradient(circle at 35% 30%,#d9f5ff 0 5%,transparent 9%),radial-gradient(circle at 65% 65%,#357d9a 0 15%,transparent 26%),radial-gradient(circle,#183348 0,#08131f 70%,#03070b 100%);color:#9de8ff;font-size:12px;box-shadow:0 0 12px rgba(53,208,255,.12)}
-.owned-planet>span:last-child{min-width:0;display:flex;flex-direction:column}
-.owned-planet strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 8px var(--font-heading);color:var(--neo-text)}
-.owned-planet small{font:500 7px var(--font-number);color:var(--neo-faint)}
-.owned-planets-empty{padding:15px 10px;text-align:center;font:7px var(--font-body);color:var(--neo-faint)}
+.neo-main{display:grid!important;grid-template-columns:minmax(0,1fr) 236px!important;gap:10px!important;min-width:0!important;align-items:stretch!important}
+.neo-main-content{grid-column:1!important;grid-row:1!important;min-width:0;min-height:0;overflow:auto!important}
+.neo-owned-planets{grid-column:2!important;grid-row:1!important;order:0!important;width:236px!important;min-width:236px!important;margin:0!important;border:1px solid var(--neo-line-strong)!important;border-radius:10px;background:rgba(7,11,18,.96)!important;box-shadow:var(--neo-shadow);overflow:auto;align-self:stretch;position:sticky;top:8px;max-height:calc(100vh - 100px)}
+.owned-planets-head{position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:3px;padding:12px 12px 10px;border-bottom:1px solid var(--neo-line-strong);background:rgba(7,10,16,.98)}
+.owned-planets-head span{font:700 7px var(--font-heading);letter-spacing:1.7px;color:var(--neo-accent)}
+.owned-planets-head strong{font:700 11px var(--font-heading);letter-spacing:1px;color:var(--neo-text)}
+.owned-planet{width:100%;display:flex;align-items:center;gap:10px;padding:10px 11px;border:0;border-bottom:1px solid rgba(126,180,255,.09);background:transparent;color:var(--neo-text);text-align:left;cursor:pointer}
+.owned-planet:hover,.owned-planet.homeworld{background:rgba(53,208,255,.065)}
+.owned-planet.homeworld{box-shadow:inset 3px 0 var(--neo-accent)}
+.owned-planet-orb{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border:1px solid rgba(117,180,255,.5);border-radius:50%;background:radial-gradient(circle at 35% 30%,#d9f5ff 0 5%,transparent 9%),radial-gradient(circle at 65% 65%,#357d9a 0 15%,transparent 26%),radial-gradient(circle,#183348 0,#08131f 70%,#03070b 100%);color:#9de8ff;font-size:14px;box-shadow:0 0 14px rgba(53,208,255,.14)}
+.owned-planet>span:last-child{min-width:0;display:flex;flex-direction:column;gap:2px}
+.owned-planet strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 10px var(--font-heading);color:var(--neo-text)}
+.owned-planet small{font:500 8px var(--font-number);color:var(--neo-faint)}
+.owned-planets-empty{padding:18px 12px;text-align:center;font:8px var(--font-body);color:var(--neo-faint)}
 .message-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
 .message-tabs button{padding:7px 10px;border:1px solid var(--neo-line);border-radius:6px;background:rgba(20,28,42,.34);color:var(--neo-dim);font:700 7px var(--font-button);letter-spacing:.6px;cursor:pointer}
 .message-tabs button:hover,.message-tabs button.active{border-color:var(--neo-accent);background:rgba(53,208,255,.07);color:var(--neo-text)}
 .neo-message-list{overflow:hidden}
 .message-row{display:grid;grid-template-columns:34px minmax(0,1fr) 80px;gap:10px;align-items:start;padding:12px;border-bottom:1px solid rgba(126,180,255,.07)}
-.message-row:last-child{border-bottom:0}
-.message-row:hover{background:rgba(53,208,255,.025)}
+.message-row:last-child{border-bottom:0}.message-row:hover{background:rgba(53,208,255,.025)}
 .message-icon{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--neo-line);border-radius:7px;background:rgba(20,28,42,.4);font-size:14px;color:var(--neo-accent)}
 .message-row strong{display:block;font:700 9px var(--font-heading);color:var(--neo-text)}
 .message-row p{margin:3px 0 0;font:400 8px/1.5 var(--font-body);color:var(--neo-dim)}
 .message-row time{font:600 7px var(--font-number);color:var(--neo-faint);text-align:right}
-.neo-list-panel{overflow:hidden}
-.neo-list-row{display:grid;grid-template-columns:minmax(150px,1.4fr) 90px 105px 105px;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid rgba(126,180,255,.07)}
-.neo-list-row:last-child{border-bottom:0}
-.neo-list-row>div{min-width:0;display:flex;flex-direction:column}
-.neo-list-row strong{font:700 9px var(--font-heading);color:var(--neo-text)}
-.neo-list-row small{font:600 7px var(--font-number);color:var(--neo-faint)}
-.neo-list-row b{font:600 8px var(--font-number);color:var(--neo-dim)}
+.neo-list-panel{overflow:hidden}.neo-list-row{display:grid;grid-template-columns:minmax(150px,1.4fr) 90px 105px 105px;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid rgba(126,180,255,.07)}
+.neo-list-row:last-child{border-bottom:0}.neo-list-row>div{min-width:0;display:flex;flex-direction:column}.neo-list-row strong{font:700 9px var(--font-heading);color:var(--neo-text)}.neo-list-row small{font:600 7px var(--font-number);color:var(--neo-faint)}.neo-list-row b{font:600 8px var(--font-number);color:var(--neo-dim)}
 .status-pill{justify-self:start;padding:4px 6px;border:1px solid var(--neo-line);border-radius:5px;font:700 6px var(--font-number);color:var(--neo-dim)}
-.status-pill.returning,.status-pill.arrived{color:var(--neo-ok);border-color:rgba(93,216,138,.3)}
-.status-pill.completed{color:var(--neo-accent);border-color:rgba(53,208,255,.3)}
-.status-pill.cancelled{color:var(--neo-danger);border-color:rgba(255,107,107,.3)}
-.neo-expedition-launch{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px;margin-bottom:8px}
-.neo-expedition-launch strong{font:700 9px var(--font-heading);color:var(--neo-text)}
-.neo-expedition-launch p{margin:2px 0 0;font:400 8px var(--font-body);color:var(--neo-dim)}
-.neo-expedition-launch code{font-family:var(--font-number)}
-@media(max-width:900px){.neo-main{grid-template-columns:minmax(0,1fr) 155px!important}.neo-list-row{grid-template-columns:minmax(130px,1fr) 80px 90px 90px}}
-@media(max-width:760px){.neo-main{display:block!important}.neo-owned-planets{margin:5px;max-height:180px}.owned-planets-head{display:flex;flex-direction:row;align-items:center;justify-content:space-between}.neo-main-content{overflow:visible}.owned-planet{display:inline-flex;width:180px;border:1px solid rgba(126,180,255,.08);margin:5px 0 5px 5px;border-radius:7px}.neo-owned-planets{white-space:nowrap}.neo-list-row{grid-template-columns:1fr 80px}.neo-list-row>div:nth-last-child(-n+2){display:none}.neo-expedition-launch{align-items:flex-start;flex-direction:column}.message-row{grid-template-columns:34px minmax(0,1fr)}.message-row time{grid-column:2;text-align:left}}
+.status-pill.returning,.status-pill.arrived{color:var(--neo-ok);border-color:rgba(93,216,138,.3)}.status-pill.completed{color:var(--neo-accent);border-color:rgba(53,208,255,.3)}.status-pill.cancelled{color:var(--neo-danger);border-color:rgba(255,107,107,.3)}
+.neo-expedition-launch{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px;margin-bottom:8px}.neo-expedition-launch strong{font:700 9px var(--font-heading);color:var(--neo-text)}.neo-expedition-launch p{margin:2px 0 0;font:400 8px var(--font-body);color:var(--neo-dim)}.neo-expedition-launch code{font-family:var(--font-number)}
+@media(max-width:900px){.neo-main{grid-template-columns:minmax(0,1fr) 180px!important}.neo-owned-planets{width:180px!important;min-width:180px!important}.neo-list-row{grid-template-columns:minmax(130px,1fr) 80px 90px 90px}}
+@media(max-width:760px){.neo-main{display:block!important}.neo-owned-planets{position:relative;top:auto;width:100%!important;min-width:0!important;max-height:180px;margin:0 0 8px!important}.neo-main-content{overflow:visible}.owned-planets-head{display:flex;flex-direction:row;align-items:center;justify-content:space-between}.owned-planet{display:inline-flex;width:180px;border:1px solid rgba(126,180,255,.08);margin:5px 0 5px 5px;border-radius:7px}.neo-owned-planets{white-space:nowrap}.neo-list-row{grid-template-columns:1fr 80px}.neo-list-row>div:nth-last-child(-n+2){display:none}.neo-expedition-launch{align-items:flex-start;flex-direction:column}.message-row{grid-template-columns:34px minmax(0,1fr)}.message-row time{grid-column:2;text-align:left}}
