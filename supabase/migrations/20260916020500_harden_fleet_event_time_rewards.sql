@@ -8,9 +8,7 @@ CREATE OR REPLACE FUNCTION public.get_active_expedition_item_effect(p_player_id 
 RETURNS numeric LANGUAGE sql STABLE SET search_path TO 'public','pg_temp' AS $function$
     SELECT COALESCE(SUM((eu.effect_snapshot->>'effect_value')::numeric),0)
     FROM public.expedition_item_uses eu
-    WHERE eu.player_id=p_player_id
-      AND (p_planet_id IS NULL OR eu.planet_id=p_planet_id)
-      AND eu.effect_snapshot->>'effect_key'=p_effect_key
+    WHERE eu.player_id=p_player_id AND (p_planet_id IS NULL OR eu.planet_id=p_planet_id) AND eu.effect_snapshot->>'effect_key'=p_effect_key
       AND (eu.effect_snapshot->>'expires_at' IS NULL OR (eu.effect_snapshot->>'expires_at')::timestamptz > p_at);
 $function$;
 
@@ -42,21 +40,13 @@ $function$;
 CREATE OR REPLACE FUNCTION public.calculate_expedition_resource_multiplier(p_fleet_id uuid)
 RETURNS numeric LANGUAGE plpgsql STABLE SET search_path TO 'public','pg_temp' AS $function$
 DECLARE v_at timestamptz;
-BEGIN
- SELECT arrives_at INTO v_at FROM public.fleet_movements WHERE id=p_fleet_id AND mission_type='EXPEDITION';
- IF v_at IS NULL THEN RAISE EXCEPTION 'Expedition fleet not found: %',p_fleet_id; END IF;
- RETURN public.calculate_expedition_resource_multiplier(p_fleet_id,v_at);
-END;
+BEGIN SELECT arrives_at INTO v_at FROM public.fleet_movements WHERE id=p_fleet_id AND mission_type='EXPEDITION'; IF v_at IS NULL THEN RAISE EXCEPTION 'Expedition fleet not found: %',p_fleet_id; END IF; RETURN public.calculate_expedition_resource_multiplier(p_fleet_id,v_at); END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.calculate_expedition_ship_reward_multiplier(p_fleet_id uuid)
 RETURNS numeric LANGUAGE plpgsql STABLE SET search_path TO 'public','pg_temp' AS $function$
 DECLARE v_at timestamptz;
-BEGIN
- SELECT arrives_at INTO v_at FROM public.fleet_movements WHERE id=p_fleet_id AND mission_type='EXPEDITION';
- IF v_at IS NULL THEN RAISE EXCEPTION 'Expedition fleet not found: %',p_fleet_id; END IF;
- RETURN public.calculate_expedition_ship_reward_multiplier(p_fleet_id,v_at);
-END;
+BEGIN SELECT arrives_at INTO v_at FROM public.fleet_movements WHERE id=p_fleet_id AND mission_type='EXPEDITION'; IF v_at IS NULL THEN RAISE EXCEPTION 'Expedition fleet not found: %',p_fleet_id; END IF; RETURN public.calculate_expedition_ship_reward_multiplier(p_fleet_id,v_at); END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.calculate_expedition_dark_matter_amount(p_fleet_id uuid)
@@ -86,7 +76,6 @@ BEGIN
  SELECT er.outcome INTO v_existing_outcome FROM public.expedition_results er WHERE er.fleet_id=p_fleet_id FOR UPDATE;
  IF FOUND AND v_existing_outcome IS NOT NULL THEN RETURN v_existing_outcome;END IF;
  SELECT p.universe_id INTO v_universe_id FROM public.planets p WHERE p.id=v_fleet.origin_planet_id;
- -- Settle the origin economy exactly through the logical arrival event before rewards.
  PERFORM public.update_planet_resources_until(v_fleet.origin_planet_id,v_fleet.arrives_at);
  v_actual_hold_seconds:=GREATEST(v_fleet.expedition_hold_seconds,0);v_flight_seconds:=GREATEST(EXTRACT(EPOCH FROM(v_fleet.arrives_at-v_fleet.started_at)),1);
  SELECT es.weight_ships+es.weight_resources+es.weight_delay+es.weight_speedup+es.weight_nothing+es.weight_black_hole+es.weight_pirates+es.weight_aliens+es.weight_dark_matter+es.weight_merchant+es.weight_items INTO v_weight_total FROM public.expedition_settings es WHERE es.universe_id=v_universe_id;
@@ -97,7 +86,7 @@ BEGIN
    INSERT INTO public.expedition_results(fleet_id,player_id,outcome,battle_id,enemy_ships,ships,resolved_at,event_type,random_roll,weight_total) VALUES(p_fleet_id,v_fleet.player_id,'PIRATES',v_battle.battle_id,v_battle.enemy_ships,v_battle.surviving_ships,v_fleet.arrives_at,'PIRATES',v_roll,v_weight_total) ON CONFLICT(fleet_id) DO NOTHING;
  ELSIF v_outcome='ALIENS' THEN
    SELECT * INTO v_battle FROM public.resolve_expedition_aliens(p_fleet_id);
-   INSERT INTO public.expedition_results(fleet_id,player_id,outcome,battle_id,enemy_ships,ships,v_fleet.arrives_at,'ALIENS',v_roll,v_weight_total) ON CONFLICT(fleet_id) DO NOTHING;
+   INSERT INTO public.expedition_results(fleet_id,player_id,outcome,battle_id,enemy_ships,ships,resolved_at,event_type,random_roll,weight_total) VALUES(p_fleet_id,v_fleet.player_id,'ALIENS',v_battle.battle_id,v_battle.enemy_ships,v_battle.survivors,v_fleet.arrives_at,'ALIENS',v_roll,v_weight_total) ON CONFLICT(fleet_id) DO NOTHING;
  ELSIF v_outcome='SHIPS' THEN
    v_ship_reward:=public.prepare_expedition_ship_reward_multitype(p_fleet_id);
    SELECT reward_tier,reward_multiplier,max_ship_find,scaled_ship_find,ship_reward INTO v_ship_budget FROM public.expedition_reward_budgets WHERE fleet_id=p_fleet_id FOR UPDATE;
