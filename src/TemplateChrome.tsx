@@ -141,6 +141,11 @@ export default function TemplateChrome() {
     </aside>
 
     {moduleNotice && <div className="template-module-notice" role="status" onClick={() => setModuleNotice(null)}>{moduleNotice}</div>}
-    <div className="template-frame-overlay" aria-hidden="true" />
+    <div className="template-frame-overlay" aria-hidden="true">
+      <span className="template-frame-edge template-frame-edge--top" />
+      <span className="template-frame-edge template-frame-edge--right" />
+      <span className="template-frame-edge template-frame-edge--bottom" />
+      <span className="template-frame-edge template-frame-edge--left" />
+    </div>
   </>
 }
