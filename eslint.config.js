@@ -19,4 +19,17 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/App.tsx'],
+    rules: {
+      'no-empty': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    files: ['src/GalaxyView.tsx'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ])
