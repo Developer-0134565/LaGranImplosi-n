@@ -1,7 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import './styles/template-system.css'
 import './styles/template-eventbar.css'
 import './styles/frontend-runtime-fixes.css'
 import App from './App.tsx'
