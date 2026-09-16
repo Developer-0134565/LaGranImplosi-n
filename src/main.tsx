@@ -7,6 +7,7 @@ import './styles/template-layout-fix.css'
 import './styles/template-viewport-final.css'
 import './styles/template-screen-final.css'
 import './styles/template-final-overrides.css'
+import './styles/viewport-scale-fix.css'
 import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 
