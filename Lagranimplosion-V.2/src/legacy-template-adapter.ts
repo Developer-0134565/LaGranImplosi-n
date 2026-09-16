@@ -4,6 +4,7 @@ const legacyRoles: Array<[string, string]> = [
   ['.neo-planetbar', 'planetbar'],
   ['.neo-overview-grid', 'overview'],
   ['.neo-planet-row', 'planet-row'],
+  ['.neo-owned-planets', 'owned-planets'],
   ['.neo-main-content', 'main-content'],
   ['.neo-definition', 'definition'],
   ['.neo-queue', 'queue'],
