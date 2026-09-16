@@ -1,8 +1,57 @@
-/* LAST CSS AUTHORITY: wallpaper is never a foreground element. */
-.template-frame-overlay,.template-frame-edge,img[src$="wallpaper.jpg"],img[src$="wallpaper.png"],img[src*="/wallpaper."],img[src*="/Wallpaper."],img[src*="Frameoverlay"],img[src*="frameoverlay"],[class*="wallpaper"],[id*="wallpaper"],[class*="Wallpaper"],[id*="Wallpaper"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;content-visibility:hidden!important;background:none!important;background-image:none!important;border:0!important;box-shadow:none!important;position:absolute!important;inset:auto!important;width:0!important;height:0!important;max-width:0!important;max-height:0!important;z-index:-2147483647!important}
-body>img,body>.template-frame-overlay{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-html,body{background-color:#05080d!important;overflow:hidden!important}
-body{background-image:url('/IMAGENES/wallpaper.jpg')!important;background-position:center center!important;background-size:cover!important;background-repeat:no-repeat!important;background-attachment:fixed!important}
-#root,.app-frame{position:relative!important;z-index:1!important;isolation:isolate!important}
-.game{position:relative!important;z-index:2!important;isolation:isolate!important;background:transparent!important}
-.template-chrome{position:fixed!important;z-index:5000!important}.template-planetstrip{position:fixed!important;z-index:4890!important}.template-side{position:fixed!important;z-index:4900!important}.template-module-notice{position:fixed!important;z-index:10000!important}
+/* Final frontend layer authority.
+   The wallpaper belongs to the page background only. Nothing here is allowed
+   to become a full-screen foreground image or overlay. */
+html,
+body,
+#root {
+  position: relative !important;
+  z-index: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+body {
+  background: #05080d url('/IMAGENES/wallpaper.jpg') center center / cover fixed no-repeat !important;
+}
+
+body::before,
+body::after {
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+.app-frame {
+  position: relative !important;
+  z-index: 1 !important;
+  isolation: isolate !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.game {
+  position: relative !important;
+  z-index: 2 !important;
+  isolation: isolate !important;
+  background: transparent !important;
+}
+
+.template-frame-overlay {
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+img[src*="wallpaper"],
+img[src*="Wallpaper"] {
+  pointer-events: none !important;
+}
+
+body > img {
+  pointer-events: none !important;
+}
+
+.template-chrome { z-index: 5000 !important; }
+.template-planetstrip { z-index: 4890 !important; }
+.template-side { z-index: 4900 !important; }
+.template-module-notice { z-index: 10000 !important; }
