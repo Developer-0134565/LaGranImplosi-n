@@ -37,7 +37,7 @@ export default function GalaxyView({homeworld,playerId,universeId}:Props){
    <div className="galaxy-table-head"><span>POS.</span><span>PLANETA</span><span>JUGADOR</span><span>ESTADO</span><span>ACCIÓN</span></div>
    {loading?<div className="galaxy-loading">ESCANEANDO COORDENADAS [{galaxy}:{system}]…</div>:<div className="galaxy-rows">{rows.map(({position,planet})=>{const isOwn=Boolean(planet&&planet.player_id===playerId);const selectedRow=selected?.id===planet?.id;return <button type="button" key={position} className={`galaxy-row${isOwn?' own':''}${selectedRow?' selected':''}${planet?' occupied':' empty'}`} onClick={()=>planet&&setSelected(planet)} disabled={!planet}>
     <span className="galaxy-position">{position}</span>
-    <span className="galaxy-planet"><i className={`planet-orb ${planetClass(position,planet)}`} aria-hidden="true">{planet?'◉':'·'}</i><span>{planet?<><strong>{planet.name}</strong>{planet.is_homeworld&&<small>PLANETA PRINCIPAL</small></>:<em>Espacio vacío</em>}</span></span>
+    <span className="galaxy-planet"><i className={`planet-orb ${planetClass(position,planet)}`} aria-hidden="true">{planet?'◉':'·'}</i><span>{planet ? (<><strong>{planet.name}</strong>{planet.is_homeworld && <small>PLANETA PRINCIPAL</small>}</>) : (<em>Espacio vacío</em>)}</span></span>
     <span className="galaxy-player">{planet?ownerOf(planet):'—'}{isOwn&&<small>TÚ</small>}</span>
     <span className="galaxy-state">{planet?<b className={isOwn?'self':'busy'}>{isOwn?'TU PLANETA':'OCUPADO'}</b>:<b className="free">LIBRE</b>}</span>
     <span className="galaxy-action">{planet?<span>VER ›</span>:'—'}</span>
