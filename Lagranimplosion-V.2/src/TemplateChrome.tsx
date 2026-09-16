@@ -19,23 +19,22 @@ function clickSettings() {
 }
 
 function readResource(index: number) {
-  const top = document.querySelectorAll<HTMLElement>('.neo-resources span b')[index]
-  if (top?.textContent?.trim()) return top.textContent.trim()
   const node = document.querySelectorAll<HTMLElement>('.neo-resource')[index]
-  return node?.textContent?.replace(/\s+/g, ' ').trim() || '—'
+  if (!node) return '—'
+  const value = node.querySelector('b')?.textContent?.trim()
+  return value || node.textContent?.replace(/\s+/g, ' ').trim() || '—'
 }
 
 function readPlanet() {
   const bar = document.querySelector<HTMLElement>('.neo-planetbar')
   if (bar?.textContent?.trim()) return bar.textContent.replace(/\s+/g, ' ').trim()
-  const title = document.querySelector<HTMLElement>('.neo-overview-grid section h1')
-  const coords = document.querySelector<HTMLElement>('.neo-overview-grid section>p')
-  if (title?.textContent?.trim()) return `${title.textContent.trim()} ${coords?.textContent?.trim() || ''}`.trim()
-  return '—'
+  const title = document.querySelector<HTMLElement>('.neo-overview-grid h1')
+  const coords = document.querySelector<HTMLElement>('.neo-overview-grid p')
+  return title?.textContent?.trim() ? `${title.textContent.trim()} ${coords?.textContent?.trim() || ''}`.trim() : '—'
 }
 
 function readOwnedPlanets(): PlanetChip[] {
-  return Array.from(document.querySelectorAll<HTMLElement>('.owned-planet')).map((node) => {
+  return Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row')).map((node) => {
     const text = node.textContent?.replace(/\s+/g, ' ').trim() || 'Planeta'
     const coords = text.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '[—]'
     return { name: text.replace(coords, '').trim().replace(/\s+/g, ' ') || 'Planeta', coords }
@@ -43,13 +42,7 @@ function readOwnedPlanets(): PlanetChip[] {
 }
 
 const MenuButton = ({ label, target, active = false, gold = false }: { label: string; target?: NavTarget; active?: boolean; gold?: boolean }) => (
-  <button
-    type="button"
-    className={`template-menu-link${active ? ' active' : ''}${gold ? ' gold' : ''}`}
-    onClick={() => target ? clickExistingNav(target) : label === 'Opciones' ? clickSettings() : showModuleNotice(label)}
-  >
-    {label}
-  </button>
+  <button type="button" className={`template-menu-link${active ? ' active' : ''}${gold ? ' gold' : ''}`} onClick={() => target ? clickExistingNav(target) : label === 'Opciones' ? clickSettings() : showModuleNotice(label)}>{label}</button>
 )
 
 export default function TemplateChrome() {
@@ -62,7 +55,7 @@ export default function TemplateChrome() {
 
   useEffect(() => {
     const sync = () => {
-      setResources({ metal: readResource(0), crystal: readResource(1), deuterium: readResource(2), energy: readResource(3), population: '—', food: '—', darkMatter: '—' })
+      setResources({ metal: readResource(0), crystal: readResource(1), deuterium: readResource(2), energy: readResource(3), population: readResource(4), food: readResource(5), darkMatter: readResource(6) })
       setPlanet(readPlanet())
       setPlanets(readOwnedPlanets())
       const active = document.querySelector<HTMLElement>('.neo-nav-item.active')?.textContent?.trim().toUpperCase()
@@ -86,7 +79,7 @@ export default function TemplateChrome() {
 
   const time = useMemo(() => now.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' }), [now])
   const isActive = (target: NavTarget) => activeLabel.includes(target)
-  const selectPlanet = (index: number) => document.querySelectorAll<HTMLElement>('.owned-planet')[index]?.click()
+  const selectPlanet = (index: number) => document.querySelectorAll<HTMLElement>('.neo-planet-row')[index]?.click()
 
   return <>
     <header className="template-chrome" aria-label="Interfaz principal">
@@ -115,13 +108,13 @@ export default function TemplateChrome() {
           <span className="template-brand-sub">UNIVERSO EN EVOLUCIÓN</span>
         </button>
         <div className="template-resources" aria-label="Recursos">
-          <button className="template-resource template-metal" type="button" onClick={() => clickExistingNav('OVERVIEW')}><i>◆</i><span><b>METAL</b><strong>{resources.metal}</strong></span></button>
-          <button className="template-resource template-crystal" type="button" onClick={() => clickExistingNav('OVERVIEW')}><i>◇</i><span><b>CRISTAL</b><strong>{resources.crystal}</strong></span></button>
-          <button className="template-resource template-deut" type="button" onClick={() => clickExistingNav('OVERVIEW')}><i>◈</i><span><b>DEUTERIO</b><strong>{resources.deuterium}</strong></span></button>
-          <button className="template-resource template-energy" type="button" onClick={() => clickExistingNav('OVERVIEW')}><i>ϟ</i><span><b>ENERGÍA</b><strong>{resources.energy}</strong></span></button>
-          <button className="template-resource template-population" type="button" onClick={() => showModuleNotice('Población')}><i>♙</i><span><b>POBLACIÓN</b><strong>{resources.population}</strong></span></button>
-          <button className="template-resource template-food" type="button" onClick={() => showModuleNotice('Comida')}><i>◆</i><span><b>COMIDA</b><strong>{resources.food}</strong></span></button>
-          <button className="template-resource template-dark" type="button" onClick={() => showModuleNotice('Materia oscura')}><i>✦</i><span><b>MATERIA OSCURA</b><strong>{resources.darkMatter}</strong></span></button>
+          <button className="template-resource template-metal" type="button"><i>◆</i><span><b>METAL</b><strong>{resources.metal}</strong></span></button>
+          <button className="template-resource template-crystal" type="button"><i>◇</i><span><b>CRISTAL</b><strong>{resources.crystal}</strong></span></button>
+          <button className="template-resource template-deut" type="button"><i>◈</i><span><b>DEUTERIO</b><strong>{resources.deuterium}</strong></span></button>
+          <button className="template-resource template-energy" type="button"><i>ϟ</i><span><b>ENERGÍA</b><strong>{resources.energy}</strong></span></button>
+          <button className="template-resource template-population" type="button"><i>♙</i><span><b>POBLACIÓN</b><strong>{resources.population}</strong></span></button>
+          <button className="template-resource template-food" type="button"><i>◆</i><span><b>COMIDA</b><strong>{resources.food}</strong></span></button>
+          <button className="template-resource template-dark" type="button"><i>✦</i><span><b>MATERIA OSCURA</b><strong>{resources.darkMatter}</strong></span></button>
         </div>
         <div className="template-planet"><b>PLANETA</b><span>{planet}</span></div>
       </div>
