@@ -13,6 +13,7 @@ import './styles/frontend-runtime-fixes.css'
 import './styles/zz-frontend-layer-authority.css'
 import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
+import './styles/zzz-wallpaper-lock.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
