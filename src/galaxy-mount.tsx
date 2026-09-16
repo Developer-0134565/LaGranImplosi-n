@@ -14,7 +14,7 @@ async function mountGalaxy(){
   if(!view||view.dataset.galaxyMounted==='1')return
   mounting=true
   try{
-    const {data}=await supabase.from('planets').select('galaxy,system,position,players(id)').eq('is_homeworld',true).eq('is_destroyed',false).limit(1).maybeSingle()
+    const {data}=await supabase.from('planets').select('universe_id,galaxy,system,position,players(id)').eq('is_homeworld',true).eq('is_destroyed',false).limit(1).maybeSingle()
     const player=Array.isArray(data?.players)?data?.players[0]:data?.players
     view.replaceChildren()
     view.dataset.galaxyMounted='1'
@@ -23,7 +23,7 @@ async function mountGalaxy(){
     view.appendChild(host)
     root?.unmount()
     root=createRoot(host)
-    root.render(<GalaxyView homeworld={data??undefined} playerId={(player as {id:string}|null|undefined)?.id}/>)
+    root.render(<GalaxyView homeworld={data??undefined} playerId={(player as {id:string}|null|undefined)?.id} universeId={data?.universe_id as string|undefined}/>)
   }finally{mounting=false}
 }
 
