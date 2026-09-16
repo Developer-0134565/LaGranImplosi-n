@@ -25,6 +25,7 @@ const MenuButton = ({ label, target, active = false, gold = false }: { label: st
 export default function TemplateChrome() {
   const [resources, setResources] = useState({ metal: '—', crystal: '—', deuterium: '—', energy: '—', population: '—', food: '—', darkMatter: '—' })
   const [planet, setPlanet] = useState('—')
+  const [activeLabel, setActiveLabel] = useState('OVERVIEW')
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
@@ -39,9 +40,11 @@ export default function TemplateChrome() {
         darkMatter: readResource(6),
       })
       setPlanet(readPlanet())
+      const active = document.querySelector<HTMLElement>('.neo-nav-item.active')?.textContent?.trim().toUpperCase()
+      if (active) setActiveLabel(active)
     }
     sync()
-    const id = window.setInterval(sync, 1000)
+    const id = window.setInterval(sync, 500)
     return () => window.clearInterval(id)
   }, [])
 
@@ -51,6 +54,7 @@ export default function TemplateChrome() {
   }, [])
 
   const time = useMemo(() => now.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' }), [now])
+  const isActive = (target: NavTarget) => activeLabel.includes(target)
 
   return (
     <>
@@ -96,9 +100,9 @@ export default function TemplateChrome() {
         <div className="template-side-event">🗳️ Encuesta abierta <span>VOTADO</span></div>
         <div className="template-side-event amber">🛠 Restos <span>6</span></div>
 
-        <section><h3>Imperio</h3><MenuButton label="Vista general" target="OVERVIEW" active /><MenuButton label="Recursos" target="OVERVIEW" /><MenuButton label="Instalaciones" target="EDIFICIOS" /></section>
-        <section><h3>Progresión</h3><MenuButton label="Oficiales" gold /><MenuButton label="Academia" /><MenuButton label="Formas de vida" target="EXPEDICIONES" /><MenuButton label="Investigación FV" target="INVESTIGACIÓN" /><MenuButton label="Civilización" /><MenuButton label="Investigación" target="INVESTIGACIÓN" /></section>
-        <section><h3>Espacio</h3><MenuButton label="Flota" target="FLOTA" /><MenuButton label="Hangar" target="HANGAR" /><MenuButton label="Defensa" target="DEFENSAS" /><MenuButton label="Galaxia" target="GALAXIA" /><MenuButton label="Expediciones" target="EXPEDICIONES" /><MenuButton label="Mensajes" target="MENSAJES" /></section>
+        <section><h3>Imperio</h3><MenuButton label="Vista general" target="OVERVIEW" active={isActive('OVERVIEW')} /><MenuButton label="Recursos" target="OVERVIEW" /><MenuButton label="Instalaciones" target="EDIFICIOS" active={isActive('EDIFICIOS')} /></section>
+        <section><h3>Progresión</h3><MenuButton label="Oficiales" gold /><MenuButton label="Academia" /><MenuButton label="Formas de vida" target="EXPEDICIONES" /><MenuButton label="Investigación FV" target="INVESTIGACIÓN" /><MenuButton label="Civilización" /><MenuButton label="Investigación" target="INVESTIGACIÓN" active={isActive('INVESTIGACIÓN')} /></section>
+        <section><h3>Espacio</h3><MenuButton label="Flota" target="FLOTA" active={isActive('FLOTA')} /><MenuButton label="Hangar" target="HANGAR" active={isActive('HANGAR')} /><MenuButton label="Defensa" target="DEFENSAS" active={isActive('DEFENSAS')} /><MenuButton label="Galaxia" target="GALAXIA" active={isActive('GALAXIA')} /><MenuButton label="Expediciones" target="EXPEDICIONES" active={isActive('EXPEDICIONES')} /><MenuButton label="Mensajes" target="MENSAJES" active={isActive('MENSAJES')} /></section>
         <section><h3>Comerciar</h3><MenuButton label="Mercader" gold /><MenuButton label="Importación / Exportación" gold /></section>
         <section><h3>Cuenta</h3><MenuButton label="Perfil" /><MenuButton label="Opciones" /></section>
       </aside>
