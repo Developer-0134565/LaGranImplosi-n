@@ -9,12 +9,22 @@ const legacyRoles: Array<[string, string]> = [
   ['.neo-definition', 'definition'],
   ['.neo-queue', 'queue'],
   ['.neo-list-row', 'list-row'],
+  ['.neo-message-list', 'message-list'],
+  ['.neo-panel', 'panel'],
+  ['.neo-panel-header', 'panel-header'],
+  ['.neo-section-head', 'section-head'],
+  ['.neo-page-head', 'page-head'],
+  ['.neo-card-grid', 'card-grid'],
+  ['.neo-main', 'main'],
+  ['.neo-shell', 'shell'],
+  ['.neo-sidebar', 'sidebar'],
 ]
 
 function markLegacyElements() {
   for (const [selector, role] of legacyRoles) {
     document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
       element.dataset.lgRole = role
+      element.classList.add(`lg-${role}`)
     })
   }
 }
