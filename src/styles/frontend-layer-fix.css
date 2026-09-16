@@ -19,3 +19,13 @@ body::before,body::after{z-index:-2!important;pointer-events:none!important}
 .template-side::-webkit-scrollbar-thumb{background:rgba(135,171,207,.28);border-radius:4px}
 .template-side::-webkit-scrollbar-thumb:hover{background:rgba(79,195,247,.45)}
 @media(max-width:700px){.template-side{overflow-x:auto!important;overflow-y:hidden!important}}
+
+/* HARD LAYER GUARD: wallpaper is a page background, never a foreground layer. */
+.template-frame-overlay{display:none!important;visibility:hidden!important;pointer-events:none!important;z-index:-100!important}
+img[class*="wallpaper"],img[id*="wallpaper"]{pointer-events:none!important}
+body>img{pointer-events:none!important}
+.template-chrome,.template-planetstrip,.template-side,.game{isolation:isolate}
+.template-chrome{z-index:5000!important}
+.template-planetstrip{z-index:4890!important}
+.template-side{z-index:4900!important}
+.game{z-index:1!important}
