@@ -36,7 +36,8 @@ function readPlanet() {
 }
 
 function readOwnedPlanets(): PlanetChip[] {
-  return Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row')).map((node) => {
+  const nodes = document.querySelectorAll<HTMLElement>('.neo-planet-row, .owned-planet')
+  return Array.from(nodes).map((node) => {
     const text = node.textContent?.replace(/\s+/g, ' ').trim() || 'Planeta'
     const coords = text.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '[—]'
     const id = node.getAttribute('data-planet-id') || node.dataset.planetId || coords
@@ -159,7 +160,7 @@ export default function TemplateChrome() {
   }
 
   const selectPlanet = (id: string) => {
-    const row = Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row')).find((node) => (node.getAttribute('data-planet-id') || node.dataset.planetId || (node.textContent?.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '')) === id)
+    const row = Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row, .owned-planet')).find((node) => (node.getAttribute('data-planet-id') || node.dataset.planetId || (node.textContent?.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '')) === id)
     row?.click()
   }
 
