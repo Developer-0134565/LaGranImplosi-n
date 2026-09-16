@@ -1,0 +1,276 @@
+/*
+ * La Gran Implosión — V2 visual system
+ *
+ * SINGLE OWNER RULES
+ * - wallpaper.jpg is the page background only.
+ * - Frameoverlay.jpg is currently disabled; it must never become a full-screen layer.
+ * - This file owns viewport geometry, chrome placement and visual layer order.
+ * - Game/module CSS remains responsible for component styling.
+ */
+
+:root {
+  --frame-size: 20px;
+  --ui-top: 94px;
+  --planet-strip-h: 58px;
+}
+
+html,
+body,
+#root,
+.app-frame {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  z-index: 0 !important;
+}
+
+body {
+  background: #05080d url('/IMAGENES/wallpaper.jpg') center center / cover fixed no-repeat !important;
+  color: var(--text, #d9e4ee);
+}
+
+/* Global decorative pseudo-layers are disabled. The wallpaper is already the
+   body background, so there is no second full-screen image/gradient layer. */
+body::before,
+body::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+  pointer-events: none !important;
+}
+
+.game {
+  position: relative !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: calc(var(--ui-top) + var(--planet-strip-h) + var(--frame-size)) var(--frame-size) var(--frame-size) !important;
+  overflow: hidden !important;
+  zoom: 1 !important;
+  z-index: 1 !important;
+  isolation: isolate !important;
+  background: transparent !important;
+}
+
+/* Main chrome */
+.template-chrome {
+  position: fixed !important;
+  top: var(--frame-size) !important;
+  left: var(--frame-size) !important;
+  right: var(--frame-size) !important;
+  width: auto !important;
+  height: var(--ui-top) !important;
+  z-index: 5000 !important;
+  isolation: isolate !important;
+}
+
+.template-planetstrip {
+  position: fixed !important;
+  top: calc(var(--frame-size) + var(--ui-top)) !important;
+  left: var(--frame-size) !important;
+  right: var(--frame-size) !important;
+  width: auto !important;
+  height: var(--planet-strip-h) !important;
+  z-index: 4890 !important;
+  isolation: isolate !important;
+}
+
+.template-side {
+  position: fixed !important;
+  top: calc(var(--frame-size) + var(--ui-top) + var(--planet-strip-h)) !important;
+  bottom: var(--frame-size) !important;
+  left: var(--frame-size) !important;
+  width: 218px !important;
+  padding: 9px 8px 14px !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  z-index: 4900 !important;
+  isolation: isolate !important;
+}
+
+.template-side::-webkit-scrollbar { width: 7px; }
+.template-side::-webkit-scrollbar-track { background: transparent; }
+.template-side::-webkit-scrollbar-thumb { background: rgba(135,171,207,.28); border-radius: 4px; }
+
+.template-side section {
+  margin: 4px 0 0 !important;
+  padding: 0 0 3px !important;
+}
+
+.template-side h3 {
+  margin: 4px 7px 3px !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+  letter-spacing: 1.2px !important;
+}
+
+.template-menu-link {
+  width: 100% !important;
+  min-height: 27px !important;
+  height: 27px !important;
+  padding: 0 9px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+  letter-spacing: .25px !important;
+}
+
+.template-menu-link::before {
+  width: 15px !important;
+  flex-basis: 15px !important;
+  font-size: 11px !important;
+}
+
+.template-side .template-menu-link + .template-menu-link { margin-top: 1px !important; }
+
+/* Game shell */
+.neo-shell {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  grid-template-columns: 218px minmax(0, 1fr) !important;
+}
+
+.neo-main {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 7px !important;
+  gap: 8px !important;
+  overflow: hidden !important;
+  grid-template-columns: minmax(0, 1fr) 270px !important;
+}
+
+.neo-main-content,
+.neo-owned-planets {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+
+.neo-main-content { overflow: auto !important; }
+.neo-owned-planets {
+  width: 270px !important;
+  min-width: 270px !important;
+  overflow: auto !important;
+}
+
+/* The old frame implementations are deliberately inert. There is one source
+   of truth for the wallpaper and no foreground image layer. */
+.template-frame-overlay,
+.template-frame-edge,
+.template-frame-edge--top,
+.template-frame-edge--bottom,
+.template-frame-edge--left,
+.template-frame-edge--right,
+img[src*="Frameoverlay"],
+img[src*="frameoverlay"],
+img[src*="wallpaper"],
+img[src*="Wallpaper"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  inset: auto !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  background-image: none !important;
+  z-index: -1000 !important;
+}
+
+body > img { display: none !important; pointer-events: none !important; }
+
+.template-module-notice { z-index: 8990 !important; }
+
+@media (max-width: 1500px) {
+  .template-brand { width: 235px !important; flex-basis: 235px !important; }
+  .template-brand-main { font-size: 21px !important; }
+  .template-resource { padding: 0 7px !important; }
+  .template-resource i { width: 16px !important; flex-basis: 16px !important; font-size: 13px !important; }
+  .template-resource b { font-size: 7px !important; }
+  .template-resource strong { font-size: 10px !important; }
+  .template-planet { width: 155px !important; flex-basis: 155px !important; }
+  .template-side { width: 205px !important; }
+  .neo-shell { grid-template-columns: 205px minmax(0, 1fr) !important; }
+  .neo-main { grid-template-columns: minmax(0, 1fr) 250px !important; }
+  .neo-owned-planets { width: 250px !important; min-width: 250px !important; }
+}
+
+@media (max-width: 1150px) {
+  .template-brand { width: 205px !important; flex-basis: 205px !important; }
+  .template-brand-main { font-size: 18px !important; }
+  .template-resource:nth-child(n+6) { display: none !important; }
+  .template-planet { width: 140px !important; flex-basis: 140px !important; }
+  .template-side { width: 190px !important; }
+  .neo-shell { grid-template-columns: 190px minmax(0, 1fr) !important; }
+  .neo-main { grid-template-columns: minmax(0, 1fr) 225px !important; }
+  .neo-owned-planets { width: 225px !important; min-width: 225px !important; }
+}
+
+@media (max-width: 850px) {
+  :root { --frame-size: 12px; --ui-top: 74px; --planet-strip-h: 46px; }
+  .template-resource:nth-child(n+5) { display: none !important; }
+  .template-planet { display: none !important; }
+  .template-side { width: 175px !important; }
+  .neo-shell { grid-template-columns: 175px minmax(0, 1fr) !important; }
+  .neo-main { grid-template-columns: minmax(0, 1fr) 190px !important; }
+  .neo-owned-planets { width: 190px !important; min-width: 190px !important; }
+}
+
+@media (max-width: 700px) {
+  .template-side { overflow-x: auto !important; overflow-y: hidden !important; }
+}
+
+@media (max-width: 650px) {
+  :root { --frame-size: 8px; --ui-top: 62px; --planet-strip-h: 40px; }
+  .template-utilnav { height: 22px !important; padding: 0 4px !important; }
+  .template-utilnav button { height: 19px !important; padding: 0 5px !important; font-size: 7px !important; }
+  .template-clock { display: none !important; }
+  .template-mainbar { height: 40px !important; }
+  .template-burger { width: 28px !important; flex-basis: 28px !important; }
+  .template-brand { width: 145px !important; flex-basis: 145px !important; }
+  .template-brand-main { font-size: 12px !important; }
+  .template-resource { min-width: 75px !important; }
+  .template-side {
+    top: calc(var(--frame-size) + var(--ui-top) + var(--planet-strip-h)) !important;
+    width: 100% !important;
+    height: 104px !important;
+    bottom: auto !important;
+    display: flex !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(135,171,207,.18) !important;
+  }
+  .template-side section { min-width: 125px !important; margin: 0 !important; border-bottom: 0 !important; }
+  .game { padding-top: calc(var(--ui-top) + var(--planet-strip-h) + 104px + var(--frame-size)) !important; }
+  .neo-shell { display: block !important; }
+  .neo-main { display: block !important; }
+  .neo-owned-planets { display: none !important; }
+}
+
+@media (max-height: 720px) and (min-width: 761px) {
+  .template-side { padding: 4px 8px 5px !important; }
+  .template-side section { margin-top: 2px !important; padding-bottom: 2px !important; }
+  .template-side h3 { margin: 3px 6px 2px !important; font-size: 7px !important; }
+  .template-menu-link { min-height: 23px !important; height: 23px !important; font-size: 8px !important; }
+  .template-menu-link::before { width: 13px !important; flex-basis: 13px !important; font-size: 10px !important; }
+}
