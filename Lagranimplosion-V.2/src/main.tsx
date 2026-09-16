@@ -10,6 +10,7 @@ import './styles/definition-ui.css'
 import './styles/template-eventbar.css'
 import './styles/frontend-runtime-fixes.css'
 import './styles/template-system.css'
+import './styles/template-layout-v2.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
