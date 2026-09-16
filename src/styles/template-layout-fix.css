@@ -1,0 +1,51 @@
+/* Keep the full game inside the real viewport. Do not use CSS zoom here: it changes the layout viewport and forces Firefox to zoom out to see the whole page. */
+html,body,#root{
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+.game{
+  box-sizing:border-box!important;
+  width:100%!important;
+  height:100vh!important;
+  min-height:0!important;
+  padding-top:164px!important;
+  overflow:hidden!important;
+  zoom:1!important;
+}
+
+.neo-shell{
+  box-sizing:border-box!important;
+  width:100%!important;
+  max-width:1520px!important;
+  height:calc(100vh - 164px)!important;
+  min-height:0!important;
+  margin:0 auto!important;
+  overflow:hidden!important;
+}
+
+.neo-main,
+.neo-main-content,
+.neo-owned-planets{
+  min-height:0!important;
+  max-height:100%!important;
+  overflow:hidden!important;
+}
+
+.neo-main-content>*{
+  min-width:0!important;
+  max-width:100%!important;
+}
+
+@media (max-width:700px){
+  .game{
+    padding-top:250px!important;
+    height:100vh!important;
+  }
+  .neo-shell{
+    height:calc(100vh - 250px)!important;
+  }
+}
