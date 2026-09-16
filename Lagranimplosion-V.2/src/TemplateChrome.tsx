@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 
 type NavTarget = 'OVERVIEW' | 'EDIFICIOS' | 'INVESTIGACIÓN' | 'HANGAR' | 'DEFENSAS' | 'FLOTA' | 'GALAXIA' | 'EXPEDICIONES' | 'MENSAJES'
-type PlanetChip = { name: string; coords: string }
+type PlanetChip = { id: string; name: string; coords: string }
+
+const PLANET_ORDER_PREFIX = 'lagranimplosion:planet-order:'
 
 function clickExistingNav(label: string) {
   const item = Array.from(document.querySelectorAll<HTMLElement>('.neo-nav-item')).find((node) => node.textContent?.toUpperCase().includes(label))
@@ -37,8 +39,38 @@ function readOwnedPlanets(): PlanetChip[] {
   return Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row')).map((node) => {
     const text = node.textContent?.replace(/\s+/g, ' ').trim() || 'Planeta'
     const coords = text.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '[—]'
-    return { name: text.replace(coords, '').trim().replace(/\s+/g, ' ') || 'Planeta', coords }
+    const id = node.getAttribute('data-planet-id') || node.dataset.planetId || coords
+    return { id, name: text.replace(coords, '').trim().replace(/\s+/g, ' ') || 'Planeta', coords }
   }).slice(0, 28)
+}
+
+function orderKey(items: PlanetChip[]) {
+  return `${PLANET_ORDER_PREFIX}${items.map((item) => item.id).sort().join('|')}`
+}
+
+function applyStoredOrder(items: PlanetChip[]) {
+  if (!items.length) return items
+  try {
+    const stored = JSON.parse(localStorage.getItem(orderKey(items)) || 'null')
+    if (!Array.isArray(stored)) return items
+    const byId = new Map(items.map((item) => [item.id, item]))
+    const ordered = stored.map((id: unknown) => byId.get(String(id))).filter(Boolean) as PlanetChip[]
+    const known = new Set(ordered.map((item) => item.id))
+    return [...ordered, ...items.filter((item) => !known.has(item.id))]
+  } catch {
+    return items
+  }
+}
+
+function movePlanet(items: PlanetChip[], sourceId: string, targetId: string) {
+  if (sourceId === targetId) return items
+  const sourceIndex = items.findIndex((item) => item.id === sourceId)
+  const targetIndex = items.findIndex((item) => item.id === targetId)
+  if (sourceIndex < 0 || targetIndex < 0) return items
+  const next = [...items]
+  const [moved] = next.splice(sourceIndex, 1)
+  next.splice(targetIndex, 0, moved)
+  return next
 }
 
 const MenuButton = ({ label, target, active = false, gold = false }: { label: string; target?: NavTarget; active?: boolean; gold?: boolean }) => (
@@ -52,19 +84,23 @@ export default function TemplateChrome() {
   const [activeLabel, setActiveLabel] = useState('OVERVIEW')
   const [now, setNow] = useState(() => new Date())
   const [moduleNotice, setModuleNotice] = useState<string | null>(null)
+  const [ordering, setOrdering] = useState(false)
+  const [draftOrder, setDraftOrder] = useState<PlanetChip[]>([])
+  const [dragId, setDragId] = useState<string | null>(null)
 
   useEffect(() => {
     const sync = () => {
       setResources({ metal: readResource(0), crystal: readResource(1), deuterium: readResource(2), energy: readResource(3), population: readResource(4), food: readResource(5), darkMatter: readResource(6) })
       setPlanet(readPlanet())
-      setPlanets(readOwnedPlanets())
+      const rawPlanets = readOwnedPlanets()
+      if (!ordering) setPlanets((previous) => applyStoredOrder(rawPlanets.length ? rawPlanets : previous))
       const active = document.querySelector<HTMLElement>('.neo-nav-item.active')?.textContent?.trim().toUpperCase()
       if (active) setActiveLabel(active)
     }
     sync()
     const id = window.setInterval(sync, 500)
     return () => window.clearInterval(id)
-  }, [])
+  }, [ordering])
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000)
@@ -79,7 +115,53 @@ export default function TemplateChrome() {
 
   const time = useMemo(() => now.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' }), [now])
   const isActive = (target: NavTarget) => activeLabel.includes(target)
-  const selectPlanet = (index: number) => document.querySelectorAll<HTMLElement>('.neo-planet-row')[index]?.click()
+  const visiblePlanets = ordering ? draftOrder : planets
+
+  const beginOrdering = () => {
+    setDraftOrder([...planets])
+    setOrdering(true)
+  }
+
+  const cancelOrdering = () => {
+    setDraftOrder([])
+    setDragId(null)
+    setOrdering(false)
+  }
+
+  const saveOrdering = () => {
+    if (!draftOrder.length) return cancelOrdering()
+    try {
+      localStorage.setItem(orderKey(draftOrder), JSON.stringify(draftOrder.map((item) => item.id)))
+    } catch {
+      // Keep the current order in memory even if browser storage is unavailable.
+    }
+    setPlanets(draftOrder)
+    setDraftOrder([])
+    setDragId(null)
+    setOrdering(false)
+  }
+
+  const sortAlphabetically = () => {
+    setDraftOrder((items) => [...items].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })))
+  }
+
+  const sortByCoordinates = () => {
+    const coordinate = (value: string) => (value.match(/\d+/g) || []).map(Number)
+    setDraftOrder((items) => [...items].sort((a, b) => {
+      const ac = coordinate(a.coords)
+      const bc = coordinate(b.coords)
+      for (let index = 0; index < 3; index += 1) {
+        const diff = (ac[index] || 0) - (bc[index] || 0)
+        if (diff) return diff
+      }
+      return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+    }))
+  }
+
+  const selectPlanet = (id: string) => {
+    const row = Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row')).find((node) => (node.getAttribute('data-planet-id') || node.dataset.planetId || (node.textContent?.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '')) === id)
+    row?.click()
+  }
 
   return <>
     <header className="template-chrome" aria-label="Interfaz principal">
@@ -120,8 +202,35 @@ export default function TemplateChrome() {
       </div>
     </header>
 
-    <div className="template-planetstrip" aria-label="Planetas">
-      {planets.length ? planets.map((entry, index) => <button type="button" key={`${entry.name}-${index}`} className={`template-planet-chip${planet.includes(entry.name) ? ' active' : ''}`} onClick={() => selectPlanet(index)}><span className="template-planet-orb"/><span className="template-planet-name">{entry.name}</span><span className="template-planet-coords">{entry.coords}</span></button>) : <span className="template-planet-empty">Cargando planetas…</span>}
+    <div className={`template-planetstrip${ordering ? ' ordering' : ''}`} aria-label="Planetas">
+      <div className="template-planet-list">
+        {visiblePlanets.length ? visiblePlanets.map((entry) => <button
+          type="button"
+          key={entry.id}
+          className={`template-planet-chip${planet.includes(entry.name) ? ' active' : ''}${ordering ? ' draggable' : ''}`}
+          draggable={ordering}
+          onClick={() => !ordering && selectPlanet(entry.id)}
+          onDragStart={() => setDragId(entry.id)}
+          onDragOver={(event) => {
+            if (!ordering || !dragId || dragId === entry.id) return
+            event.preventDefault()
+            setDraftOrder((items) => movePlanet(items, dragId, entry.id))
+            setDragId(entry.id)
+          }}
+          onDragEnd={() => setDragId(null)}
+          aria-label={ordering ? `Reordenar ${entry.name} ${entry.coords}` : `${entry.name} ${entry.coords}`}
+        >
+          <span className="template-planet-orb"/><span className="template-planet-name">{entry.name}</span><span className="template-planet-coords">{entry.coords}</span>
+        </button>) : <span className="template-planet-empty">Cargando planetas…</span>}
+      </div>
+      <div className="template-planet-order-controls" aria-label="Orden de planetas">
+        {!ordering ? <button type="button" onClick={beginOrdering}>Editar</button> : <>
+          <button type="button" onClick={sortAlphabetically}>A-Z</button>
+          <button type="button" onClick={sortByCoordinates}>Coordenadas</button>
+          <button type="button" onClick={cancelOrdering}>Cancelar</button>
+          <button type="button" className="save" onClick={saveOrdering}>Guardar</button>
+        </>}
+      </div>
     </div>
 
     <aside className="template-side" aria-label="Navegación del imperio">
