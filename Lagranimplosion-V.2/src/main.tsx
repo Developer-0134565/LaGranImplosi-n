@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './legacy-template-adapter'
-import App from './App.tsx'
+import App from './AppV2.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 import DeveloperTypography from './DeveloperTypography.tsx'
 import './planet-ownership-runtime'
