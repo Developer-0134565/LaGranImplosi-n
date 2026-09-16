@@ -3,23 +3,92 @@
 }
 
 :root {
-  font-family: var(--font-body), sans-serif;
-  color: #dce8f5;
-  background: #020609;
+  --bg: #05070c;
+  --surface: rgba(13, 19, 29, .86);
+  --surface-2: rgba(20, 28, 42, .72);
+  --line: rgba(126, 180, 255, .14);
+  --line-strong: rgba(126, 180, 255, .28);
+  --text: #d7e3f4;
+  --text-dim: #8fa3bd;
+  --text-faint: #5c6f88;
+  --accent: #35d0ff;
+  --accent-2: #2ab3ff;
+  --accent-soft: rgba(53, 208, 255, .12);
+  --gold: #ffd75e;
+  --ok: #5dd88a;
+  --danger: #ff6b6b;
+  --r-metal: #d29a5a;
+  --r-crystal: #7fb8ff;
+  --r-deut: #2fe0c4;
+  --radius: 12px;
+  --radius-s: 8px;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
   min-height: 100vh;
-  font-family: var(--font-body), sans-serif;
-  background: #020609;
+  color: var(--text);
+  background:
+    radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,.6), transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,.4), transparent),
+    radial-gradient(2px 2px at 240px 190px, rgba(255,255,255,.8), transparent),
+    radial-gradient(1px 1px at 60px 160px, rgba(255,255,255,.33), transparent),
+    radial-gradient(circle at 50% 35%, rgba(53,208,255,.035), transparent 42%),
+    #05070c;
+  background-size: 380px 240px, 380px 240px, 380px 240px, 380px 240px, auto, auto;
+  background-attachment: fixed;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: repeat;
+}
+
+body::before {
+  background-image:
+    radial-gradient(1px 1px at 90px 50px, rgba(159,212,255,.53), transparent),
+    radial-gradient(2px 2px at 200px 140px, rgba(255,217,160,.4), transparent);
+  background-size: 460px 300px;
+  opacity: .5;
+}
+
+body::after {
+  background: linear-gradient(180deg, rgba(5,7,12,.06), rgba(5,7,12,.32));
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #7fe2ff;
 }
 
 button,
 select,
-input {
-  font-family: var(--font-button), sans-serif;
+input,
+textarea {
+  font-family: inherit;
 }
 
 button {
@@ -28,13 +97,134 @@ button {
 
 button:focus-visible,
 select:focus-visible,
-input:focus-visible {
-  outline: 2px solid #7dffc4;
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
+/* The game now uses the same density as the reference interface. */
 .game {
-  zoom: var(--lgi-ui-scale, 1.75);
+  zoom: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.neo-header,
+.neo-shell,
+.neo-main,
+.neo-main-view,
+.neo-sidebar,
+.neo-panel,
+.neo-page-head,
+.neo-section-head,
+.neo-planetbar {
+  position: relative;
+  z-index: 1;
+}
+
+.neo-header {
+  background: rgba(5, 7, 12, .94);
+  border-bottom-color: var(--line-strong);
+  box-shadow: 0 5px 22px rgba(0, 0, 0, .32);
+  backdrop-filter: blur(12px);
+}
+
+.neo-sidebar {
+  background: rgba(7, 10, 16, .88);
+  border-right-color: var(--line);
+  backdrop-filter: blur(10px);
+}
+
+.neo-panel,
+.neo-page-head,
+.neo-section-head,
+.neo-planetbar {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.neo-panel-header {
+  background: rgba(20, 28, 42, .5);
+  border-bottom-color: var(--line);
+}
+
+.neo-button {
+  color: #04121c;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  border: 0;
+  border-radius: var(--radius-s);
+  box-shadow: rgba(53, 208, 255, .28) 0 4px 16px;
+  font-weight: 800;
+}
+
+.neo-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  border-color: transparent;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+}
+
+.neo-button:disabled {
+  opacity: .5;
+  box-shadow: none;
+}
+
+.neo-nav-item.active {
+  background: rgba(53, 208, 255, .055);
+  border-color: var(--line);
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+.neo-nav-item:hover {
+  background: rgba(126, 180, 255, .07);
+  border-color: var(--line-strong);
+}
+
+.neo-resource,
+.neo-planet-row,
+.game-status-row {
+  border-bottom-color: var(--line);
+}
+
+.game-progress,
+.game-resource-bar {
+  background: rgba(126, 180, 255, .08);
+}
+
+.game-progress > span,
+.game-resource-bar span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.game-tag,
+.game-mini-stat,
+.game-resource-chip,
+.game-queue-item,
+.neo-queue > span {
+  background: rgba(20, 28, 42, .5);
+  border-color: var(--line);
+  border-radius: var(--radius-s);
+}
+
+.game-tag.ok {
+  color: var(--ok);
+  border-color: rgba(93, 216, 138, .4);
+  background: rgba(93, 216, 138, .08);
+}
+
+.game-tag.accent {
+  color: var(--accent);
+  border-color: rgba(53, 208, 255, .35);
+  background: var(--accent-soft);
+}
+
+.game-empty,
+.loading-line,
+.global-notice {
+  color: var(--text-dim);
 }
 
 .guest-gate,
@@ -45,45 +235,47 @@ input:focus-visible {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: radial-gradient(circle at center, rgba(23, 52, 75, .36), rgba(2, 6, 9, .96) 68%);
+  background: rgba(3, 6, 12, .72);
+  backdrop-filter: blur(3px);
 }
 
 .guest-gate-card,
 .tester-popup {
   width: min(560px, 100%);
-  padding: 38px;
-  border: 1px solid rgba(126, 180, 255, .28);
-  border-radius: 16px;
-  background: rgba(13, 19, 29, .96);
-  box-shadow: 0 18px 70px rgba(0, 0, 0, .62), 0 0 50px rgba(53, 208, 255, .08);
-  text-align: center;
+  padding: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
 }
 
 .guest-gate-card h1,
 .tester-popup h2 {
   margin: 10px 0 12px;
+  color: #f2f8ff;
 }
 
 .guest-gate-card p,
 .tester-popup p {
-  color: #8fa3bd;
+  color: var(--text-dim);
 }
 
 .guest-gate-card form {
   display: flex;
-  gap: 12px;
-  margin: 26px 0 14px;
+  gap: 10px;
+  margin: 22px 0 14px;
 }
 
 .guest-gate-card input {
   min-width: 0;
   flex: 1;
-  padding: 14px 16px;
-  border: 1px solid rgba(126, 180, 255, .24);
-  border-radius: 10px;
-  background: rgba(4, 10, 16, .92);
-  color: #d7e3f4;
-  font-size: 16px;
+  padding: 12px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: rgba(10, 15, 22, .92);
+  color: #fff;
+  font-size: 14px;
 }
 
 .guest-enter {
@@ -91,39 +283,43 @@ input:focus-visible {
 }
 
 .guest-gate-card small {
-  color: #5c6f88;
+  color: var(--text-faint);
 }
 
 .guest-error {
   margin: 12px 0;
-  color: #ff6b6b;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 107, 107, .4);
+  border-radius: var(--radius-s);
+  background: rgba(255, 107, 107, .12);
+  color: #ffb3b3;
 }
 
 .tester-overlay {
-  background: rgba(1, 4, 7, .78);
-  backdrop-filter: blur(7px);
+  background: rgba(3, 6, 12, .72);
 }
 
 .tester-popup {
   animation: tester-pop .24s ease-out;
+  text-align: center;
 }
 
 .tester-badge {
   display: grid;
   place-items: center;
-  width: 74px;
-  height: 74px;
-  margin: 0 auto 18px;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
   border: 1px solid rgba(255, 215, 94, .45);
   border-radius: 50%;
   background: rgba(255, 215, 94, .08);
-  font-size: 34px;
+  font-size: 30px;
 }
 
 .tester-popup strong {
   display: block;
   margin: 8px 0 16px;
-  color: #ffd75e;
+  color: var(--gold);
   letter-spacing: .16em;
 }
 
@@ -133,7 +329,7 @@ input:focus-visible {
 }
 
 .tester-number b {
-  color: #35d0ff;
+  color: var(--accent);
   font-size: 28px;
 }
 
@@ -143,13 +339,13 @@ input:focus-visible {
   gap: 10px;
   margin: 6px 0 24px;
   padding: 9px 14px;
-  border: 1px solid rgba(126, 180, 255, .16);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  color: #8fa3bd;
+  color: var(--text-dim);
 }
 
 .tester-country span:first-child {
-  font-size: 24px;
+  font-size: 22px;
 }
 
 @keyframes tester-pop {
@@ -157,10 +353,16 @@ input:focus-visible {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@media (max-width: 760px) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
 @media (max-width: 640px) {
   .guest-gate-card,
   .tester-popup {
-    padding: 26px 20px;
+    padding: 24px 18px;
   }
 
   .guest-gate-card form {
