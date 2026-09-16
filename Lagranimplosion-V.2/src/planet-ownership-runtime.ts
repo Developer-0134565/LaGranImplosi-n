@@ -4,6 +4,48 @@ type PlanetRow = { id: string; name: string; galaxy: number; system: number; pos
 type PlayerRow = { id: string; username: string; is_guest: boolean; player_type: string }
 
 let lastSignature = ''
+let syncTimer: number | null = null
+
+function renderOwnedPlanets(owned: PlanetRow[]) {
+  const container = document.querySelector<HTMLElement>('.neo-owned-planets')
+  if (!container) return false
+
+  const currentIds = Array.from(container.querySelectorAll<HTMLElement>('.owned-planet'))
+    .map((node) => node.dataset.planetId || '')
+    .filter(Boolean)
+  const nextIds = owned.map((planet) => planet.id)
+  if (currentIds.length === nextIds.length && currentIds.every((id, index) => id === nextIds[index])) return true
+
+  const head = container.querySelector('.owned-planets-head')
+  const fragment = document.createDocumentFragment()
+  if (head) fragment.appendChild(head)
+
+  for (const planet of owned) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `owned-planet${planet.is_homeworld ? ' homeworld' : ''}`
+    button.dataset.planetId = planet.id
+    button.title = `${planet.name} [${planet.galaxy}:${planet.system}:${planet.position}]`
+
+    const orb = document.createElement('span')
+    orb.className = 'owned-planet-orb'
+    orb.setAttribute('aria-hidden', 'true')
+    orb.textContent = '◉'
+
+    const text = document.createElement('span')
+    const name = document.createElement('strong')
+    name.textContent = planet.name
+    const coords = document.createElement('small')
+    coords.textContent = `[${planet.galaxy}:${planet.system}:${planet.position}]`
+    text.append(name, coords)
+
+    button.append(orb, text)
+    fragment.appendChild(button)
+  }
+
+  container.replaceChildren(fragment)
+  return true
+}
 
 async function syncOwnedPlanets() {
   const [{ data: planets, error: planetsError }, { data: players, error: playersError }] = await Promise.all([
@@ -15,12 +57,8 @@ async function syncOwnedPlanets() {
 
   const guestIds = new Set(((players ?? []) as PlayerRow[]).map((player) => player.id))
   const guestPlanets = ((planets ?? []) as PlanetRow[]).filter((planet) => planet.player_id && guestIds.has(planet.player_id))
-
   if (!guestPlanets.length) return
 
-  // The current test universe has two historical guest DevPlayer records.
-  // Prefer the guest player whose homeworld is literally "Homeworld", then
-  // fall back to the first guest homeworld. This matches the active V2 planet.
   const preferred = guestPlanets.find((planet) => planet.is_homeworld && planet.name === 'Homeworld')
   const fallback = guestPlanets.find((planet) => planet.is_homeworld)
   const homeworld = preferred ?? fallback
@@ -28,26 +66,24 @@ async function syncOwnedPlanets() {
 
   const owned = guestPlanets.filter((planet) => planet.player_id === homeworld.player_id)
   const signature = owned.map((planet) => `${planet.id}:${planet.name}:${planet.galaxy}:${planet.system}:${planet.position}`).join('|')
-  if (signature === lastSignature) return
+  if (signature === lastSignature) {
+    renderOwnedPlanets(owned)
+    return
+  }
   lastSignature = signature
+  renderOwnedPlanets(owned)
+}
 
-  const container = document.querySelector<HTMLElement>('.neo-owned-planets')
-  if (!container) return
-
-  const head = container.querySelector('.owned-planets-head')
-  container.replaceChildren(...[
-    ...(head ? [head] : []),
-    ...owned.map((planet) => {
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = `owned-planet${planet.is_homeworld ? ' homeworld' : ''}`
-      button.dataset.planetId = planet.id
-      button.title = `${planet.name} [${planet.galaxy}:${planet.system}:${planet.position}]`
-      button.innerHTML = `<span class="owned-planet-orb" aria-hidden="true">◉</span><span><strong>${planet.name}</strong><small>[${planet.galaxy}:${planet.system}:${planet.position}]</small></span>`
-      return button
-    }),
-  ])
+function scheduleSync() {
+  if (syncTimer !== null) window.clearTimeout(syncTimer)
+  syncTimer = window.setTimeout(() => {
+    syncTimer = null
+    void syncOwnedPlanets()
+  }, 0)
 }
 
 void syncOwnedPlanets()
 window.setInterval(() => void syncOwnedPlanets(), 1500)
+
+const observer = new MutationObserver(scheduleSync)
+observer.observe(document.body, { childList: true, subtree: true })
