@@ -21,7 +21,8 @@ export default {
       const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
       const country = (request.cf?.country ?? request.headers.get('CF-IPCountry') ?? 'XX').toUpperCase()
       const ipHash = await hashVisitorIp(ip, env.IP_HASH_SALT ?? '')
-      const isDeveloper = Boolean(env.DEV_IP_HASH && ipHash === env.DEV_IP_HASH)
+      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+      const isDeveloper = isLocalhost || Boolean(env.DEV_IP_HASH && ipHash === env.DEV_IP_HASH)
 
       return Response.json(
         { country, ipHash, isDeveloper },
