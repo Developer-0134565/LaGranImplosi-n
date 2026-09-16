@@ -1,0 +1,30 @@
+/* V2 interface scale: the game remains inside the viewport while UI text/controls become 50% larger. */
+.game {
+  zoom: 1.5;
+  width: 66.666667%;
+  height: 66.666667%;
+  transform-origin: top left;
+}
+
+.neo-header { min-height: 54px; }
+.neo-nav-item { min-height: 42px; }
+.neo-nav-item b { font-size: 1rem; }
+.neo-section-head h1 { font-size: 1.55rem !important; }
+.neo-section-head p,
+.neo-panel,
+.neo-list-row,
+.message-row,
+.owned-planet { font-size: 1rem; }
+.neo-button { min-height: 42px; padding: 10px 16px !important; }
+.neo-definition { gap: 16px; }
+.neo-definition .neo-panel-title strong { font-size: 1.2rem; }
+.neo-definition .neo-panel-title small { font-size: .9rem; }
+.neo-definition-costs span,
+.neo-definition-stats span,
+.neo-definition-extra span { padding: 9px 11px; font-size: .85rem; }
+.neo-queue { font-size: .9rem; }
+.message-tabs button { font-size: .9rem; padding: 10px 14px !important; }
+
+@media (max-width: 760px) {
+  .game { zoom: 1.25; width: 80%; height: 80%; }
+}
