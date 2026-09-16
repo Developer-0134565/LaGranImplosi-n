@@ -6,7 +6,7 @@ type PlanetChip = { id: string; name: string; coords: string }
 const PLANET_ORDER_PREFIX = 'lagranimplosion:planet-order:'
 
 function clickExistingNav(label: string) {
-  const item = Array.from(document.querySelectorAll<HTMLElement>('.neo-nav-item')).find((node) => node.textContent?.toUpperCase().includes(label))
+  const item = Array.from(document.querySelectorAll<HTMLElement>('[data-lg-role="nav-item"]')).find((node) => node.textContent?.toUpperCase().includes(label))
   if (item) item.click()
 }
 
@@ -21,22 +21,23 @@ function clickSettings() {
 }
 
 function readResource(index: number) {
-  const node = document.querySelectorAll<HTMLElement>('.neo-resource')[index]
+  const node = document.querySelectorAll<HTMLElement>('[data-lg-role="resource"]')[index]
   if (!node) return '—'
   const value = node.querySelector('b')?.textContent?.trim()
   return value || node.textContent?.replace(/\s+/g, ' ').trim() || '—'
 }
 
 function readPlanet() {
-  const bar = document.querySelector<HTMLElement>('.neo-planetbar')
+  const bar = document.querySelector<HTMLElement>('[data-lg-role="planetbar"]')
   if (bar?.textContent?.trim()) return bar.textContent.replace(/\s+/g, ' ').trim()
-  const title = document.querySelector<HTMLElement>('.neo-overview-grid h1')
-  const coords = document.querySelector<HTMLElement>('.neo-overview-grid p')
+  const overview = document.querySelector<HTMLElement>('[data-lg-role="overview"]')
+  const title = overview?.querySelector('h1')
+  const coords = overview?.querySelector('p')
   return title?.textContent?.trim() ? `${title.textContent.trim()} ${coords?.textContent?.trim() || ''}`.trim() : '—'
 }
 
 function readOwnedPlanets(): PlanetChip[] {
-  const nodes = document.querySelectorAll<HTMLElement>('.neo-planet-row, .owned-planet')
+  const nodes = document.querySelectorAll<HTMLElement>('[data-lg-role="planet-row"], .owned-planet')
   return Array.from(nodes).map((node) => {
     const text = node.textContent?.replace(/\s+/g, ' ').trim() || 'Planeta'
     const coords = text.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '[—]'
@@ -95,7 +96,7 @@ export default function TemplateChrome() {
       setPlanet(readPlanet())
       const rawPlanets = readOwnedPlanets()
       if (!ordering) setPlanets((previous) => applyStoredOrder(rawPlanets.length ? rawPlanets : previous))
-      const active = document.querySelector<HTMLElement>('.neo-nav-item.active')?.textContent?.trim().toUpperCase()
+      const active = document.querySelector<HTMLElement>('[data-lg-role="nav-item"].active')?.textContent?.trim().toUpperCase()
       if (active) setActiveLabel(active)
     }
     sync()
@@ -160,7 +161,7 @@ export default function TemplateChrome() {
   }
 
   const selectPlanet = (id: string) => {
-    const row = Array.from(document.querySelectorAll<HTMLElement>('.neo-planet-row, .owned-planet')).find((node) => (node.getAttribute('data-planet-id') || node.dataset.planetId || (node.textContent?.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '')) === id)
+    const row = Array.from(document.querySelectorAll<HTMLElement>('[data-lg-role="planet-row"], .owned-planet')).find((node) => (node.getAttribute('data-planet-id') || node.dataset.planetId || (node.textContent?.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '')) === id)
     row?.click()
   }
 
@@ -185,7 +186,7 @@ export default function TemplateChrome() {
         <span className="template-clock">{time}</span>
       </nav>
       <div className="template-mainbar">
-        <button className="template-burger" type="button" onClick={() => document.body.classList.toggle('neo-menu-open')} aria-label="Menú">☰</button>
+        <button className="template-burger" type="button" onClick={() => document.body.classList.toggle('lg-menu-open')} aria-label="Menú">☰</button>
         <button className="template-brand" type="button" onClick={() => clickExistingNav('OVERVIEW')}>
           <span className="template-brand-main">LA GRAN IMPLOSIÓN</span>
           <span className="template-brand-sub">UNIVERSO EN EVOLUCIÓN</span>
