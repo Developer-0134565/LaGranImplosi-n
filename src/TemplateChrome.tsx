@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './styles/template-chrome.css'
 
 type NavTarget = 'OVERVIEW' | 'EDIFICIOS' | 'INVESTIGACIÓN' | 'HANGAR' | 'DEFENSAS' | 'FLOTA' | 'GALAXIA' | 'EXPEDICIONES' | 'MENSAJES'
+type PlanetChip = { name: string; coords: string }
 
 function clickExistingNav(label: string) {
   const item = Array.from(document.querySelectorAll<HTMLElement>('.neo-nav-item')).find((node) => node.textContent?.toUpperCase().includes(label))
@@ -18,6 +19,15 @@ function readPlanet() {
   return node?.textContent?.replace(/\s+/g, ' ').trim() || '—'
 }
 
+function readOwnedPlanets(): PlanetChip[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.owned-planet')).map((node) => {
+    const text = node.textContent?.replace(/\s+/g, ' ').trim() || 'Planeta'
+    const coords = text.match(/\[[0-9]+:[0-9]+:[0-9]+\]/)?.[0] || '[—]'
+    const name = text.replace(coords, '').trim().replace(/\s+/g, ' ') || 'Planeta'
+    return { name, coords }
+  }).slice(0, 28)
+}
+
 const MenuButton = ({ label, target, active = false, gold = false }: { label: string; target?: NavTarget; active?: boolean; gold?: boolean }) => (
   <button type="button" className={`template-menu-link${active ? ' active' : ''}${gold ? ' gold' : ''}`} onClick={() => target && clickExistingNav(target)}>{label}</button>
 )
@@ -25,6 +35,7 @@ const MenuButton = ({ label, target, active = false, gold = false }: { label: st
 export default function TemplateChrome() {
   const [resources, setResources] = useState({ metal: '—', crystal: '—', deuterium: '—', energy: '—', population: '—', food: '—', darkMatter: '—' })
   const [planet, setPlanet] = useState('—')
+  const [planets, setPlanets] = useState<PlanetChip[]>([])
   const [activeLabel, setActiveLabel] = useState('OVERVIEW')
   const [now, setNow] = useState(() => new Date())
 
@@ -40,6 +51,7 @@ export default function TemplateChrome() {
         darkMatter: readResource(6),
       })
       setPlanet(readPlanet())
+      setPlanets(readOwnedPlanets())
       const active = document.querySelector<HTMLElement>('.neo-nav-item.active')?.textContent?.trim().toUpperCase()
       if (active) setActiveLabel(active)
     }
@@ -55,6 +67,11 @@ export default function TemplateChrome() {
 
   const time = useMemo(() => now.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' }), [now])
   const isActive = (target: NavTarget) => activeLabel.includes(target)
+
+  const selectPlanet = (index: number) => {
+    const target = document.querySelectorAll<HTMLElement>('.owned-planet')[index]
+    target?.click()
+  }
 
   return (
     <>
@@ -96,10 +113,19 @@ export default function TemplateChrome() {
         </div>
       </header>
 
+      <div className="template-planetstrip" aria-label="Planetas">
+        {planets.length ? planets.map((entry, index) => (
+          <button type="button" key={`${entry.name}-${index}`} className={`template-planet-chip${planet.includes(entry.name) ? ' active' : ''}`} onClick={() => selectPlanet(index)}>
+            <span className="template-planet-orb" />
+            <span className="template-planet-name">{entry.name}</span>
+            <span className="template-planet-coords">{entry.coords}</span>
+          </button>
+        )) : <span className="template-planet-empty">Cargando planetas…</span>}
+      </div>
+
       <aside className="template-side" aria-label="Navegación del imperio">
         <div className="template-side-event">🗳️ Encuesta abierta <span>VOTADO</span></div>
         <div className="template-side-event amber">🛠 Restos <span>6</span></div>
-
         <section><h3>Imperio</h3><MenuButton label="Vista general" target="OVERVIEW" active={isActive('OVERVIEW')} /><MenuButton label="Recursos" target="OVERVIEW" /><MenuButton label="Instalaciones" target="EDIFICIOS" active={isActive('EDIFICIOS')} /></section>
         <section><h3>Progresión</h3><MenuButton label="Oficiales" gold /><MenuButton label="Academia" /><MenuButton label="Formas de vida" target="EXPEDICIONES" /><MenuButton label="Investigación FV" target="INVESTIGACIÓN" /><MenuButton label="Civilización" /><MenuButton label="Investigación" target="INVESTIGACIÓN" active={isActive('INVESTIGACIÓN')} /></section>
         <section><h3>Espacio</h3><MenuButton label="Flota" target="FLOTA" active={isActive('FLOTA')} /><MenuButton label="Hangar" target="HANGAR" active={isActive('HANGAR')} /><MenuButton label="Defensa" target="DEFENSAS" active={isActive('DEFENSAS')} /><MenuButton label="Galaxia" target="GALAXIA" active={isActive('GALAXIA')} /><MenuButton label="Expediciones" target="EXPEDICIONES" active={isActive('EXPEDICIONES')} /><MenuButton label="Mensajes" target="MENSAJES" active={isActive('MENSAJES')} /></section>
