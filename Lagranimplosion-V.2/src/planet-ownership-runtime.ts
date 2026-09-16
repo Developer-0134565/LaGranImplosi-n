@@ -7,7 +7,7 @@ let lastSignature = ''
 let syncTimer: number | null = null
 
 function renderOwnedPlanets(owned: PlanetRow[]) {
-  const container = document.querySelector<HTMLElement>('.neo-owned-planets')
+  const container = document.querySelector<HTMLElement>('[data-lg-role="owned-planets"]')
   if (!container) return false
 
   const currentIds = Array.from(container.querySelectorAll<HTMLElement>('.owned-planet'))
