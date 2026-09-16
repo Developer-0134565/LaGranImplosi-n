@@ -3,13 +3,14 @@
  *
  * SINGLE OWNER RULES
  * - wallpaper.jpg is the page background only.
- * - Frameoverlay.jpg is currently disabled; it must never become a full-screen layer.
- * - This file owns viewport geometry, chrome placement and visual layer order.
+ * - Frameoverlay.jpg is rendered once as the global decorative frame.
+ * - The frame is transparent inside, pointer-events:none and never covers UI.
+ * - This file owns viewport geometry and visual layer order.
  * - Game/module CSS remains responsible for component styling.
  */
 
 :root {
-  --frame-size: 20px;
+  --frame-size: 32px;
   --ui-top: 94px;
   --planet-strip-h: 58px;
 }
@@ -33,8 +34,6 @@ body {
   color: var(--text, #d9e4ee);
 }
 
-/* Global decorative pseudo-layers are disabled. The wallpaper is already the
-   body background, so there is no second full-screen image/gradient layer. */
 body::before,
 body::after {
   content: none !important;
@@ -42,6 +41,32 @@ body::after {
   background: none !important;
   background-image: none !important;
   pointer-events: none !important;
+}
+
+/*
+ * GLOBAL FRAME
+ *
+ * Frameoverlay is used as a CSS border rather than as a full-screen <img>.
+ * The centre stays transparent, and pointer-events are disabled so the frame
+ * can never block buttons, menus or game controls.
+ */
+.app-frame::before {
+  content: '' !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  border: var(--frame-size) solid transparent !important;
+  border-image-source: url('/IMAGENES/Frameoverlay.jpg') !important;
+  border-image-slice: 20% !important;
+  border-image-width: var(--frame-size) !important;
+  border-image-outset: 0 !important;
+  border-image-repeat: round !important;
+  background: transparent !important;
+  background-image: none !important;
+  pointer-events: none !important;
+  z-index: 9999 !important;
 }
 
 .game {
@@ -58,7 +83,6 @@ body::after {
   background: transparent !important;
 }
 
-/* Main chrome */
 .template-chrome {
   position: fixed !important;
   top: var(--frame-size) !important;
@@ -131,7 +155,6 @@ body::after {
 
 .template-side .template-menu-link + .template-menu-link { margin-top: 1px !important; }
 
-/* Game shell */
 .neo-shell {
   width: 100% !important;
   max-width: none !important;
@@ -167,8 +190,7 @@ body::after {
   overflow: auto !important;
 }
 
-/* The old frame implementations are deliberately inert. There is one source
-   of truth for the wallpaper and no foreground image layer. */
+/* Keep legacy frame nodes inert: there must be exactly one visual frame. */
 .template-frame-overlay,
 .template-frame-edge,
 .template-frame-edge--top,
@@ -176,9 +198,7 @@ body::after {
 .template-frame-edge--left,
 .template-frame-edge--right,
 img[src*="Frameoverlay"],
-img[src*="frameoverlay"],
-img[src*="wallpaper"],
-img[src*="Wallpaper"] {
+img[src*="frameoverlay"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -195,7 +215,12 @@ img[src*="Wallpaper"] {
   z-index: -1000 !important;
 }
 
-body > img { display: none !important; pointer-events: none !important; }
+img[src*="wallpaper"],
+img[src*="Wallpaper"],
+body > img {
+  display: none !important;
+  pointer-events: none !important;
+}
 
 .template-module-notice { z-index: 8990 !important; }
 
@@ -225,7 +250,6 @@ body > img { display: none !important; pointer-events: none !important; }
 }
 
 @media (max-width: 850px) {
-  :root { --frame-size: 12px; --ui-top: 74px; --planet-strip-h: 46px; }
   .template-resource:nth-child(n+5) { display: none !important; }
   .template-planet { display: none !important; }
   .template-side { width: 175px !important; }
@@ -239,7 +263,6 @@ body > img { display: none !important; pointer-events: none !important; }
 }
 
 @media (max-width: 650px) {
-  :root { --frame-size: 8px; --ui-top: 62px; --planet-strip-h: 40px; }
   .template-utilnav { height: 22px !important; padding: 0 4px !important; }
   .template-utilnav button { height: 19px !important; padding: 0 5px !important; font-size: 7px !important; }
   .template-clock { display: none !important; }
