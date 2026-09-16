@@ -9,6 +9,7 @@ import './styles/template-screen-final.css'
 import './styles/template-final-overrides.css'
 import './styles/viewport-scale-fix.css'
 import './styles/sidebar-viewport-fix.css'
+import './styles/frontend-runtime-fixes.css'
 import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 
