@@ -7,7 +7,9 @@ import TemplateChrome from './TemplateChrome.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <TemplateChrome />
-    <App />
+    <div className="app-frame">
+      <TemplateChrome />
+      <App />
+    </div>
   </StrictMode>,
 )
