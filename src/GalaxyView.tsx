@@ -4,7 +4,7 @@ import { supabase } from './lib/supabase'
 import './styles/galaxy-view.css'
 
 type GalaxyMeta={galaxy:number;system_count:number;is_special:boolean;next_system_expansion_at:string|null}
-type GalaxyPlanet={id:string;name:string;galaxy:number;system:number;position:number;is_homeworld:boolean;is_destroyed:boolean;player_id:string;players?:{id:string;username:string;is_guest:boolean}|{id:string;username:string;is_guest:boolean}[]|null}
+type GalaxyPlanet={id:string;name:string;galaxy:number;system:number;position:number;is_homeworld:boolean;is_destroyed:boolean;player_id:string|null;players?:{id:string;username:string;is_guest:boolean}|{id:string;username:string;is_guest:boolean}[]|null}
 type FleetShip={ship_id:string;quantity:number;name:string}
 type Props={homeworld?:{galaxy:number;system:number;position:number};playerId?:string;universeId?:string}
 const POSITIONS=15
