@@ -1,0 +1,66 @@
+/* Template chrome: dense three-tier header inspired by the supplied reference capture. */
+.template-chrome{
+  position:fixed;
+  inset:0 0 auto 0;
+  z-index:5000;
+  height:108px;
+  color:#d7e4ee;
+  background:linear-gradient(180deg,#05090f 0%,#08111a 52%,#060b12 100%);
+  border-bottom:1px solid rgba(135,171,207,.34);
+  box-shadow:0 3px 18px rgba(0,0,0,.62);
+  font-family:var(--font-body,Arial,sans-serif);
+}
+.template-topline{height:43px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 18px;border-bottom:1px solid rgba(135,171,207,.16)}
+.template-brand{display:flex;align-items:baseline;gap:9px;min-width:280px;white-space:nowrap}
+.template-brand-main{font-family:var(--font-title,Arial,sans-serif);font-size:21px;font-weight:900;letter-spacing:1px;color:#e6f1f8;text-shadow:0 0 14px rgba(79,195,247,.12)}
+.template-brand-sub{font-size:10px;letter-spacing:.8px;color:#8da0b3;text-transform:uppercase}
+.template-global-nav{display:flex;align-items:center;height:100%;gap:2px}
+.template-global-nav button{height:27px;padding:0 10px;border:1px solid transparent;border-radius:2px;background:transparent;color:#8fa4b7;font:700 9px var(--font-button,Arial,sans-serif);letter-spacing:.55px;cursor:pointer}
+.template-global-nav button:hover{color:#e9f5ff;background:rgba(79,195,247,.08);border-color:rgba(79,195,247,.18)}
+.template-clock{margin-left:7px;padding-left:10px;border-left:1px solid rgba(135,171,207,.18);font:10px var(--font-number,monospace);color:#6f879d}
+.template-resourcebar{height:39px;display:flex;align-items:stretch;padding:0 10px;border-bottom:1px solid rgba(135,171,207,.18);background:#09121c}
+.template-resource{min-width:132px;display:flex;align-items:center;gap:8px;padding:0 11px;border:0;border-right:1px solid rgba(135,171,207,.14);background:transparent;color:#8ea2b6;text-align:left}
+button.template-resource{cursor:pointer}
+button.template-resource:hover{background:rgba(79,195,247,.055)}
+.template-resource i{width:18px;text-align:center;font-style:normal;font-size:14px;color:#7fa6bf}
+.template-resource span{display:flex;flex-direction:column;line-height:1.05;min-width:0}
+.template-resource b{font-size:7px;letter-spacing:1px;color:#72889d;font-weight:700}
+.template-resource strong{margin-top:3px;font:10px var(--font-number,monospace);color:#d9e6ef;white-space:nowrap}
+.template-metal i{color:#c99761}.template-crystal i{color:#83bfff}.template-deut i{color:#3adbc5}.template-energy i{color:#f4d35e}.template-dark i{color:#c59cff}.template-planet{margin-left:auto;min-width:165px}
+.template-actionbar{height:26px;display:flex;align-items:stretch;justify-content:space-between;padding:0 10px;background:#060c13}
+.template-action-group{display:flex;align-items:stretch;gap:1px}
+.template-actionbar button{min-width:78px;padding:0 9px;border:0;border-right:1px solid rgba(135,171,207,.12);background:transparent;color:#71889c;font:700 8px var(--font-button,Arial,sans-serif);letter-spacing:.7px;text-transform:uppercase;cursor:pointer}
+.template-actionbar button:hover{color:#dbeaf4;background:rgba(79,195,247,.08)}
+.template-action-right button{min-width:96px}
+
+/* Make the existing game occupy the exact space below the new chrome. */
+.game{padding-top:108px!important;min-height:100vh!important}
+.game>.neo-header{display:none!important}
+.neo-shell{min-height:calc(100vh - 108px)!important;max-width:1280px!important}
+.neo-main{min-height:calc(100vh - 108px)!important}
+
+/* Reference density: the game frame is narrow, bordered and vertically stacked. */
+.neo-sidebar{padding:6px 7px!important}
+.neo-main{padding:6px!important;gap:6px!important}
+.neo-main-content{min-width:0}
+.neo-page-head,.neo-panel,.neo-section-head,.neo-planetbar,.neo-owned-planets{border-radius:2px!important}
+
+@media (max-width:900px){
+  .template-brand-sub,.template-global-nav button:nth-child(-n+2){display:none}
+  .template-brand-main{font-size:17px}
+  .template-resource{min-width:105px}
+  .template-resource:nth-child(n+5){display:none}
+}
+@media (max-width:700px){
+  .template-chrome{height:88px}
+  .template-topline{height:36px;padding-left:9px}
+  .template-brand-main{font-size:14px}
+  .template-resourcebar{height:32px}
+  .template-resource{min-width:94px;padding:0 7px}
+  .template-resource b{font-size:6px}
+  .template-resource strong{font-size:9px}
+  .template-actionbar{height:20px}
+  .template-actionbar button{min-width:64px;font-size:7px;padding:0 5px}
+  .game{padding-top:88px!important}
+  .neo-shell{min-height:calc(100vh - 88px)!important}
+}
