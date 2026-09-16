@@ -1,0 +1,57 @@
+/* Final frontend layer authority.
+   The wallpaper belongs to the page background only. Nothing here is allowed
+   to become a full-screen foreground image or overlay. */
+html,
+body,
+#root {
+  position: relative !important;
+  z-index: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+body {
+  background: #05080d url('/IMAGENES/wallpaper.jpg') center center / cover fixed no-repeat !important;
+}
+
+body::before,
+body::after {
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+.app-frame {
+  position: relative !important;
+  z-index: 1 !important;
+  isolation: isolate !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.game {
+  position: relative !important;
+  z-index: 2 !important;
+  isolation: isolate !important;
+  background: transparent !important;
+}
+
+.template-frame-overlay {
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+img[src*="wallpaper"],
+img[src*="Wallpaper"] {
+  pointer-events: none !important;
+}
+
+body > img {
+  pointer-events: none !important;
+}
+
+.template-chrome { z-index: 5000 !important; }
+.template-planetstrip { z-index: 4890 !important; }
+.template-side { z-index: 4900 !important; }
+.template-module-notice { z-index: 10000 !important; }

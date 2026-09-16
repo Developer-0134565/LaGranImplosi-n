@@ -1,0 +1,48 @@
+-- Resolve shipyard/defense queues only through the logical fleet event timestamp.
+-- This prevents a late worker from exposing future units/defenses to an attack or espionage report.
+
+CREATE OR REPLACE FUNCTION public.process_shipyard_queue_until(p_planet_id uuid, p_until timestamptz)
+RETURNS TABLE(queue_id uuid, ship_id text, quantity bigint, status text)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public','pg_temp'
+AS $function$
+DECLARE v_queue record;
+BEGIN
+  FOR v_queue IN
+    SELECT sq.id,sq.planet_id,sq.ship_id AS queued_ship_id,sq.quantity AS queued_quantity,sq.finishes_at
+    FROM public.shipyard_queue sq
+    WHERE sq.planet_id=p_planet_id AND sq.status='BUILDING' AND sq.finishes_at<=p_until
+    ORDER BY sq.finishes_at,sq.created_at,sq.id FOR UPDATE SKIP LOCKED
+  LOOP
+    INSERT INTO public.planet_ships AS ps(planet_id,ship_id,quantity)
+    VALUES(v_queue.planet_id,v_queue.queued_ship_id,v_queue.queued_quantity)
+    ON CONFLICT ON CONSTRAINT planet_ships_pkey DO UPDATE SET quantity=ps.quantity+EXCLUDED.quantity;
+    UPDATE public.shipyard_queue sq SET status='COMPLETED' WHERE sq.id=v_queue.id AND sq.status='BUILDING';
+    queue_id:=v_queue.id; ship_id:=v_queue.queued_ship_id; quantity:=v_queue.queued_quantity; status:='COMPLETED'; RETURN NEXT;
+  END LOOP;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.process_defense_queue_until(p_planet_id uuid, p_until timestamptz)
+RETURNS TABLE(queue_id uuid, defense_id text, quantity bigint, status text)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public','pg_temp'
+AS $function$
+DECLARE v_queue record;
+BEGIN
+  FOR v_queue IN
+    SELECT dq.id,dq.planet_id,dq.defense_id AS queued_defense_id,dq.quantity AS queued_quantity,dq.finishes_at
+    FROM public.defense_queue dq
+    WHERE dq.planet_id=p_planet_id AND dq.status='BUILDING' AND dq.finishes_at<=p_until
+    ORDER BY dq.finishes_at,dq.created_at,dq.id FOR UPDATE SKIP LOCKED
+  LOOP
+    INSERT INTO public.planet_defenses(planet_id,defense_id,quantity,updated_at)
+    VALUES(v_queue.planet_id,v_queue.queued_defense_id,v_queue.queued_quantity,now())
+    ON CONFLICT ON CONSTRAINT planet_defenses_planet_defense_unique DO UPDATE SET quantity=public.planet_defenses.quantity+EXCLUDED.quantity,updated_at=now();
+    UPDATE public.defense_queue dq SET status='COMPLETED' WHERE dq.id=v_queue.id AND dq.status='BUILDING';
+    queue_id:=v_queue.id; defense_id:=v_queue.queued_defense_id; quantity:=v_queue.queued_quantity; status:='COMPLETED'; RETURN NEXT;
+  END LOOP;
+END;
+$function$;
+
+-- resolve_attack_arrival and resolve_espionage_arrival now settle economic state and
+-- shipyard/defense completions through arrives_at before observing the target.
+-- The authoritative definitions are installed in the database by this migration.

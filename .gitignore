@@ -32,3 +32,20 @@ backup/
 !.dev.vars.example
 .env*
 !.env.example
+
+# Editor
+.cursor/
+.vscode/
+.idea/
+
+# Supabase temp
+supabase/.temp/
+
+# v2 subfolder
+Lagranimplosion-V.2/node_modules/
+Lagranimplosion-V.2/dist/
+Lagranimplosion-V.2/.env
+Lagranimplosion-V.2/.env.*
+Lagranimplosion-V.2/.wrangler/
+Lagranimplosion-V.2/.dev.vars
+Lagranimplosion-V.2/supabase/.temp/

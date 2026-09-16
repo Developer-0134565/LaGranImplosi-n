@@ -1,0 +1,47 @@
+@import './styles/sidebar-viewport-fix.css';
+@import './styles/frontend-layer-fix.css';
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+}
+
+html {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  background: var(--bg);
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The reference interface is rendered as one coherent scaled viewport. */
+.app-frame {
+  position: relative;
+  width: 83.333333vw;
+  height: 83.333333vh;
+  min-width: 266px;
+  min-height: 266px;
+  zoom: 1.2;
+  overflow: hidden;
+}

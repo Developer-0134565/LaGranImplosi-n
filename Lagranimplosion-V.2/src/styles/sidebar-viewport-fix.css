@@ -1,0 +1,43 @@
+/* Definitive sidebar viewport fit. The game frame is zoomed to 1.2, so the sidebar must be compact enough in its pre-zoom CSS space to fit the real viewport. */
+.template-side{
+  top:164px!important;
+  bottom:0!important;
+  height:auto!important;
+  overflow-x:hidden!important;
+  overflow-y:hidden!important;
+  padding:6px 10px 8px!important;
+}
+.template-side section{
+  margin:4px 0 0!important;
+  padding:0 0 3px!important;
+}
+.template-side h3{
+  margin:4px 7px 3px!important;
+  font-size:8px!important;
+  line-height:1!important;
+  letter-spacing:1.2px!important;
+}
+.template-menu-link{
+  width:100%!important;
+  min-height:27px!important;
+  height:27px!important;
+  padding:0 9px!important;
+  font-size:9px!important;
+  line-height:1!important;
+  letter-spacing:.25px!important;
+}
+.template-menu-link::before{
+  width:15px!important;
+  flex-basis:15px!important;
+  font-size:11px!important;
+}
+.template-side .template-menu-link + .template-menu-link{
+  margin-top:1px!important;
+}
+@media(max-height:720px) and (min-width:761px){
+  .template-side{top:164px!important;padding:4px 8px 5px!important}
+  .template-side section{margin-top:2px!important;padding-bottom:2px!important}
+  .template-side h3{margin:3px 6px 2px!important;font-size:7px!important}
+  .template-menu-link{min-height:23px!important;height:23px!important;font-size:8px!important}
+  .template-menu-link::before{width:13px!important;flex-basis:13px!important;font-size:10px!important}
+}
