@@ -28,6 +28,10 @@
 .game-progress,.game-resource-bar{overflow:hidden}
 .neo-galaxy,.neo-movement,.neo-queue{border-color:var(--gim-line)}
 
+/* Gimplosion is the custom interface nick; game rules and RPCs remain unchanged. */
+.neo-brand strong{font-size:0!important;letter-spacing:1.3px}
+.neo-brand strong::after{content:'GIMPLOSION';font-size:15px;letter-spacing:1.3px;color:var(--neo-text)}
+
 @media(max-width:900px){
   .neo-sidebar{position:relative;top:auto;height:auto;overflow:visible}
   .neo-shell{min-height:0}
