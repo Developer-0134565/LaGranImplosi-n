@@ -4,6 +4,7 @@ import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 import DeveloperTypography from './DeveloperTypography.tsx'
 import './planet-ownership-runtime'
+import './v2-information-runtime'
 import './index.css'
 import './App.css'
 import './styles/fonts.css'
@@ -15,6 +16,7 @@ import './styles/template-system.css'
 import './styles/template-layout-v2.css'
 import './styles/typography-controls.css'
 import './styles/v2-layout-fixes.css'
+import './styles/v2-information-runtime.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
