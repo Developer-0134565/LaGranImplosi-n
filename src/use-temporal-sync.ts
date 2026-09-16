@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { supabase } from './lib/supabase'
 
@@ -17,14 +17,9 @@ type TemporalPlanet = {
 const INTERVAL_MS = 10_000
 const SELECT = 'id,name,galaxy,system,position,player_id,is_homeworld,is_destroyed,planet_resources(metal,crystal,deuterium,energy)'
 
-export function useTemporalSync(playerId: string|undefined, planets: TemporalPlanet[], setPlanets: Dispatch<SetStateAction<TemporalPlanet[]>>) {
-  const planetIds = useMemo(
-    () => planets.filter(planet => planet.player_id === playerId && !planet.is_destroyed).map(planet => planet.id).sort().join(','),
-    [planets, playerId],
-  )
-
+export function useTemporalSync(playerId: string|undefined, home: TemporalPlanet|undefined, setPlanets: Dispatch<SetStateAction<TemporalPlanet[]>>) {
   useEffect(() => {
-    if (!playerId || !planetIds) return
+    if (!playerId || !home) return
     let alive = true
     let running = false
 
@@ -32,10 +27,18 @@ export function useTemporalSync(playerId: string|undefined, planets: TemporalPla
       if (running) return
       running = true
       try {
-        const ids = planetIds.split(',').filter(Boolean)
-        const refreshed = new Map<string, TemporalPlanet>()
+        const { data: ownedPlanets, error: planetsError } = await supabase
+          .from('planets')
+          .select('id')
+          .eq('player_id', playerId)
+          .eq('is_destroyed', false)
 
-        for (const planetId of ids) {
+        if (planetsError || !alive) return
+
+        const refreshed = new Map<string, TemporalPlanet>()
+        const planetIds = (ownedPlanets ?? []).map(planet => planet.id)
+
+        for (const planetId of planetIds) {
           const { error } = await supabase.rpc('sync_current_planet_resources', {
             p_player_id: playerId,
             p_planet_id: planetId,
@@ -58,5 +61,5 @@ export function useTemporalSync(playerId: string|undefined, planets: TemporalPla
     void sync()
     const timer = window.setInterval(() => void sync(), INTERVAL_MS)
     return () => { alive = false; window.clearInterval(timer) }
-  }, [playerId, planetIds, setPlanets])
+  }, [playerId, home?.id, setPlanets])
 }
