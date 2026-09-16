@@ -31,3 +31,14 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* The reference interface is rendered as one coherent scaled viewport. */
+.app-frame {
+  position: relative;
+  width: 83.333333vw;
+  height: 83.333333vh;
+  min-width: 266px;
+  min-height: 266px;
+  zoom: 1.2;
+  overflow: hidden;
+}
