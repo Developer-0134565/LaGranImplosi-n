@@ -8,25 +8,15 @@
   background:transparent!important;
   border:34px solid transparent!important;
   border-image-source:url('/IMAGENES/Frameoverlay.jpg')!important;
-  border-image-slice:34 fill!important;
+  border-image-slice:34!important;
   border-image-width:34px!important;
   border-image-outset:0!important;
   border-image-repeat:stretch!important;
 }
 
-/* Keep the center completely free: the image is used only as a thin frame. */
-.template-frame-overlay::after{
-  content:'';
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  background:transparent;
-}
-
-/* Slightly tighter, more elegant frame on smaller screens. */
 @media (max-width:1400px){
-  .template-frame-overlay{inset:7px!important;border-width:26px!important;border-image-slice:26 fill!important;border-image-width:26px!important}
+  .template-frame-overlay{inset:7px!important;border-width:26px!important;border-image-slice:26!important;border-image-width:26px!important}
 }
 @media (max-width:900px){
-  .template-frame-overlay{inset:5px!important;border-width:18px!important;border-image-slice:18 fill!important;border-image-width:18px!important}
+  .template-frame-overlay{inset:5px!important;border-width:18px!important;border-image-slice:18!important;border-image-width:18px!important}
 }
