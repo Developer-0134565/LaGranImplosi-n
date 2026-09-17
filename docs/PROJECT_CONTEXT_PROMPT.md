@@ -26,7 +26,9 @@ Before substantial work:
 6. For substantial new systems, check OGameX for a useful conceptual pattern before designing from scratch.
 7. Give implementation agents bounded, project-specific specifications; do not delegate architecture invention implicitly.
 8. Do not delete useful historical knowledge merely to reduce document size. Segregate durable detail into the appropriate README first.
-9. After meaningful work, update the specialized README/monitor when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
+9. Implementation-agent prompts must be bounded to the known task and should not repeat repository-wide discovery after the initial map exists.
+10. Before sending a Cline/DeepSeek prompt, state the Intelligence level and an expected cost band; use deeper/high-cost audits only when they materially reduce uncertainty.
+11. After meaningful work, update the specialized README/monitor when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
 
 Core loop:
 
@@ -178,9 +180,9 @@ The structural map is complete at first-pass level. Deep comparison continues wh
 
 Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions. Do not mix future evolution semantics into the base-engine certification unless a concrete dependency requires it.
 
-### OPEN — Universe evolution validation — MEDIUM / LATER LAYER
+### OPEN — Universe evolution validation — HIGH / DIRECTED AUDIT
 
-The temporal/evolution architecture is documented, but the current priority is the basic game engine. Do not redesign or implement evolution formulas while construction/research/fleet/transport/attack/combat certification is still open.
+The first repository-wide recognition audit is complete. It established that the temporal engine already exists in Supabase and that the production `universe-heartbeat` cron is active every minute. The next audit must be narrowly scoped to Universe Evolution formulas, clock catch-up, expansion ordering and integration; do not repeat a full-repository scan. Existing formula discrepancies must be reconciled before implementation changes.
 
 ### OPEN — Final security/RLS hardening — LOW / FINAL PHASE
 
@@ -200,6 +202,8 @@ Security remains a final hardening phase unless a concrete defect requires earli
 - Historical decisions remain traceable; moving detail out of this file is not deletion.
 - The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
 - Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
+- The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
+- Production verification confirmed active pg_cron jobs for `universe-heartbeat` (1 minute) and `deuteria-fleet-worker` (1 second); the repository/dump alone did not expose those cron rows.
 
 Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
