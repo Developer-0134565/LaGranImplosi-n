@@ -1,75 +1,39 @@
-# React + TypeScript + Vite
+# La Gran Implosión
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+OGame-like browser game built with React + TypeScript + Vite and Supabase.
 
-Currently, two official plugins are available:
+## Project operating rules
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Supabase is authoritative for the live game state.**
+- **GitHub is authoritative for application code and checked-in migrations/docs.**
+- Do not invent historical migrations to make repository and production migration counts match.
+- Do not make destructive production changes merely to clean up history.
+- Gameplay architecture and formulas are designed deliberately before mechanical implementation.
+- Copilot may perform scoped implementation/refactor work, but must not invent game mechanics.
+- Before any substantial change, read `docs/PROJECT_CONTEXT_PROMPT.md` and the relevant living monitor documents.
 
-## React Compiler
+## Current architecture priorities
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Stable player → active planet → universe state contract.
+2. Universe evolution as a time-dependent state, separate from galaxy/system expansion.
+3. Centralized universe scaling through `calculate_universe_scaling(E)`.
+4. Centralized fleet movement/travel-time calculation.
+5. Explicit modifier ordering so future technologies, items, events and other buffs do not become hidden evolution logic.
+6. Security/RLS hardening remains a final-phase concern unless a current change explicitly requires it.
 
-## Expanding the ESLint configuration
+## Living project documentation
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `docs/PROJECT_CONTEXT_PROMPT.md` — canonical context and anti-duplication prompt. Read this first.
+- `docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md` — canonical rate/scaling and fleet-movement monitor.
+- `docs/PRODUCTION_DB_BASELINE.md` — production database/source-of-truth baseline and reproducibility status.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Development
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+The repository may contain local development artifacts that are intentionally outside the committed application architecture. Do not delete or alter them without auditing their purpose first.
