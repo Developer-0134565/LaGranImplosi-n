@@ -1,8 +1,8 @@
 # PROJECT CONTEXT PROMPT — LA GRAN IMPLOSIÓN
 
-> **Read this file before making substantial project decisions.**
+> **Read this file at every new session and whenever project context is uncertain before making substantial decisions.**
 >
-> This is a living anti-drift document. It exists to prevent session-memory loss, obsolete assumptions, duplicated work, accidental reversion of completed fixes, and ambiguity between similarly named systems.
+> This is the project's persistent memory and living anti-drift document. It exists to prevent session-memory loss, obsolete assumptions, duplicated work, accidental reversion of completed fixes, and ambiguity between similarly named systems.
 
 ## 1. Mission
 
@@ -14,7 +14,7 @@ The objective is not to copy OGameX. OGameX and other open-source OGame implemen
 
 Before proposing or applying a substantial change:
 
-1. Read this file completely enough to identify current status and guardrails.
+1. **Read this file completely enough to recover the current canonical context. This step is mandatory at every new session.**
 2. Read the relevant living monitor document(s).
 3. Inspect the current repository/Supabase state rather than relying on old conversation memory.
 4. Identify whether the requested work is already completed.
@@ -22,7 +22,8 @@ Before proposing or applying a substantial change:
 6. Preserve completed work unless there is a documented reason to change it.
 7. Do not resurrect obsolete architecture because it appeared in an older conversation.
 8. If current code contradicts this document, treat the contradiction as an audit finding and verify the live code/database before changing anything.
-9. After an important step, update this document and the relevant monitor with the new canonical state.
+9. After every important architectural, gameplay, database, tooling, or integration step, update this document and the relevant monitor with the new canonical state.
+10. Use this document as active feedback during implementation: before creating or renaming anything, check its terminology, CLOSED decisions, OPEN audits, and existing implementation notes to avoid duplication and preserve cohesion.
 
 ## 3. Source-of-truth hierarchy
 
@@ -44,7 +45,64 @@ GENERAL MEMORY / ASSUMPTIONS
 
 Conversation history is context, not proof of the current repository state.
 
-## 4. Current project rules
+## 4. Tools and implementation workflow
+
+The project uses the following tools as part of its development workflow:
+
+### 4.1 GitHub
+
+GitHub is the repository/source-control layer and the canonical home for checked-in application code, migrations, and project documentation.
+
+Repository:
+
+```text
+Developer-0134565/LaGranImplosi-n
+```
+
+Main branch:
+
+```text
+main
+```
+
+### 4.2 GitHub Copilot
+
+**GitHub Copilot is the primary implementation assistant for scoped code changes.**
+
+Copilot is used to execute bounded implementation/refactor tasks after architecture, formulas, naming, and intended behavior have been established.
+
+Copilot must follow this context document and must not invent gameplay mechanics, formulas, architecture, or parallel implementations.
+
+### 4.3 DeepSeek
+
+**DeepSeek is used occasionally as a secondary development/reasoning aid.**
+
+DeepSeek does not override this project's source-of-truth hierarchy. Any suggestion from DeepSeek must be checked against the live Supabase state, current GitHub code/migrations, and this document before being adopted.
+
+### 4.4 Supabase
+
+Supabase/Postgres is the authoritative live backend and game-state source of truth.
+
+Database changes must be verified against the live project and represented by appropriate checked-in migrations when they are part of the repository's persistent schema/history.
+
+### 4.5 Frontend/deployment tooling
+
+The frontend stack is:
+
+```text
+React
+TypeScript
+Vite
+Cloudflare
+```
+
+The deployed frontend is connected to the GitHub repository. Frontend changes must preserve the existing React architecture and must not casually modify unrelated visual/CSS systems.
+
+### 4.6 Tool-selection rule
+
+Use the appropriate tool for the job rather than creating overlapping implementations. The tool itself does not become the source of truth: project code, live Supabase state, migrations, and this document remain authoritative according to the hierarchy above.
+
+## 5. Current project rules
 
 - Do not invent historical Supabase migrations.
 - Do not reset or destructively modify production data for cleanup.
@@ -52,12 +110,13 @@ Conversation history is context, not proof of the current repository state.
 - Do not create parallel state systems when an existing source of truth can be reused.
 - Do not create duplicate SQL formulas in multiple consumers.
 - Do not create duplicate frontend identity/planet resolution paths.
-- Copilot may perform scoped implementation and mechanical refactors. Copilot must not invent gameplay mechanics or architecture.
+- GitHub Copilot may perform scoped implementation and mechanical refactors. Copilot must not invent gameplay mechanics or architecture.
+- DeepSeek may be used occasionally for analysis/reasoning, but its suggestions are not authoritative until verified against project sources.
 - Architecture, formulas, balance rules and Supabase integration decisions are reviewed before implementation.
 
-## 5. Completed / accepted architectural decisions
+## 6. Completed / accepted architectural decisions
 
-### 5.1 Player → active planet → universe contract
+### 6.1 Player → active planet → universe contract
 
 The frontend refactor moved GalaxyView away from discovering the player/universe/homeworld independently.
 
@@ -76,7 +135,7 @@ GalaxyView
 
 GalaxyView must not independently query `players` to rediscover `universe_id` or query the homeworld to rediscover its origin planet.
 
-### 5.2 Universe evolution and galaxy expansion are different systems
+### 6.2 Universe evolution and galaxy expansion are different systems
 
 Never use one generic `evolution` formula to govern both.
 
@@ -89,7 +148,7 @@ GALAXY/SYSTEM EXPANSION
     → creates systems/galaxies according to expansion rules
 ```
 
-### 5.3 Central universe scaling
+### 6.3 Central universe scaling
 
 Canonical function:
 
@@ -117,7 +176,7 @@ resource economy    = 100
 resource production = 100
 building            = 10
 research             = 10
-fleet movement       = 4.6415888336
+fleet movement      = 4.6415888336
 lifeform             = 10
 ```
 
@@ -134,7 +193,7 @@ It must not contain:
 - alliances
 - mission-specific modifiers
 
-### 5.4 Modifier pipeline
+### 6.4 Modifier pipeline
 
 Conceptual order:
 
@@ -149,7 +208,7 @@ classic/base rate
 
 Future modifiers must declare whether they are multiplicative, additive percentage, cap, or override.
 
-### 5.5 Resource naming warning
+### 6.5 Resource naming warning
 
 `economy` and `production` are semantically ambiguous.
 
@@ -164,7 +223,7 @@ Both currently scale with `E^1` and may produce an intentional `E²` contributio
 
 Do not merge them without auditing their real consumers first.
 
-### 5.6 Fleet movement and expeditions
+### 6.6 Fleet movement and expeditions
 
 There is one evolution movement scaling:
 
@@ -176,7 +235,7 @@ Normal fleet missions and expeditions share this scaling.
 
 Expeditions may have mission-specific modifiers, but must not have a second evolution exponent.
 
-### 5.7 Fleet travel time
+### 6.7 Fleet travel time
 
 The engine uses a centralized travel-time helper based structurally on the non-linear OGame/OGameX model.
 
@@ -205,7 +264,7 @@ FlightTime =
 
 This is a reference/adaptation, not a command to copy every OGame mechanic.
 
-## 6. Universe evolution process
+## 7. Universe evolution process
 
 The universe has an internal time/evolution process that must continue correctly across downtime by comparing stored timestamps and catching up pending work. Do not replace this with a client-only timer.
 
@@ -213,7 +272,7 @@ The heartbeat/clock chain has already been audited so the universe tick routes t
 
 Do not reintroduce the old local-only path into the universe tick without a new audit proving why it is required.
 
-## 7. Galaxy expansion rules currently agreed
+## 8. Galaxy expansion rules currently agreed
 
 Normal galaxies:
 
@@ -234,7 +293,7 @@ Special galaxy event:
 
 Do not confuse these expansion formulas with `calculate_universe_scaling(E)`.
 
-## 8. AI planet population
+## 9. AI planet population
 
 AI planet population should scale with total available universe space and target roughly 5–10% occupied slots, within a defined tolerance.
 
@@ -242,7 +301,7 @@ When universe space expands, population logic should evaluate whether additional
 
 Do not invent a new population table if existing universe population state can represent the required process.
 
-## 9. Current open audits
+## 10. Current open audits
 
 ### OPEN — fleet dispatch convergence
 
@@ -280,7 +339,7 @@ At `E = 1`, validate actual travel times for:
 
 using real ship definitions from this project.
 
-## 10. Completed work that must NOT be accidentally repeated
+## 11. Completed work that must NOT be accidentally repeated
 
 - GalaxyView no longer independently resolves `universe_id` from `players`.
 - GalaxyView no longer independently resolves the homeworld as the fleet origin.
@@ -289,7 +348,7 @@ using real ship definitions from this project.
 - Fleet and expedition evolution scaling were unified.
 - Wallpaper/CSS work must not be casually rewritten. If visual-layer changes are proposed, inspect the current CSS architecture and existing wallpaper authority first.
 
-## 11. Wallpaper / CSS protection rule
+## 12. Wallpaper / CSS protection rule
 
 A previous wallpaper/CSS regression consumed significant development time. Therefore:
 
@@ -304,13 +363,17 @@ Before any CSS/wallpaper change:
 5. run the relevant build/test check;
 6. document the result.
 
-## 12. Documentation protocol
+## 13. Documentation protocol — persistent project memory
 
-After every important architectural step, update:
+`docs/PROJECT_CONTEXT_PROMPT.md` is the persistent memory of the project.
+
+After **every important step** — especially architectural decisions, formula decisions, database changes, refactors, audits, tool/workflow changes, and completed fixes — update:
 
 1. this file with the new canonical state;
 2. the relevant subsystem monitor;
 3. the README only when project-level orientation changes.
+
+The document must be used as feedback, not merely stored passively. Before implementing a change, consult it to determine whether the concept already exists, which function/table/naming is canonical, and what work is already CLOSED or OPEN.
 
 When something is deliberately deferred, record it as `OPEN` rather than silently forgetting it.
 
@@ -318,9 +381,9 @@ When something is finished, record it as `CLOSED` and include enough detail to p
 
 When a decision is superseded, mark the old decision as `SUPERSEDED` and point to the replacement.
 
-## 13. Copilot task protocol
+## 14. Copilot task protocol
 
-Give Copilot small, bounded tasks.
+Give GitHub Copilot small, bounded tasks.
 
 Every task should specify:
 
@@ -341,24 +404,27 @@ Copilot must not:
 - rewrite CSS/wallpaper while doing gameplay work;
 - delete code merely because it looks unused without tracing consumers.
 
-## 14. Session recovery prompt
+## 15. Session recovery protocol
 
 If context is uncertain, stop and re-read this file plus the relevant monitor. Do not answer from an old remembered state.
 
-Use this sequence:
+At every new session, use this sequence:
 
 ```text
-1. What is the current HEAD?
-2. What changed since the last documented checkpoint?
-3. Which decisions are CLOSED?
-4. Which audits are OPEN?
-5. Is the requested change already implemented?
-6. What is the smallest safe next step?
-7. What documentation must be updated after it?
+1. Read docs/PROJECT_CONTEXT_PROMPT.md.
+2. What is the current HEAD?
+3. What changed since the last documented checkpoint?
+4. Which decisions are CLOSED?
+5. Which audits are OPEN?
+6. Is the requested change already implemented?
+7. What is the smallest safe next step?
+8. What documentation must be updated after it?
 ```
 
-## 15. Golden rule
+This protocol applies even when previous conversation context appears to be available: the repository documentation remains the persistent project memory.
+
+## 16. Golden rule
 
 > **Never solve a problem twice because the session forgot that it was already solved. Never create a second implementation because the first one was not discovered. Never change a working subsystem while solving an unrelated problem.**
 
-This file is a living contract. When an important architectural decision changes, update it immediately.
+This file is a living contract and persistent project memory. When an important architectural decision changes, update it immediately.
