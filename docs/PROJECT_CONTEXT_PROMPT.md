@@ -28,7 +28,8 @@ Before substantial work:
 8. Do not delete useful historical knowledge merely to reduce document size. Segregate durable detail into the appropriate README first.
 9. Implementation-agent prompts must be bounded to the known task and should not repeat repository-wide discovery after the initial map exists.
 10. Before sending a Cline/DeepSeek prompt, state the Intelligence level and an expected cost band; use deeper/high-cost audits only when they materially reduce uncertainty.
-11. After meaningful work, update the specialized README/monitor when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
+11. Before implementing, reviewing, auditing or modifying anything, explicitly choose the most appropriate tool/agent for the task (ChatGPT, Cline + DeepSeek, Copilot, or Qwen/LM Studio) based on scope, difficulty, required access and cost. This choice is mandatory before execution.
+12. After meaningful work, update the specialized README/monitor when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
 
 Core loop:
 
@@ -103,15 +104,37 @@ Detailed durable architecture: [`architecture/README_ARCHITECTURE.md`](architect
 Current responsibility model:
 
 ```text
-ChatGPT       = architecture + audit + interpretation + coordination
-OGameX        = pattern/reference knowledge
-Cline + Qwen  = bounded repository execution
-Copilot       = scoped implementation/refactoring
-Supabase      = live backend/game-state authority
-GitHub        = code/history/documentation authority
-Memory        = cross-session continuity
-PROJECT_CTX   = current operational context
+ChatGPT              = architecture + audit + interpretation + coordination + tool/agent selection
+Cline + DeepSeek     = primary heavy-duty execution/reasoning vessel for complex, multi-file, debugging and repository-wide-but-bounded operations
+Copilot              = fast scoped implementation/refactoring for localized tasks
+Qwen / LM Studio     = local laboratory, experimentation and alternative reasoning without API cost
+OGameX               = pattern/reference knowledge
+Supabase             = live backend/game-state authority
+GitHub               = code/history/documentation authority
+Memory               = cross-session continuity
+PROJECT_CTX          = current operational context
 ```
+
+### Mandatory tool-selection gate
+
+Before **every** task that will implement, review, audit or modify project material, ChatGPT must first make an explicit tool/agent selection.
+
+Decision principles:
+
+- **ChatGPT:** architecture, system-level interpretation, audit design, cross-system decisions and final verification.
+- **Cline + DeepSeek:** complex or multi-file implementation, difficult debugging, deep bounded audits and operations requiring repository execution. DeepSeek is the project's heavy-duty reasoning vessel, but must still be used cost-consciously.
+- **Copilot:** small/localized implementation, UI components, CSS, TypeScript changes, straightforward refactors and mechanical fixes.
+- **Qwen / LM Studio:** local experiments, prototypes, alternative reasoning and tasks where avoiding API cost is useful.
+
+The selected tool is not automatically the one that performs the whole task: ChatGPT remains responsible for choosing the mission, defining boundaries and verifying the result.
+
+For Cline/DeepSeek missions, always state:
+
+- **🧠 Intelligence:** None / Low / Medium / High / Extra
+- **💰 Cost expected:** LOW / MEDIUM / HIGH
+- **🎯 Why:** short justification
+
+Do not deploy the most powerful agent merely because it is available. Match the agent to the task, while reserving DeepSeek/Cline for missions where its additional reasoning/execution capability materially helps.
 
 No tool is the project's independent brain. Agents execute approved work; they do not redefine canonical gameplay or architecture without an explicit project decision.
 
