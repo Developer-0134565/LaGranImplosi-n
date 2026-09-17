@@ -1,10 +1,12 @@
 # Universe Rate & Fleet Engine Monitor
 
+> **Living document.** Update this file whenever the rate/evolution/fleet architecture changes materially.
+
 ## Purpose
 
-This document is the living reference for the universe-evolution rate engine and fleet travel model. It records the canonical formulas, semantic names, modifier order, audit findings, and implementation status so future migrations do not reintroduce distributed evolution logic.
+This document is the canonical monitor for the universe-evolution rate engine and fleet travel model. It exists to prevent distributed formulas, ambiguous names, accidental double scaling, and session-to-session context loss.
 
-## Canonical model
+## Canonical concepts
 
 ```text
 E(t) = current universe evolution state
@@ -19,11 +21,9 @@ calculate_universe_scaling(E)
         +-- lifeform_speed_scale      = E^0.5
 ```
 
-The scaling function contains **only** the transformation from evolution `E` to category-specific scaling factors. It does not know about classic universe rates, technologies, planet bonuses, lifeforms, items, events, alliances, or mission-specific modifiers.
+`calculate_universe_scaling(E)` contains only the transformation from evolution `E` to category-specific scaling factors. It does **not** contain classic rates, technologies, planet bonuses, lifeforms, items, events, alliances, or mission-specific modifiers.
 
-### Example
-
-For `E = 100`:
+### Example: E = 100
 
 ```text
 resource_economy_scale    = 100
@@ -34,46 +34,99 @@ fleet_movement_scale      = 4.6415888336
 lifeform_speed_scale      = 10
 ```
 
-## Modifier order
+## Evolution vs expansion
 
-The semantic order is now explicit:
+These are different systems and must never be collapsed into one generic `evolution` formula:
 
 ```text
-classic/base universe rate
+UNIVERSE EVOLUTION
+    E(t)
+    -> rate/scaling changes over time
+
+GALAXY/SYSTEM EXPANSION
+    -> creates new systems/galaxies according to expansion timing rules
+```
+
+Galaxy expansion has its own formulas and state machine. A change to expansion timing must not silently change production, construction, research, or fleet scaling.
+
+## Modifier pipeline
+
+The conceptual pipeline is:
+
+```text
+classic/base rate
         -> universe evolution scaling
         -> technology / planet / lifeform modifiers
         -> item / event / alliance modifiers
+        -> mission-specific modifiers
         -> final effective rate
 ```
 
-For multiplicative modifiers the mathematical multiplication is commutative, but keeping this conceptual order prevents future features from accidentally becoming part of `calculate_universe_scaling`.
+The ordering is part of the architecture even where multiplication is mathematically commutative. Future modifiers must declare whether they are multiplicative, additive percentage, cap, or override before being inserted into the pipeline.
 
 ## Resource semantics
 
-The old `economy` and `production` names were ambiguous. The canonical scaling names are now:
+`economy` and `production` were considered too ambiguous. The canonical names are now:
 
 - `resource_economy_scale`
 - `resource_production_scale`
 
-Both currently use `E^1`. They remain separate because the engine intentionally has two classic resource-rate stages. Their product therefore produces `E^2` when both are applied to resource output.
+Both currently use `E^1`.
 
-This is **intentional and documented**, not a hidden exponent inside the scaling function.
+They remain separate because the current engine has two classic resource-rate stages. If both are applied to resource output, the evolution contribution is deliberately:
+
+```text
+E × E = E²
+```
+
+This is a gameplay/architecture decision, not a hidden exponent inside `calculate_universe_scaling`.
+
+Do not rename or merge these stages merely because `E²` looks unusual. First audit their real consumers and determine whether they represent genuinely separate rate stages.
 
 Solar energy is not multiplied by resource production scaling.
 
+## Construction / research / lifeforms
+
+```text
+building_speed_scale = E^0.5
+research_speed_scale  = E^0.5
+lifeform_speed_scale  = E^0.5
+```
+
+These are speed multipliers. Higher scaling means shorter completion time when converted into the relevant effective speed/rate.
+
+Consumers must not independently call `sqrt(E)` or recreate the exponent. They consume the centralized scaling result.
+
 ## Fleet movement
 
-Fleet and expedition movement use one evolution scaling:
+Fleet and expedition movement share one evolution scaling:
 
 ```text
 fleet_movement_scale = E^(1/3)
 ```
 
-There is no separate evolution exponent for expedition movement. Expeditions may still have expedition-specific modifiers, but their evolution component is the same movement scaling used by normal fleets.
+There is **no separate expedition evolution exponent**. Expeditions can have expedition-specific modifiers, but their evolution component is the same movement scaling as normal fleet missions.
 
-### Non-linear travel time
+Conceptually:
 
-The canonical helper is:
+```text
+normal fleet speed
+    = classic ship speed
+    × fleet_movement_scale
+    × later modifiers
+
+expedition speed
+    = classic ship speed
+    × fleet_movement_scale
+    × later modifiers
+    × expedition-specific modifiers (if any)
+```
+
+## Non-linear travel time
+
+The OGame/OGameX formula is used as a reference for structure, not as an authority for our gameplay balance.
+
+Reference form:
 
 ```text
 FlightTime =
@@ -87,77 +140,115 @@ FlightTime =
     )
 ```
 
-Our public convention is `speed_percent = 100` for 100% speed. This is numerically equivalent to the classic/OGameX convention where the internal value `10` represents 100%.
+Our public convention is `speed_percent = 100` for 100% speed. The implementation must document any internal normalization separately.
 
-The effective rate is assembled as:
+The important property is non-linearity: distance and ship speed interact through a square root rather than a simple `distance / speed` calculation.
 
-```text
-classic fleet/expedition speed
-    × universe evolution movement scaling
-    × later player/planet/lifeform/item modifiers
-```
+## Coordinate distance model
 
-Distance remains coordinate-based:
+Current reference geometry:
 
 ```text
-same coordinate:             5
-same system:                 1000 + 5 * |Δposition|
-different system:            2700 + 95 * |Δsystem|
-different galaxy:            20000 * |Δgalaxy|
+same coordinate:              5
+same system:                  1000 + 5 * |Δposition|
+different system:             2700 + 95 * |Δsystem|
+different galaxy:             20000 * |Δgalaxy|
 ```
 
-No donut-system/donut-galaxy behavior is currently enabled in our engine.
-
-## Reference used
-
-OGameX was used as an implementation reference, not as the authority for our game design. Its current `FleetMissionService` uses the same square-root distance/speed interaction and the same coordinate-distance constants. The older open-source OGame implementation exposes the canonical `FlightTime` function explicitly.
-
-Our engine deliberately adapts that structure to the dynamic universe-evolution model instead of copying OGame mechanics wholesale.
-
-## Database implementation
-
-Migration applied:
+Examples from `1:1:1`:
 
 ```text
-centralize_universe_scaling_and_fleet_travel_formula
+1:1:1 -> 1:1:2 = 1005
+1:1:1 -> 1:2:1 = 2795
+1:1:1 -> 2:1:1 = 20000
 ```
 
-Implemented in Supabase:
+These values are a reference baseline for our movement model. They are not permission to import every OGame mechanic.
+
+## Base-speed investigation
+
+Before changing fleet balance, establish the actual base travel-time behavior at:
+
+```text
+E = 1
+fleet_movement_scale = 1
+```
+
+The test matrix must include:
+
+```text
+1:1:1 -> 1:1:2   same system / position change
+1:1:1 -> 1:2:1   system change
+1:1:1 -> 2:1:1   galaxy change
+```
+
+Use representative real ship speeds from our own ship definitions and verify the exact persisted arrival time path, not only a UI preview.
+
+## Database implementation status
+
+The centralized scaling/travel migration has been applied in Supabase.
+
+Known implemented components:
 
 - `calculate_universe_scaling(E)`
-- `calculate_universe_scaling_at(universe_id, timestamp)`
-- centralized effective `calculate_universe_rates(...)`
-- `calculate_fleet_travel_time(...)`
-- building time uses `E^0.5` through the scaling helper
-- research time uses `E^0.5` through the scaling helper
-- shipyard build time uses `E^0.5` through the scaling helper
-- lifeform building/research time uses `E^0.5` through the scaling helper
-- fleet time uses `E^(1/3)` through the scaling helper
-- expedition time uses the same `E^(1/3)` movement scaling
-- expedition delay uses the same fleet movement scaling
+- timestamp-aware scaling lookup
+- centralized universe-rate calculation
+- canonical fleet travel-time helper
+- building/research/shipyard/lifeform speed scaling
+- shared fleet/expedition movement scaling
 
-## Validation snapshot
+**Important:** the implementation is not considered fully closed until every fleet dispatch entrypoint uses the canonical travel-time helper for the persisted mission arrival time.
 
-With `E = 100` the database returns:
+## Current open audit
 
-```text
-resource_economy_scale    = 100
-resource_production_scale = 100
-building_speed_scale      = 10
-research_speed_scale      = 10
-fleet_movement_scale      = 4.6415888336
-lifeform_speed_scale      = 10
-```
+### A. Fleet dispatch convergence — OPEN
 
-Using a representative ship speed of `10000`, effective fleet rate `1`, and 100% speed:
+Audit every mission entrypoint, including:
+
+- `start_fleet`
+- `start_fleet_mixed`
+- `start_colonize_fleet`
+- expedition dispatch
+- any future mission-specific dispatch
+
+Goal:
 
 ```text
-distance 1005  -> 360.8739 s
-distance 2795  -> 595.1389 s
-distance 20000 -> 1575.2476 s
+one canonical travel-time formula
+        ↓
+all persisted fleet missions
 ```
 
-These values demonstrate the intended non-linear distance interaction.
+No dispatch function may maintain a second copy of the travel-time formula.
+
+### B. Resource naming/semantics — OPEN
+
+Audit every consumer of:
+
+- `resource_economy_scale`
+- `resource_production_scale`
+
+Confirm whether both represent distinct classic stages. Do not merge them until this audit is complete.
+
+### C. Modifier ordering — OPEN
+
+For every effective rate, identify the exact order and semantics of:
+
+```text
+classic
+universe scaling
+technology
+planet
+lifeform
+item
+event
+alliance
+mission-specific
+```
+
+### D. Expansion separation — CLOSED as a design rule
+
+Universe evolution and galaxy/system expansion are separate systems. Never introduce a single formula intended to govern both.
 
 ## Audit guardrails
 
@@ -165,13 +256,20 @@ These values demonstrate the intended non-linear distance interaction.
 2. Do not put technology, item, planet, alliance, or event bonuses into `calculate_universe_scaling`.
 3. Do not create a separate expedition evolution exponent.
 4. Do not apply resource production scaling to solar energy.
-5. Do not confuse galaxy/system expansion timing with universe production evolution.
-6. Keep `calculate_universe_evolution_rate_at(...)` timestamp-aware for historical event resolution.
-7. Any future rate modifier must declare whether it is a multiplier, additive percentage, cap, or override before being inserted into the final-rate pipeline.
-8. Fleet dispatch entrypoints must use the canonical `calculate_fleet_travel_time(...)` helper rather than maintaining their own travel-time formula.
+5. Do not confuse galaxy/system expansion timing with resource/movement evolution.
+6. Keep evolution calculations timestamp-aware where historical event resolution requires it.
+7. Any future rate modifier must declare its mathematical type before insertion into the final-rate pipeline.
+8. Fleet dispatch entrypoints must use the canonical travel-time helper.
+9. Never copy an OGameX formula into the engine without first mapping its inputs to our own schema and gameplay rules.
+10. Update this monitor whenever a canonical formula, name, modifier order, or integration point changes.
 
-## Next audit target
+## Change log
 
-The remaining high-value consistency check is to route every fleet-dispatch entrypoint (`start_fleet`, `start_fleet_mixed`, `start_colonize_fleet`, and any future mission-specific dispatch) through the canonical travel-time helper. This prevents the database from having one formula for preview/calculation and another formula for persisted mission arrival times.
+### 2026-09-17 — Central scaling/fleet model
 
-Until that audit is closed, this file should be treated as the monitor for the movement-engine migration and not as permission to introduce a second travel formula.
+- Centralized category scaling around `calculate_universe_scaling(E)`.
+- Standardized resource, construction, research, fleet movement and lifeform scaling semantics.
+- Unified fleet and expedition evolution scaling under `fleet_movement_scale`.
+- Documented non-linear travel-time reference and coordinate distances.
+- Explicitly separated universe evolution from galaxy/system expansion.
+- Recorded dispatch convergence as the next audit target.
