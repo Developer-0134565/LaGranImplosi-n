@@ -2,7 +2,7 @@
 
 > **Purpose:** compact operational memory for continuing development safely across sessions.
 >
-> This file is the project's **operational control panel**, not its encyclopedia. It records the current state, active decisions, OPEN/CLOSED work, canonical rules and navigation. Durable technical knowledge belongs in the specialized README files linked below.
+> This file is the project's **operational control panel**, not its encyclopedia. It records the current state, active decisions, OPEN/CLOSED work, canonical rules and navigation. Durable technical knowledge belongs in the specialized README files and living monitors linked below.
 
 ---
 
@@ -26,7 +26,7 @@ Before substantial work:
 6. For substantial new systems, check OGameX for a useful conceptual pattern before designing from scratch.
 7. Give implementation agents bounded, project-specific specifications; do not delegate architecture invention implicitly.
 8. Do not delete useful historical knowledge merely to reduce document size. Segregate durable detail into the appropriate README first.
-9. After meaningful work, update the specialized README when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
+9. After meaningful work, update the specialized README/monitor when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
 
 Core loop:
 
@@ -45,7 +45,7 @@ LIVE SUPABASE STATE / DEFINITIONS
         ↓
 CURRENT GITHUB CODE + CHECKED-IN MIGRATIONS
         ↓
-SPECIALIZED PROJECT DOCUMENTATION
+SPECIALIZED PROJECT DOCUMENTATION / LIVING MONITORS
         ↓
 PROJECT_CONTEXT_PROMPT.md
         ↓
@@ -69,12 +69,21 @@ Canonical high-level model:
 Backend: Supabase/PostgreSQL.
 Frontend: React/TypeScript/Vite.
 
+Runtime boundary:
+
+```text
+src/       → presentation/client integration
+worker/    → Cloudflare HTTP/assets boundary
+supabase/  → authoritative game engine/schema/migrations
+```
+
 Important architectural decisions:
 
 - Universe evolution and galaxy/system expansion are different systems.
 - Rate-modifiable gameplay functions apply their normal/classic modifiers first and then the applicable universe-evolution modifier.
 - The universe clock is persistent/server-independent and must recover missed work after downtime.
 - Test objects/data remain isolated from the production universe.
+- Game rules must not be duplicated in the frontend.
 
 Detailed durable architecture: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
@@ -90,7 +99,7 @@ fleet_movement_scale
 lifeform_speed_scale
 ```
 
-Detailed formulas and modifier semantics belong in the architecture/evolution documents, not here.
+Detailed formulas and modifier semantics belong in the living rate/fleet monitor and evolution documentation.
 
 ---
 
@@ -123,11 +132,9 @@ Use:
 
 `study → understand → compare → adapt → validate`
 
-Compare concepts rather than files: entities, states, transitions, events, jobs/workers, validation, persistence boundaries, responsibilities, formulas and tests.
+The **first-pass OGameX → L.G.I. subsystem map is now established**. The current high-value deep-audit targets are fleet mission lifecycle, temporal events, combat boundaries and deferred processing.
 
-The output of OGameX research must be an **L.G.I.-specific specification** before implementation.
-
-Detailed methodology and OGameX → L.G.I. mapping: [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md)
+Detailed methodology and map: [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) → [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md)
 
 ---
 
@@ -143,7 +150,9 @@ Detailed methodology and OGameX → L.G.I. mapping: [`reference/README_OGAMEX.md
 - Special galaxies start with 10 systems and use a separate expansion formula.
 - AI population targets roughly 5–10% of available universe slots, with tolerance and reconciliation as space expands.
 
-Detailed formulas, scheduling, catch-up and unresolved evolution issues: [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md)
+The current engine manifest records the temporal engine as implemented in Supabase: persisted `universe_clock`, `process_universe_clock(uuid)`, `process_universe_heartbeat()`, a one-minute `universe-heartbeat` `pg_cron` job and a separate fleet-event worker. The remaining work is validation/convergence, not assuming the scheduler is the source of game time. [`supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md)
+
+Detailed formulas, scheduling, catch-up and unresolved evolution issues: [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) and [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md)
 
 ### Protected UI area
 
@@ -153,23 +162,23 @@ Wallpaper/background behavior is a protected area. Gameplay work must not casual
 
 ## 8. Current OPEN Work
 
-### OPEN — OGameX → L.G.I. subsystem map
+### OPEN — Fleet / mission convergence — HIGH
 
-Build the useful conceptual mapping against the **real current L.G.I. implementation**. Do not map mechanically; prioritize systems where the reference can prevent architectural mistakes.
+Audit fleet dispatch, mission state transitions, arrival/return resolution and persisted travel times against the current implementation and the OGameX mission lifecycle reference.
 
-### OPEN — Fleet / mission convergence
+### OPEN — OGameX subsystem deep audits
 
-Audit fleet dispatch, mission state transitions and arrival/resolution behavior against the current implementation and relevant OGameX patterns.
+The structural map is complete at first-pass level. Deep comparison is now performed only where it can expose a concrete architectural gap, beginning with fleet missions/events and then combat/background processing.
 
-### OPEN — Economy semantics
+### OPEN — Economy semantics — MEDIUM
 
-Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions.
+Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions. The canonical rate/fleet monitor identifies `resource_economy_scale` vs `resource_production_scale` as an unresolved semantic audit.
 
-### OPEN — Universe evolution process monitor
+### OPEN — Universe evolution validation — MEDIUM
 
-Design and validate the persistent clock/worker/catch-up process so universe evolution does not depend on a continuously running browser session.
+The persistent clock/catch-up/heartbeat architecture exists in the current Supabase engine. Validate ordering, idempotency, overdue processing and scheduler/runtime contracts rather than redesigning the clock from scratch.
 
-### OPEN — Final security/RLS hardening
+### OPEN — Final security/RLS hardening — LOW / FINAL PHASE
 
 Security remains a final hardening phase unless a concrete defect requires earlier intervention. Deferred hardening is not permission to ignore an actual security issue.
 
@@ -187,6 +196,7 @@ Domain detail belongs in specialized documentation; this section records only ac
 - Universe evolution is separate from galaxy/system expansion.
 - Durable detail is segregated into specialized documentation.
 - Historical decisions remain traceable; moving detail out of this file is not deletion.
+- The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
 
 Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
@@ -201,7 +211,7 @@ Persistent ChatGPT memory
         ↕
 PROJECT_CONTEXT_PROMPT.md
         ↕
-Specialized README files
+Specialized READMEs / living monitors
         ↕
 Real repository + Supabase state
 ```
@@ -210,7 +220,7 @@ Use each layer for its intended purpose:
 
 - **Persistent memory:** cross-session principles, important decisions and continuity.
 - **PROJECT_CONTEXT_PROMPT.md:** compact current state, active decisions, OPEN/CLOSED work and navigation.
-- **Specialized READMEs:** detailed durable knowledge.
+- **Specialized READMEs/monitors:** detailed durable knowledge and system-specific audit state.
 - **Repository/Supabase:** actual implementation and live state.
 
 When a document becomes too large, **segregate before deleting**. Move durable detail to an appropriate README, leave a concise summary/link here, and preserve traceability. Only remove information after it has been confirmed obsolete, duplicated or genuinely useless.
@@ -225,14 +235,14 @@ At the beginning of a substantial session:
 
 1. Recover persistent memory/context.
 2. Read this file.
-3. Follow only the specialized README links relevant to the task.
+3. Follow only the specialized README/monitor links relevant to the task.
 4. Inspect current Git/repository state.
 5. Inspect Supabase when backend state matters.
 6. Reconcile documentation with reality before modifying anything.
 
 At the end of meaningful work:
 
-1. Update the relevant specialized README if durable knowledge changed.
+1. Update the relevant specialized README/monitor if durable knowledge changed.
 2. Update this file if operational state or OPEN/CLOSED decisions changed.
 3. Preserve traceability for superseded decisions.
 4. Leave the repository testable and recoverable.
@@ -245,9 +255,13 @@ At the end of meaningful work:
 |---|---|---|
 | Memory/documentation | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) | Rules for memory and documentation segregation |
 | Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) | Durable architecture and design decisions |
-| OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX patterns and OGameX → L.G.I. comparison |
+| OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX reference index and method |
+| OGameX map | [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Concrete OGameX → L.G.I. subsystem comparison |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
+| Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
 | Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | ChatGPT, Cline, Qwen, Copilot and tool responsibilities |
+| Production DB | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
+| Supabase engine | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) | Current backend engine/runtime boundary and scheduler status |
 
 Create another specialized README only when a domain contains enough durable knowledge to justify independent maintenance.
 
