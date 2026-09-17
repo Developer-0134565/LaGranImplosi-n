@@ -101,3 +101,55 @@ Do not create a second population state if existing universe population state ca
 - Define AI placement constraints and collision handling.
 
 These remain implementation/audit topics and should not be silently invented in the operational context.
+
+
+## 2026-09-17 — Initial production/runtime audit
+
+The first DeepSeek/Cline recognition audit established this implementation surface:
+
+```text
+universes
+  ↓
+universe_clock
+  ↓
+process_universe_clock()
+  ↓
+process_universe_tick()
+  ↓
+process_universe_heartbeat()
+  ├─ process_universe_galaxy_roll()
+  ├─ process_universe_system_expansion()
+  └─ reconcile_universe_ai_population()
+```
+
+Known persistent state includes `universe_clock` (`last_tick_at`, `next_tick_at`, `tick_interval_seconds`, `is_processing`), `universe_expansion_state`, `universe_population_state` and `universe_galaxies`.
+
+Live Supabase verification confirmed active scheduler jobs: `universe-heartbeat` every minute and `deuteria-fleet-worker` every second. The repository/dump did not contain the `cron.job` rows, so scheduler status must be verified against live Supabase rather than inferred from repository files.
+
+### Critical formula convergence finding
+
+The initial audit found multiple evolution application patterns in the existing engine:
+
+```text
+calculate_universe_rates()      → E^1 in its universe-rate component
+some building-time paths         → sqrt(E)
+some fleet/expedition paths      → E^(1/3)
+temporal production integral     → integrates E²
+population/lifeform integral     → integrates sqrt(E)
+```
+
+This is an audit finding, not yet a decision to change formulas. The existing `UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md` describes centralized category scaling, so actual production consumers must be reconciled with that documented model before implementation changes.
+
+### Clock/catch-up finding
+
+`process_universe_clock()` uses persisted timestamps and advances `next_tick_at` according to due ticks rather than simply resetting to `now + interval`. This is the required architectural direction for downtime recovery. Exact long-downtime batching, event ordering, idempotency and health monitoring remain open audit questions.
+
+### Expansion state already present
+
+The current engine contains the agreed parameters: normal expansion base `28800` seconds, curve exponent `0.75`, global galaxy roll interval `43200` seconds, special-galaxy probability `0.01`, initial normal galaxies `100`, special initial systems `10`, special growth factor `5%`, AI target density about `0.075` and tolerance about `0.0025`.
+
+These values are evidence of current implementation state, not permission to assume every consumer is correct.
+
+### Audit rule after this discovery
+
+Do not launch another repository-wide recognition prompt for Universe Evolution. The next Cline/DeepSeek task should be a directed, read-only subsystem audit limited to evolution-rate/scaling consumers, universe clock/tick/heartbeat, galaxy roll/system expansion, AI reconciliation, exact formulas/modifier ordering, and contradictions between implementation, live Supabase state and the specialized monitors. It must identify exact files/functions and evidence without modifying code, migrations or database state.
