@@ -18,22 +18,30 @@ Never copy Laravel/PHP/ORM architecture blindly into L.G.I.
 
 | OGameX area | Concept to study | L.G.I. adaptation | Status |
 |---|---|---|---|
-| `app/Services` | business/domain services | Supabase functions/RPC + backend domain logic | OPEN |
-| `app/Actions` | explicit operations | RPC/actions | OPEN |
-| `app/GameMissions` | mission processing and states | fleet mission system | OPEN |
-| `app/GameObjects` | game-domain objects | tables + domain functions/types | OPEN |
-| `app/Models` | persistent entities | PostgreSQL/Supabase tables and generated types | OPEN |
-| `app/Jobs` | deferred work | queues/workers/cron/evolution processing | OPEN |
-| `app/Events` | domain events | event/state processing | OPEN |
-| `app/GameConstants` | rules/constants | centralized L.G.I. definitions/configuration | OPEN |
+| `app/Services` | business/domain services | Supabase functions/RPC + backend domain logic | AUDIT |
+| `app/Actions` | explicit operations | RPC/actions | AUDIT |
+| `app/GameMissions` | mission processing and states | fleet mission system | OPEN / HIGH |
+| `app/GameObjects` | game-domain objects | tables + domain functions/types | AUDIT |
+| `app/Models` | persistent entities | PostgreSQL/Supabase tables and generated types | AUDIT |
+| `app/Jobs` | deferred work | `pg_cron` + timestamp-driven workers | AUDIT |
+| `app/Events` | domain events | timestamped event/state processing | OPEN |
+| `app/GameConstants` | rules/constants | centralized L.G.I. definitions/configuration | AUDIT |
 | `database/migrations` | schema evolution | Supabase migrations | REFERENCE |
-| `database/seeds` | initial/test data | L.G.I. seeds/test fixtures | REFERENCE |
-| `database/factories` | generated test data | fixtures/test helpers | REFERENCE |
+| `database/seeds` | initial/test data | L.G.I. seeds/test fixtures | AUDIT |
+| `database/factories` | generated test data | fixtures/test helpers | AUDIT |
 | `resources/js` | frontend organization | React/TypeScript | REFERENCE |
 | `resources/css` | styling organization | existing L.G.I. CSS system | REFERENCE |
-| `routes` | application entry points | Supabase/API/Edge entry points | REFERENCE |
+| `routes` | application entry points | Cloudflare Worker + Supabase/API boundaries | REFERENCE |
 
 This table is an index, not proof that every OGameX component has a direct L.G.I. equivalent.
+
+## Current first-pass map
+
+The detailed structural comparison is maintained separately so this README remains a compact index:
+
+[`OGAMEX_LGI_MAP.md`](OGAMEX_LGI_MAP.md)
+
+The first pass identifies **fleet mission lifecycle, temporal events, combat boundaries and deferred processing** as the highest-value areas for deeper comparison. It does not indicate that L.G.I. needs an OGameX-style rewrite.
 
 ## Per-subsystem analysis template
 
@@ -64,4 +72,4 @@ An OGameX difference is not automatically a bug in L.G.I. A finding becomes acti
 
 ## Relationship with PROJECT_CONTEXT
 
-`PROJECT_CONTEXT.md` should contain only the operational summary of this reference system and point here for detail. This document may grow without making the operational context encyclopedic.
+`docs/PROJECT_CONTEXT_PROMPT.md` should contain only the operational summary of this reference system and point here for detail. This document may grow without making the operational context encyclopedic.
