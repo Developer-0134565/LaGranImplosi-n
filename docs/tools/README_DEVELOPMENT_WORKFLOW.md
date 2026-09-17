@@ -85,3 +85,52 @@ Long-lived cross-session principle
 ## Maintenance rule
 
 Do not duplicate the same detailed explanation across multiple documents. Keep one canonical detailed location and reference it from shorter operational documents.
+
+
+## Agent audit cost-control protocol
+
+The first DeepSeek/Cline recognition audit demonstrated that an unrestricted repository-wide prompt can consume a very large context budget (the observed first run processed approximately 1.39 million tokens). That cost is acceptable only for an exceptional initial mapping when the project is otherwise poorly understood; it is not the normal audit pattern.
+
+### Required prompt discipline
+
+Before every Cline prompt, explicitly state:
+
+- Intelligence: None / Low / Medium / High / Extra
+- Expected cost: LOW / MEDIUM / HIGH
+- Why: one short sentence
+
+Recommended use: None for mechanical/trivial changes; Low for simple bounded implementation; Medium for recognition, small audits and ordinary bounded tasks; High for deep subsystem audits and architecture-sensitive work; Extra only for exceptional maximum-difficulty analysis.
+
+### Initial vs directed audits
+
+```text
+INITIAL RECOGNITION
+→ broad enough to map the project once
+
+DIRECTED AUDIT
+→ only known subsystem/files/functions
+→ no repository-wide rediscovery
+→ concise structured output
+
+IMPLEMENTATION
+→ exact files/areas
+→ explicit DO NOT TOUCH
+→ no architecture invention
+
+VERIFICATION
+→ targeted tests/diffs/database checks
+```
+
+Once the initial map exists, do not ask an agent to rediscover the entire repository unless a concrete change in repository structure makes that necessary.
+
+### Output-size discipline
+
+Audits should prefer tables, exact file/function names, formulas, short evidence excerpts, explicit contradictions and bounded conclusions. Avoid exhaustive file dumps, repeated architecture summaries, unrelated system explanations and speculative redesigns during read-only audits.
+
+### DeepSeek role
+
+DeepSeek is a reasoning/execution aid inside the workflow, not a source of truth. Live Supabase state, current GitHub code/migrations and verified project documentation remain authoritative according to the project source-of-truth hierarchy.
+
+### 2026-09-17 observation
+
+The first recognition audit found two overlapping local repository copies, substantial Git/production migration drift, an existing PostgreSQL universe-evolution engine, and active production cron jobs. Future work should exploit that map rather than pay for another global scan.
