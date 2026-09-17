@@ -2,7 +2,7 @@
 
 > **Purpose:** compact operational memory for continuing development safely across sessions.
 >
-> This file is the project's **operational control panel**, not its encyclopedia. It records the current state, active decisions, OPEN/CLOSED work, canonical rules and navigation. Durable technical knowledge belongs in the specialized README files and living monitors linked below.
+> This file is the project's **operational control panel**, not its encyclopedia. Durable technical knowledge belongs in specialized README files and living monitors.
 
 ---
 
@@ -10,7 +10,7 @@
 
 La Gran Implosión is an OGame-like browser game built with React/TypeScript/Vite on the frontend and Supabase/Postgres as the game backend.
 
-The project aims to reproduce useful genre concepts while allowing its own mechanics, architecture and universe-evolution model. OGameX is a reference, never a dependency or authority over L.G.I. rules.
+The project may use established genre concepts while keeping its own mechanics, architecture and universe-evolution model. OGameX is a reference, never a dependency or authority over L.G.I. rules.
 
 ---
 
@@ -77,29 +77,22 @@ worker/    → Cloudflare HTTP/assets boundary
 supabase/  → authoritative game engine/schema/migrations
 ```
 
-Important architectural decisions:
-
-- Universe evolution and galaxy/system expansion are different systems.
-- Rate-modifiable gameplay functions apply their normal/classic modifiers first and then the applicable universe-evolution modifier.
-- The universe clock is persistent/server-independent and must recover missed work after downtime.
-- Test objects/data remain isolated from the production universe.
-- Game rules must not be duplicated in the frontend.
-
-Detailed durable architecture: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
-
-### Canonical scaling concepts
+Gameplay layers are validated in this order:
 
 ```text
-calculate_universe_scaling(E)
-resource_economy_scale
-resource_production_scale
-building_speed_scale
-research_speed_scale
-fleet_movement_scale
-lifeform_speed_scale
+1. BASIC GAME ENGINE
+   construction / research / fleet / transport / attack / combat
+
+2. TEMPORAL LAYER
+   persistent clock / workers / events / catch-up / downtime recovery
+
+3. UNIVERSE EVOLUTION
+   evolving rates / expansion / special galaxies / AI population
 ```
 
-Detailed formulas and modifier semantics belong in the living rate/fleet monitor and evolution documentation.
+The basic engine must be coherent and playable before temporal/evolution work is allowed to hide underlying gameplay defects.
+
+Detailed durable architecture: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
 ---
 
@@ -132,7 +125,7 @@ Use:
 
 `study → understand → compare → adapt → validate`
 
-The **first-pass OGameX → L.G.I. subsystem map is now established**. The current high-value deep-audit targets are fleet mission lifecycle, temporal events, combat boundaries and deferred processing.
+The first-pass OGameX → L.G.I. subsystem map is established. Deep audits use it only where comparison can expose a concrete architectural gap.
 
 Detailed methodology and map: [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) → [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md)
 
@@ -150,7 +143,7 @@ Detailed methodology and map: [`reference/README_OGAMEX.md`](reference/README_OG
 - Special galaxies start with 10 systems and use a separate expansion formula.
 - AI population targets roughly 5–10% of available universe slots, with tolerance and reconciliation as space expands.
 
-The current engine manifest records the temporal engine as implemented in Supabase: persisted `universe_clock`, `process_universe_clock(uuid)`, `process_universe_heartbeat()`, a one-minute `universe-heartbeat` `pg_cron` job and a separate fleet-event worker. The remaining work is validation/convergence, not assuming the scheduler is the source of game time. [`supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md)
+The current engine manifest records the temporal engine as implemented in Supabase; validation/convergence remains separate from the basic engine audit.
 
 Detailed formulas, scheduling, catch-up and unresolved evolution issues: [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) and [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md)
 
@@ -162,27 +155,36 @@ Wallpaper/background behavior is a protected area. Gameplay work must not casual
 
 ## 8. Current OPEN Work
 
-### OPEN — Fleet / mission convergence — HIGH
+### OPEN — BASIC GAME ENGINE AUDIT — HIGH
 
-Audit fleet dispatch, mission state transitions, arrival/return resolution and persisted travel times against the current implementation and the OGameX mission lifecycle reference.
+Current order:
+
+1. 🏗️ Construction — **in progress**
+2. 🔬 Research
+3. 🚀 Fleet movement
+4. 📦 Transport
+5. ⚔️ Attack
+6. 💥 Combat
+
+Construction currently has the main lifecycle audited through queue/completion. Remaining construction checks are **production after building level-up**, **real concurrency/repeated completion safety**, and the **user's browser functional test**. Construction is not yet certified.
+
+Living audit: [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md)
 
 ### OPEN — OGameX subsystem deep audits
 
-The structural map is complete at first-pass level. Deep comparison is now performed only where it can expose a concrete architectural gap, beginning with fleet missions/events and then combat/background processing.
+The structural map is complete at first-pass level. Deep comparison continues where it can expose a concrete architectural gap, beginning with gameplay lifecycle/background processing as the motor audit advances.
 
 ### OPEN — Economy semantics — MEDIUM
 
-Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions. The canonical rate/fleet monitor identifies `resource_economy_scale` vs `resource_production_scale` as an unresolved semantic audit.
+Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions. Do not mix future evolution semantics into the base-engine certification unless a concrete dependency requires it.
 
-### OPEN — Universe evolution validation — MEDIUM
+### OPEN — Universe evolution validation — MEDIUM / LATER LAYER
 
-The persistent clock/catch-up/heartbeat architecture exists in the current Supabase engine. Validate ordering, idempotency, overdue processing and scheduler/runtime contracts rather than redesigning the clock from scratch.
+The temporal/evolution architecture is documented, but the current priority is the basic game engine. Do not redesign or implement evolution formulas while construction/research/fleet/transport/attack/combat certification is still open.
 
 ### OPEN — Final security/RLS hardening — LOW / FINAL PHASE
 
 Security remains a final hardening phase unless a concrete defect requires earlier intervention. Deferred hardening is not permission to ignore an actual security issue.
-
-Domain detail belongs in specialized documentation; this section records only active work and current priority.
 
 ---
 
@@ -197,6 +199,7 @@ Domain detail belongs in specialized documentation; this section records only ac
 - Durable detail is segregated into specialized documentation.
 - Historical decisions remain traceable; moving detail out of this file is not deletion.
 - The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
+- Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
 
 Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
@@ -255,6 +258,7 @@ At the end of meaningful work:
 |---|---|---|
 | Memory/documentation | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) | Rules for memory and documentation segregation |
 | Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) | Durable architecture and design decisions |
+| Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Living audit of construction/research/fleet/transport/attack/combat |
 | OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX reference index and method |
 | OGameX map | [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Concrete OGameX → L.G.I. subsystem comparison |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
