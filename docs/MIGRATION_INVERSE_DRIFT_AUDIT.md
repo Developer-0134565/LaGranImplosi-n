@@ -264,6 +264,98 @@ OPEN-3  Full ledger recovery: 221 ledger rows still have no local file
         REPOSITORY HISTORY == CERTIFIED LIVE HISTORY).
 ```
 
-Note: `supabase db push` from this copy would now apply **nothing** (LOCAL − LIVE = ∅), but it remains
-unnecessary and unadvertised until OPEN-3 is closed; `migration repair` stays prohibited.
+Note (corrected 2026-09-18, second pass): after the integration merge the folder also contains four
+`origin/main` files whose version IDs are absent from the ledger (§10), so a `supabase db push` from this copy
+would no longer be a no-op. It remains PROHIBITED until §10 is resolved; `migration repair` stays prohibited.
 
+## 10. Post-merge remote-origin migrations — drift audit (2026-09-18, second pass)
+
+Four migrations brought in by the integration merge (`6aa73ed` = local `55494aa` + `origin/main 64ecc14`).
+**None of their version IDs exists in the LIVE ledger**:
+
+| Local file (origin/main commit) | Version in ledger? | Ledger row(s) carrying the same change | LIVE reflection | Classification |
+|---|---|---|---|---|
+| `20260918101500_converge_fleet_mission_timing_and_lock_mixed_rpc.sql` (`22a380b`) | **NO** | `20260918094440` (canonical travel time in dispatch), `20260918095005` (drive tech in dispatch), `20260918100000` (expedition hold class) | yes — dispatchers are already canonical and no longer contain the legacy inline expedition formula; `start_fleet_mixed` has no `anon` EXECUTE | **DERIVA DE VERSION** |
+| `20260918110000_add_can_start_research_contract.sql` (`19f6507`) | **NO** (version absent; the *name* is recorded under version `20260918085406`) | `20260918085406` (identical logical change) | yes — `can_research` is SECURITY DEFINER, `can_start_research` exists, ACLs verified | **DERIVA DE VERSION** |
+| `20260918113000_fleet_engine_canonical_calculation_sweep.sql` (`1fd413b`) | **NO** | `20260917040727`, `20260918094440`, `20260918094959`/`20260918095005`, `20260918095009` | yes — distance/fuel helpers and the legacy REVOKE match LIVE; the dispatch distance patches are no-ops | **DERIVA DE VERSION** (with a semantic note) |
+| `20260918125000_fleet_mission_speed_and_fuel_convergence.sql` (`81c7b45`) | **NO** | **none** — 0 of the 260 payloads mention the three class columns or the classifier | yes — columns exist (`NOT NULL DEFAULT 1`), classifier and fuel helper are LIVE-equivalent | **ALINEADA (procedencia ausente en el ledger)** |
+
+### Semantic vs formatting differences (whitespace-normalised body hashes)
+
+```text
+equivalent (formatting only: `a = b` vs `a=b`, indentation, trailing space):
+  calculate_fleet_distance_to_coordinates   (113000)  file=c8b51c9f4b  LIVE=c8b51c9f4b…
+  calculate_fleet_fuel                      (113000)  file=4d3b987b74  LIVE=4d3b987b74…
+  calculate_mission_fleet_speed_multiplier  (125000)  file=8682c308f5  LIVE=8682c308f5…
+  calculate_player_fleet_fuel_for_distance  (125000)  file=3f3ef3cae2  LIVE=3f3ef3cae2…
+  can_research                              (110000)  first diff: `rd.id = p_research_id` vs `rd.id=p_research_id`
+  can_start_research                        (110000)  first diff: `uuid := auth.uid()` vs `uuid:=auth.uid()`
+  calculate_expedition_time                 (101500)  first diff: `p.id = p_origin_planet_id` vs `p.id=p_origin_planet_id`
+
+semantically different — both are DEAD legacy helpers (no live callers):
+  calculate_fleet_time        (113000)  file=1255 chars vs LIVE=754: the file re-introduces the
+                                        `universes.fleet_speed` + `get_player_fleet_speed_multiplier` variant,
+                                        while LIVE holds the shorter classifier-based (TRANSPORT) variant
+  calculate_fleet_fuel_mixed  (113000)  file=1430 vs LIVE=1500: the file builds `v_slowest_ship` explicitly,
+                                        while LIVE computes the slowest ship inside the `calculate_fleet_time(...)` call
+```
+
+### LIVE state verified for the objects these files touch
+
+```text
+start_fleet / start_fleet_mixed / start_colonize_fleet : calls_classifier=YES · calls_distance_helper=YES
+                                                         inline-legacy-expedition=NO · inline-legacy-distance=NO
+start_fleet_mixed ACL                  {postgres, service_role, authenticated}   ← anon already revoked (101500 no-op)
+calculate_fleet_fuel_for_distance ACL  {postgres, service_role}                  ← legacy helper already revoked (113000 no-op)
+universes                              fleet_speed=1 · peaceful=1 · war=1 · holding=1 (NOT NULL DEFAULT 1)
+can_start_research ACL                 authenticated=YES · anon=NO ;  can_research / check_ / get_ revoked
+```
+
+### What a `db push` would do (analysis only — NOT executed)
+
+```text
+20260918101500 : REVOKE no-op; CREATE OR REPLACE calculate_expedition_time (dead, equivalent body); the DO-block
+                 patches target text that no longer exists → the dispatchers are re-created with their current
+                 (canonical) definitions. Benign; would add one ledger row.
+20260918110000 : CREATE OR REPLACE (equivalent) + ALTER OWNER (no-op) + REVOKE/GRANT (idempotent). Benign, but
+                 creates a SECOND ledger row for a change already recorded as 20260918085406.
+20260918113000 : equivalent for the live helpers + REVOKE no-op; HOWEVER it would rewrite the two dead legacy
+                 helpers to the `fleet_speed`-generic variants (against the README guardrail). Benign for
+                 gameplay; undesired for canonical hygiene.
+20260918125000 : ADD COLUMN IF NOT EXISTS (no-op) + UPDATE writing the same values (no-op) + CREATE OR REPLACE
+                 (equivalent) → benign, and it would CREATE the missing ledger provenance of the class layer.
+```
+
+### New verified finding (recorded here, NOT fixed)
+
+**The mission-speed-class layer has no ledger provenance.** A global search over all 260 ledger `statements`
+payloads returns **0 matches** for `peaceful_fleet_speed`, `war_fleet_speed`, `holding_fleet_speed` and
+`calculate_mission_fleet_speed_multiplier`. The layer therefore exists in LIVE without any recorded migration
+(same class of gap as the two monitor ACLs in §9/OPEN-1/OPEN-2). The only authored record of that change in the
+project is `20260918125000_fleet_mission_speed_and_fuel_convergence.sql` (from `origin/main`).
+
+Consequences:
+
+```text
+· the LIVE class layer cannot be reproduced from the ledger → a rebuild from migrations would fall back to a
+  single fleet speed (the dispatchers would still call the classifier, so it must exist before them);
+· the repo file is the change's only documentation → treat it as valuable provenance, not as dead weight;
+· OPEN items for the next phase: give the class layer an explicit FORWARD migration (or let an approved push
+  record it) together with the two out-of-band monitor ACLs.
+```
+
+### Recommended reconciliation (next phase — still no push)
+
+```text
+1. Do NOT run `supabase db push`: it would apply four unrecorded versions, create duplicate ledger rows for the
+   research contract and rewrite two dead legacy helpers.
+2. Decide, per file:
+   a. 20260918101500, 20260918110000, 20260918113000 → their logical change is already recorded in the ledger
+      under other versions. Options: keep them as authored records (and accept that a future push would create
+      extra rows), or archive them as `*.sql.superseded` with a provenance header pointing at the ledger rows.
+   b. 20260918125000 → KEEP: it is the only provenance of the out-of-band class layer; a future forward
+      migration or an approved push should record it in the ledger.
+3. Record the out-of-band items (class layer + the two monitor ACLs of §9) as an explicit FORWARD migration set
+   so `REPOSITORY HISTORY == CERTIFIED LIVE HISTORY` becomes achievable.
+4. Only after 2+3 (and after recovering the remaining 221 ledger rows) may `db push` be revisited as a no-op check.
+```
