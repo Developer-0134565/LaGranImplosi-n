@@ -9,7 +9,7 @@ Living audit of the basic gameplay engine before the temporal layer and universe
 ```text
 1. Construction
 2. Research
-3. Fleet movement
+3. Fleet movement — **OPEN / HIGH: deep propulsion, cargo, fuel and dispatch-convergence audit in progress**
 4. Transport
 5. Attack
 6. Combat
@@ -209,6 +209,14 @@ The transactional foreign-owner regression rejected all six calls without commit
 
 Detailed evidence and the migration/reproducibility finding are tracked in [`README_OWNERSHIP_HARDENING.md`](README_OWNERSHIP_HARDENING.md).
 
+
+## Fleet movement — current audit
+
+**OPEN / HIGH — 2026-09-18.** The live engine now has a player-aware ship-speed helper, propulsion transitions for Small Cargo/Bomber/Recycler, player-aware cargo and fuel helpers, mixed-fleet validation, and the existing canonical distance/evolution movement model. The live `ship_prerequisites` graph contains 41 rows with no dangling research/building references.
+
+Current propulsion transitions are centralized in `calculate_player_ship_speed()`. Cargo is centralized in `calculate_player_ship_cargo_capacity()`, and fleet fuel uses player-aware consumption/speed helpers. `start_fleet_mixed()` validates each ship and uses the slowest effective ship speed for mixed-fleet travel.
+
+Remaining certification work is dispatch convergence across `start_fleet`, `start_fleet_mixed`, `start_colonize_fleet`, expedition and recycle paths; return-time convergence; mission-specific modifiers; and the browser fleet flow. See [`README_FLEET_ENGINE.md`](README_FLEET_ENGINE.md) and [`../UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](../UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md).
 
 ## Research — current audit status
 
