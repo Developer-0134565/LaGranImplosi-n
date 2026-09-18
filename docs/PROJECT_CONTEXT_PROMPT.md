@@ -203,9 +203,15 @@ The structural map is complete at first-pass level. Deep comparison continues wh
 
 Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions. Do not mix future evolution semantics into the base-engine certification unless a concrete dependency requires it.
 
-### OPEN — Universe evolution validation — HIGH / DIRECTED AUDIT
+### CLOSED — Universe Evolution engine + monitor validation
 
-The first repository-wide recognition audit is complete. It established that the temporal engine already exists in Supabase and that the production `universe-heartbeat` cron is active every minute. The next audit must be narrowly scoped to Universe Evolution formulas, clock catch-up, expansion ordering and integration; do not repeat a full-repository scan. Existing formula discrepancies must be reconciled before implementation changes.
+Universe Evolution is now implemented and directly validated in live Supabase. The persistent clock, catch-up, normal/special galaxy expansion, galaxy-roll processing, AI reconciliation and heartbeat were tested with controlled overdue/concurrency/failure-recovery scenarios.
+
+The operational monitor is also validated end-to-end. Active Universe 1 reached HEALTHY after a temporary CATCHING_UP state, with lag 0s, ticks due 0, expansion backlog 0, galaxy rolls due 0 and AI deficit 0.
+
+Detailed evolution and monitor state:
+- [systems/README_UNIVERSE_EVOLUTION.md](systems/README_UNIVERSE_EVOLUTION.md)
+- [systems/README_UNIVERSE_EVOLUTION_MONITOR.md](systems/README_UNIVERSE_EVOLUTION_MONITOR.md)
 
 ### OPEN — Final security/RLS hardening — LOW / FINAL PHASE
 
@@ -224,6 +230,9 @@ Security remains a final hardening phase unless a concrete defect requires earli
 - Durable detail is segregated into specialized documentation.
 - Historical decisions remain traceable; moving detail out of this file is not deletion.
 - The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
+- Universe Evolution engine validation is closed for the currently implemented clock/catch-up/expansion/roll/AI/heartbeat surface.
+- Universe Evolution Monitor validation is closed: sanitized public RPC + React UI + authenticated execution + recovery-to-HEALTHY were verified.
+- Public monitor backend is versioned by migrations 20260918020000 through 20260918020300; the public RPC is intentionally callable by anon and authenticated, while the full monitor remains private.
 - Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
 - Production verification confirmed active pg_cron jobs for `universe-heartbeat` (1 minute) and `deuteria-fleet-worker` (1 second); the repository/dump alone did not expose those cron rows.
@@ -289,6 +298,7 @@ At the end of meaningful work:
 | OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX reference index and method |
 | OGameX map | [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Concrete OGameX → L.G.I. subsystem comparison |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
+| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract, status semantics and validation |
 | Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
 | Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | ChatGPT, Cline, Qwen, Copilot and tool responsibilities |
 | Production DB | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
