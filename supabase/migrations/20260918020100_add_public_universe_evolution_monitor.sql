@@ -72,7 +72,7 @@ $function$;
 revoke execute on function public.get_universe_evolution_monitor_public(uuid) from public;
 revoke execute on function public.get_universe_evolution_monitor_public(uuid) from anon;
 revoke execute on function public.get_universe_evolution_monitor_public(uuid) from authenticated;
-grant execute on function public.get_universe_evolution_monitor_public(uuid) to anon, authenticated;
+grant execute on function public.get_universe_evolution_monitor_public(uuid) to anon;
 
 comment on function public.get_universe_evolution_monitor_public(uuid)
 is 'Sanitized read-only universe evolution monitor for guest/frontend clients. Excludes internal process health and error details.';
