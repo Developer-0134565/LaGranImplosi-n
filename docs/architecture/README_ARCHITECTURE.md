@@ -51,6 +51,20 @@ The basic engine must be coherent and playable before temporal/evolution work is
 - A gameplay domain is not certified merely because its functions exist: execution, persistence, transitions, idempotency, concurrency, integration, documentation and browser validation must also be covered.
 - The user is the final validator of the web/UI functional test for each gameplay domain.
 
+## Runtime / deployment boundary
+
+```text
+React + Vite
+    ↓
+Cloudflare Worker + assets
+    ↓
+Supabase/Postgres
+```
+
+Cloudflare is the public HTTP/assets delivery boundary. Supabase remains the authoritative game-state and engine boundary.
+
+The 2026-09-18 Universe Evolution production validation confirmed the full path from the deployed Cloudflare Worker through the React Overview monitor to the sanitized Supabase RPC and live Universe 1 state.
+
 ## Construction architecture
 
 Construction follows the canonical pipeline:
@@ -102,7 +116,6 @@ Superseded by:
 
 Keep `PROJECT_CONTEXT_PROMPT.md` concise. Move detailed architecture explanations here when they remain useful but are no longer required to recover the immediate project state.
 
-
 ## Universe Evolution observability boundary
 
 Universe Evolution execution and observability are deliberately separated:
@@ -111,6 +124,7 @@ Evolution engine
 → private monitor RPC
 → sanitized public monitor RPC
 → React Overview monitor
+→ Cloudflare production boundary
 
 The frontend never calls the full internal monitor. The public function is a read-only SECURITY DEFINER with an empty search_path and a fixed safe response whitelist. It is callable by both anon and authenticated because the game supports guest and authenticated UI sessions.
 
