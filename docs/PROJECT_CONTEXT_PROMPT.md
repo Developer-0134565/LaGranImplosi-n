@@ -168,9 +168,11 @@ Detailed methodology and map: [`reference/README_OGAMEX.md`](reference/README_OG
 - Special galaxies start with 10 systems and use a separate expansion formula.
 - AI population targets roughly 5–10% of available universe slots, with tolerance and reconciliation as space expands.
 
-The current engine manifest records the temporal engine as implemented in Supabase; validation/convergence remains separate from the basic engine audit.
+**CLOSED — 2026-09-18:** Universe Evolution engine + observability + production deployment are validated end-to-end. Live engine tests covered clock catch-up, overdue batching, concurrency, failure/recovery, normal/special expansion, galaxy rolls and AI reconciliation. The monitor recovered from CATCHING_UP to HEALTHY, and the deployed production Overview showed lag 0s, 0 pending ticks, 0 expansion backlog, 0 galaxy rolls due and 0 AI deficit.
 
-Detailed formulas, scheduling, catch-up and unresolved evolution issues: [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) and [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md)
+Detailed formulas, scheduling, catch-up, observability and deployment evidence:
+- [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md)
+- [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md)
 
 ### Protected UI area
 
@@ -209,6 +211,8 @@ Universe Evolution is now implemented and directly validated in live Supabase. T
 
 The operational monitor is also validated end-to-end. Active Universe 1 reached HEALTHY after a temporary CATCHING_UP state, with lag 0s, ticks due 0, expansion backlog 0, galaxy rolls due 0 and AI deficit 0.
 
+Production deployment is also validated: Cloudflare Worker `lagranimplosion`, version `a5cba4c6-b82f-4c73-b445-f32fb887614`, served the Overview monitor successfully with the same healthy live state.
+
 Detailed evolution and monitor state:
 - [systems/README_UNIVERSE_EVOLUTION.md](systems/README_UNIVERSE_EVOLUTION.md)
 - [systems/README_UNIVERSE_EVOLUTION_MONITOR.md](systems/README_UNIVERSE_EVOLUTION_MONITOR.md)
@@ -232,6 +236,7 @@ Security remains a final hardening phase unless a concrete defect requires earli
 - The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
 - Universe Evolution engine validation is closed for the currently implemented clock/catch-up/expansion/roll/AI/heartbeat surface.
 - Universe Evolution Monitor validation is closed: sanitized public RPC + React UI + authenticated execution + recovery-to-HEALTHY were verified.
+- Production deployment validation is closed for the current Universe Evolution monitor: Cloudflare Worker deployment + public Overview verification succeeded.
 - Public monitor backend is versioned by migrations 20260918020000 through 20260918020300; the public RPC is intentionally callable by anon and authenticated, while the full monitor remains private.
 - Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
@@ -298,7 +303,7 @@ At the end of meaningful work:
 | OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX reference index and method |
 | OGameX map | [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Concrete OGameX → L.G.I. subsystem comparison |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
-| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract, status semantics and validation |
+| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract, status semantics, validation and production deployment |
 | Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
 | Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | ChatGPT, Cline, Qwen, Copilot and tool responsibilities |
 | Production DB | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
