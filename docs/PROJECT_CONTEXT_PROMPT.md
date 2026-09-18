@@ -188,7 +188,7 @@ Current order:
 
 1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
 2. 🔬 Research — **CLOSED: backend/security contract + browser functional flow validated**
-3. 🚀 Fleet movement
+3. 🚀 Fleet movement — **OPEN / HIGH: propulsion + cargo + fuel integrated; dispatch/return convergence and browser certification remain**
 4. 📦 Transport
 5. ⚔️ Attack
 6. 💥 Combat
@@ -199,7 +199,7 @@ Living audit: [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE
 
 ### OPEN — OGameX subsystem deep audits
 
-The structural map is complete at first-pass level. Deep comparison continues where it can expose a concrete architectural gap, beginning with gameplay lifecycle/background processing as the motor audit advances.
+The structural map is complete at first-pass level. Deep comparison continues where it can expose a concrete architectural gap. Fleet is the current deep-audit target: propulsion technologies, ship prerequisites, cargo/fuel modifiers, distance and mission lifecycle are being compared against OGameX patterns.
 
 ### OPEN — Economy semantics — MEDIUM
 
@@ -245,6 +245,7 @@ Security remains a final hardening phase unless a concrete defect requires earli
 - Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
 - Research is now functionally closed: authoritative `can_start_research()` contract, security/ownership checks, regression battery and browser level-up/resource-deduction flow were validated.
 - Ownership hardening is closed for the six critical player/planet action RPCs; the final security/RLS phase remains separate.
+- Fleet engine deep audit is OPEN: player-aware propulsion/cargo/fuel integration is implemented and live prerequisite references are coherent; dispatch/return convergence and browser certification remain.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
 - Production verification confirmed active pg_cron jobs for `universe-heartbeat` (1 minute) and `deuteria-fleet-worker` (1 second); the repository/dump alone did not expose those cron rows.
 
@@ -312,6 +313,7 @@ At the end of meaningful work:
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
 | Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract, status semantics, validation and production deployment |
 | Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
+| Fleet engine | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) | Ship prerequisites, propulsion, cargo, fuel and fleet-dispatch audit |
 | Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | ChatGPT, Cline, Qwen, Copilot and tool responsibilities |
 | Production DB | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
 | Supabase engine | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) | Current backend engine/runtime boundary and scheduler status |
