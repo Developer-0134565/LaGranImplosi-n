@@ -1,11 +1,11 @@
 # FLEET ENGINE — LA GRAN IMPLOSIÓN
 
-> **Status:** OPEN — deep audit in progress.
+> **Status:** OPEN — backend movement lifecycle hardened; browser certification remains OPEN.
 >
 > Canonical durable record for ship prerequisites, propulsion/technology modifiers, cargo, fuel, distance and fleet-dispatch integration. OGameX is a reference pattern; L.G.I. keeps its own schema and balance.
 
 ## 1. Audit method
-```text
+```
 OGameX reference
     ↓
 current Supabase definitions/functions
@@ -48,13 +48,13 @@ The exact base values remain owned by `ship_definitions`; the helper applies pla
 
 Canonical universe movement scaling:
 
-```text
+```
 fleet_movement_scale = E^(1/3)
 ```
 
 Pipeline:
 
-```text
+```
 ship base speed
     ↓
 propulsion technology
@@ -70,7 +70,7 @@ persisted arrives_at
 
 ## 5. Distance model
 
-```text
+```
 same coordinate:              5
 same system:                  1000 + 5 * |Δposition|
 different system:             2700 + 95 * |Δsystem|
@@ -83,7 +83,7 @@ Examples: `1:1:1 → 1:1:2 = 1005`, `1:1:1 → 1:2:1 = 2795`, `1:1:1 → 2:1:1 =
 
 `calculate_player_ship_cargo_capacity(player_id, ship_id)` is player-aware.
 
-```text
+```
 effective cargo = ship base cargo × (1 + 0.05 × Hyperspace Technology level)
 ```
 
@@ -107,7 +107,7 @@ Known fleet dispatch surface:
 - expedition dispatch
 - recycle dispatch / debris-field targeting
 
-The audit remains OPEN until every dispatch path is proven to persist arrival timestamps through the same canonical travel-time calculation.
+Dispatch convergence is now implemented around the canonical distance/speed/time/fuel helpers. The remaining certification item is browser execution across the complete mission lifecycle.
 
 ## 10. OGameX comparison targets
 
@@ -127,28 +127,94 @@ The first convergence pass found a real divergence in `start_colonize_fleet`: it
 - `calculate_player_fleet_fuel_for_distance()`;
 - the same fleet-evolution scaling and speed modifiers as the shared fleet path.
 
-`process_fleet_movements()` already resolves due arrivals from persisted `arrives_at` and derives non-expedition return time from the persisted flight duration, preserving downtime/catch-up semantics.
+A second sweep found the legacy `calculate_fleet_fuel_for_distance(distance, ship_id, quantity)` entrypoint. It has no remaining legitimate caller and EXECUTE has been revoked from `PUBLIC`, `anon` and `authenticated`.
 
-This closes the identified colonization formula divergence, but the dispatch audit remains open until all mission entrypoints and browser flow are certified.
+The same sweep converged `calculate_fleet_time()` on player-aware propulsion, universe evolution scaling and the canonical travel-time helper. `calculate_fleet_fuel()` and mixed-fleet fuel now use the player-aware fuel path.
 
-## 12. Remaining OPEN audit
+## 12. Movement lifecycle / idempotency — 2026-09-18
 
-### A. Dispatch convergence — HIGH
-One canonical travel-time formula must feed all persisted `arrives_at` timestamps.
+The shared worker was attacked specifically for downtime recovery, duplicate execution and concurrent workers.
 
-### B. Return-time convergence — HIGH
-Verify every returning mission derives `returns_at` from persisted event state and does not create a second travel-time implementation.
+Current live `process_fleet_movements()` semantics:
+
+```
+persisted arrives_at / returns_at
+        ↓
+worker selects only due events
+        ↓
+row lock + global transaction advisory lock
+        ↓
+OUTBOUND → ARRIVED
+        ↓
+mission-specific resolver
+        ↓
+ARRIVED → RETURNING or COMPLETED
+        ↓
+persisted return timestamp
+        ↓
+return settlement
+        ↓
+RETURNING → COMPLETED
+```
+
+Important properties verified in the live function:
+
+1. **Game time is persisted.** The worker compares stored event timestamps with `clock_timestamp()`; it does not reconstruct elapsed time from worker execution time.
+2. **Late workers preserve the original timeline.** Non-expedition return time is derived from `arrives_at - started_at`, not from "now + travel time".
+3. **Arrival processing is transactionally claimed.** The worker changes `OUTBOUND` to `ARRIVED` under row lock before invoking the mission resolver. If resolution fails, the surrounding transaction rolls back the claim and side effects together.
+4. **Resolvers are state-gated.** Arrival resolvers require `ARRIVED`; a second call after successful resolution sees `RETURNING` or `COMPLETED` and cannot repeat the arrival side effect.
+5. **Return settlement is state-gated.** The return loop selects only `RETURNING` rows due for processing, locks the row, applies ships/resources, then changes the row to `COMPLETED`. A second worker pass cannot select the completed row.
+6. **Concurrent workers are serialized.** `process_fleet_movements()` takes the transaction advisory lock `fleet-processing-global`; due-row queries additionally use `FOR UPDATE SKIP LOCKED`.
+7. **Mission-specific idempotency exists at the resolver boundary.** Expedition results use the fleet identity as the unique event key; transport/deploy/colonize/attack/espionage resolvers are state-gated before their mutations.
+8. **Worker API is private.** `process_fleet_movements()` and `run_fleet_worker()` are not executable by `anon` or `authenticated`.
+
+Live transactional idempotency test on 2026-09-18:
+
+- created a synthetic due `RETURNING` transport inside a transaction;
+- executed `process_fleet_movements()` twice;
+- first pass processed the movement;
+- second pass processed zero rows;
+- final movement state was `COMPLETED`;
+- the whole test was rolled back, leaving no test mutation.
+
+Live integrity scan at the same point:
+
+- 54 historical fleet movements;
+- 0 due `OUTBOUND` rows with NULL `arrives_at`;
+- 0 `RETURNING` rows with NULL `returns_at`;
+- 0 return timestamps earlier than arrival timestamps;
+- 0 `COMPLETED` rows retaining undelivered movement resources.
+
+The existing due-event indexes are present:
+
+- `fleet_movements_outbound_arrival_idx` on `(arrives_at, id)` for `OUTBOUND`;
+- `fleet_movements_returning_idx` on `(returns_at, id)` for `RETURNING`.
+
+No additional worker index was added because the existing indexes already match the due-event access pattern.
+
+## 13. Remaining OPEN audit
+
+### A. Dispatch convergence — BACKEND VERIFIED
+
+Canonical distance/speed/time/fuel integration is live for the audited dispatch paths. Browser certification remains open.
+
+### B. Return-time convergence — BACKEND VERIFIED
+
+Return scheduling is anchored to persisted movement duration and event timestamps. Downtime/idempotency behavior has been transactionally exercised.
 
 ### C. Technology graph — MEDIUM
+
 Compare all current ship definitions against prerequisites and propulsion family. Confirm every referenced technology participates correctly in effective speed/consumption where applicable.
 
 ### D. Mission-specific modifiers — MEDIUM
+
 Audit expedition, recycle, deploy, colonize and attack modifiers separately. They must be applied after the common movement pipeline and must not duplicate universe scaling.
 
 ### E. Browser fleet flow — OPEN
+
 Backend correctness is not browser certification. A user-performed browser test must verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return.
 
-## 13. Changes applied during current audit — 2026-09-18
+## 14. Changes applied during current audit — 2026-09-18
 
 - centralized player-aware ship speed calculation;
 - encoded propulsion transitions for Small Cargo, Bomber and Recycler;
@@ -157,21 +223,25 @@ Backend correctness is not browser certification. A user-performed browser test 
 - mixed-fleet cargo/fuel/speed integration;
 - fleet dispatch ownership remains protected;
 - canonical galaxy/system/position distance model remains in the movement path;
-- no dangling ship prerequisite references found.
+- removed public execution of the legacy static fleet-fuel helper;
+- converged fleet time/fuel helpers on player-aware calculations;
+- no dangling ship prerequisite references found;
+- verified movement worker state transitions and idempotency under a transactional double-run test.
 
-## 14. Verification evidence — 2026-09-18
+## 15. Verification evidence — 2026-09-18
 
 A transactional live test executed `start_colonize_fleet()` with the guest test player, a real colony ship and an empty target coordinate. The function returned a persisted-style `COLONIZE` fleet with a non-null `arrives_at`, and the transaction was rolled back, so no ship/resources/fleet state was mutated.
 
 The first test exposed two implementation defects in the new path — the fuel-consumption CASE had no fallback for ordinary ships, and `planet_ships.ship_id` was ambiguous inside the PL/pgSQL update. Both were corrected and the same transactional test then passed.
 
-The propulsion thresholds are consistent with classic OGame reference material: Small Cargo switches at Impulse 5, Bomber at Hyperspace 8, and Recycler at Impulse 17 / Hyperspace 15; the classic speed increments are +10% Combustion, +20% Impulse and +30% Hyperspace. citeturn0search0turn0search3
+A second live sweep verified the movement worker's persisted-event/idempotency behavior as documented in section 12. The synthetic transport test was fully rolled back after verification.
 
-## 15. Guardrails
+## 16. Guardrails
 
 - Do not put ship technology rules into `calculate_universe_scaling(E)`.
 - Do not maintain per-mission copies of the travel-time formula.
 - Do not let the frontend become authoritative for speed, fuel, cargo or prerequisites.
 - Do not change OGameX-like balance values merely for parity.
 - Do not certify the fleet subsystem until persisted state and browser flow have been tested.
+- Keep worker/resolver entrypoints private; only approved player-facing dispatch RPCs should be exposed.
 - Update this document whenever a canonical fleet formula or integration boundary changes.
