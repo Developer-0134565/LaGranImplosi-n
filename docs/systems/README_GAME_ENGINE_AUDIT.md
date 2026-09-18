@@ -9,7 +9,7 @@ Living audit of the basic gameplay engine before the temporal layer and universe
 ```text
 1. Construction
 2. Research
-3. Fleet movement
+3. Fleet movement — **OPEN / HIGH: deep propulsion, cargo, fuel and dispatch-convergence audit in progress**
 4. Transport
 5. Attack
 6. Combat
@@ -186,3 +186,46 @@ Those are separate layers/phases.
 ## Documentation rule
 
 When a construction test changes the confirmed state, update this document first. Update `docs/PROJECT_CONTEXT_PROMPT.md` only when the operational OPEN/CLOSED/certification state changes.
+
+
+## Ownership hardening — 2026-09-18
+
+### Status
+
+**CLOSED / VERIFIED LIVE.** Ownership hardening is treated as a cross-cutting security gate for the owned game-action entrypoints, not as a gameplay-domain fix.
+
+The live migration `20260918030000_harden_player_ownership_in_owned_rpcs` is applied. Six critical RPCs were hardened:
+
+- `start_building(uuid, uuid, text)`
+- `start_research(uuid, uuid, text)`
+- `start_ship(uuid, uuid, text, bigint)`
+- `start_defense(uuid, uuid, text, bigint)`
+- `start_fleet(uuid, uuid, uuid, text, bigint, text)`
+- `sync_current_planet_resources(uuid, uuid, timestamptz)`
+
+Live inspection confirms all six are `SECURITY DEFINER` with `search_path = public, pg_temp`. The entrypoints validate the authenticated user against `players.user_id`; planet-scoped actions additionally validate that the planet belongs to the supplied player and is not destroyed. NULL `auth.uid()` is rejected.
+
+The transactional foreign-owner regression rejected all six calls without committing mutations. The NULL-auth regression also rejected all six calls when executed as `authenticated` with no JWT subject. `start_fleet` is not executable by `anon`, which is an ACL restriction rather than a failed ownership guard.
+
+Detailed evidence and the migration/reproducibility finding are tracked in [`README_OWNERSHIP_HARDENING.md`](README_OWNERSHIP_HARDENING.md).
+
+
+## Fleet movement — current audit
+
+**OPEN / HIGH — 2026-09-18.** The live engine now has a player-aware ship-speed helper, propulsion transitions for Small Cargo/Bomber/Recycler, player-aware cargo and fuel helpers, mixed-fleet validation, and the existing canonical distance/evolution movement model. The live `ship_prerequisites` graph contains 41 rows with no dangling research/building references.
+
+Current propulsion transitions are centralized in `calculate_player_ship_speed()`. Cargo is centralized in `calculate_player_ship_cargo_capacity()`, and fleet fuel uses player-aware consumption/speed helpers. `start_fleet_mixed()` validates each ship and uses the slowest effective ship speed for mixed-fleet travel.
+
+Remaining certification work is dispatch convergence across `start_fleet`, `start_fleet_mixed`, `start_colonize_fleet`, expedition and recycle paths; return-time convergence; mission-specific modifiers; and the browser fleet flow. See [`README_FLEET_ENGINE.md`](README_FLEET_ENGINE.md) and [`../UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](../UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md).
+
+## Research — current audit status
+
+**CLOSED / VERIFIED — 2026-09-18.**
+
+Research now uses the authoritative `can_start_research(p_player_id, p_planet_id, p_research_id)` contract for UI availability. The contract calculates the server-side target level, authoritative cost and research time, prerequisite state, queue state, resource availability and the active expedition-item research-speed modifier. It validates player/planet ownership and authentication before exposing the result.
+
+The regression contract battery passed **12/12** assertions, including ownership, prerequisite details, server-side target level, grants/ACL closure of legacy helpers, read-only behavior, foreign-player rejection and NULL-auth rejection. A valid `start_research` call was also exercised transactionally, and the prerequisite-invalid path was rejected correctly.
+
+The browser flow was subsequently validated by the user: research levels increased correctly and resources were deducted correctly. No further Research backend changes are required for the current contract.
+
+The UI intentionally reads definition metadata (`id`, name, description, max level) for presentation but obtains actionable cost/time/availability from `can_start_research()`. A bulk availability RPC remains deferred as an optimization; the current one-RPC-per-definition approach is the certified path.

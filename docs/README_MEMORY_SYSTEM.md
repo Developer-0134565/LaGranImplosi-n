@@ -152,10 +152,14 @@ Do not load every specialized document by default.
 | `docs/systems/README_ECONOMY.md` | Resources, production, costs, settlement: authoritative vs projection vs legacy | LIVING |
 | `docs/systems/README_GAME_ENGINE_AUDIT.md` | Construction audit, guarantees and next validations | LIVING |
 | `docs/systems/README_RESEARCH.md` | Research audit vs the Buildings reference contract | LIVING |
+| `docs/systems/README_FLEET_ENGINE.md` | Fleet engine: mission speed classes, modifier pipeline, fuel ordering, ACS state | LIVING |
 | `docs/systems/README_UNIVERSE_EVOLUTION.md` | Evolution formulas, clock, catch-up, expansion and AI | LIVING |
 | `docs/systems/README_UNIVERSE_EVOLUTION_MONITOR.md` | Read-only observability, public RPC contract and deployment evidence | LIVING |
 | `docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md` | Canonical scaling, travel-time and fleet integration audit | LIVING |
+| `docs/systems/README_OWNERSHIP_HARDENING.md` | Owned RPC authorization and hardening evidence | LIVING / CLOSED |
 | `docs/tools/README_DEVELOPMENT_WORKFLOW.md` | Tool/agent responsibilities, operating rules and workflow | LIVING |
+| `docs/MIGRATION_DRIFT_RECONCILIATION.md` | Forward migration drift: verbatim recovery, verification and push rules | LIVING |
+| `docs/MIGRATION_INVERSE_DRIFT_AUDIT.md` | Inverse drift audit, blocker resolution and push-safety state | LIVING |
 | `docs/PRODUCTION_DB_BASELINE.md` | Production database/source-of-truth baseline | REFERENCE |
 | `supabase/ENGINE_MANIFEST.md` | Backend engine/runtime boundary and scheduler status | LIVING |
 

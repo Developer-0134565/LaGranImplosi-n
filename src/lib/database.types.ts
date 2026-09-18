@@ -4709,6 +4709,33 @@ export type Database = {
           target_level: number
         }[]
       }
+      can_start_research: {
+        Args: {
+          p_player_id: string
+          p_planet_id: string
+          p_research_id: string
+        }
+        Returns: {
+          active_job: Json | null
+          allowed: boolean
+          available_crystal: number
+          available_deuterium: number
+          available_metal: number
+          cost_crystal: number
+          cost_deuterium: number
+          cost_metal: number
+          current_level: number
+          finishes_at_estimate: string | null
+          item_bonus_percent: number
+          prerequisites: Json
+          prerequisites_met: boolean
+          queue_available: boolean
+          reason: string
+          reason_code: string
+          research_seconds: number
+          target_level: number
+        }[]
+      }
       check_defense_requirements: {
         Args: { p_defense_id: string; p_planet_id: string }
         Returns: {

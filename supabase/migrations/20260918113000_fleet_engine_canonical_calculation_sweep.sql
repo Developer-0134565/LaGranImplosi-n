@@ -1,0 +1,100 @@
+-- Fleet engine sweep: remove legacy speed/fuel/distance paths.
+-- Canonical rules:
+--   distance -> calculate_fleet_distance / calculate_fleet_distance_to_coordinates
+--   speed -> calculate_player_ship_speed
+--   travel time -> calculate_fleet_travel_time
+--   fuel -> calculate_player_fleet_fuel_for_distance
+-- Live-tested after application.
+
+CREATE OR REPLACE FUNCTION public.calculate_fleet_distance_to_coordinates(
+  p_origin_planet_id uuid,p_galaxy integer,p_system integer,p_position integer
+) RETURNS numeric LANGUAGE plpgsql STABLE SET search_path='public','pg_temp' AS $function$
+DECLARE og integer; os integer; op integer;
+BEGIN
+ SELECT galaxy,system,position INTO og,os,op FROM public.planets
+ WHERE id=p_origin_planet_id AND NOT is_destroyed;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Origin planet not found or destroyed'; END IF;
+ IF og<>p_galaxy THEN RETURN 20000*abs(og-p_galaxy);
+ ELSIF os<>p_system THEN RETURN 2700+95*abs(os-p_system);
+ ELSIF op<>p_position THEN RETURN 1000+5*abs(op-p_position);
+ ELSE RETURN 5; END IF;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.calculate_fleet_time(
+ p_origin_planet_id uuid,p_destination_planet_id uuid,p_ship_id text,p_quantity bigint DEFAULT 1
+) RETURNS numeric LANGUAGE plpgsql STABLE SET search_path='public','pg_temp' AS $function$
+DECLARE v_player_id uuid; v_distance numeric; v_speed numeric; v_universe_id uuid;
+ v_fleet_speed numeric; v_evolution numeric; v_scale numeric; v_bonus numeric;
+BEGIN
+ IF p_quantity<=0 THEN RAISE EXCEPTION 'Quantity must be greater than 0'; END IF;
+ SELECT player_id,universe_id INTO v_player_id,v_universe_id FROM public.planets
+ WHERE id=p_origin_planet_id AND NOT is_destroyed;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Origin planet not found or destroyed'; END IF;
+ v_distance:=public.calculate_fleet_distance(p_origin_planet_id,p_destination_planet_id);
+ v_speed:=public.calculate_player_ship_speed(v_player_id,p_ship_id);
+ IF v_speed IS NULL OR v_speed<=0 THEN RAISE EXCEPTION 'Ship has invalid player-aware speed'; END IF;
+ SELECT fleet_speed INTO v_fleet_speed FROM public.universes WHERE id=v_universe_id;
+ IF v_fleet_speed IS NULL OR v_fleet_speed<=0 THEN RAISE EXCEPTION 'Invalid universe fleet speed'; END IF;
+ v_evolution:=public.calculate_universe_evolution_rate(v_universe_id);
+ SELECT fleet_movement_scale INTO v_scale FROM public.calculate_universe_scaling(v_evolution);
+ v_bonus:=public.get_player_fleet_speed_multiplier(v_player_id,p_origin_planet_id);
+ RETURN public.calculate_fleet_travel_time(v_distance,v_speed,v_fleet_speed*v_scale*v_bonus,100);
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.calculate_fleet_fuel(
+ p_origin_planet_id uuid,p_destination_planet_id uuid,p_ship_id text,p_quantity bigint
+) RETURNS numeric LANGUAGE plpgsql STABLE SET search_path='public','pg_temp' AS $function$
+DECLARE v_player_id uuid; v_distance numeric; v_time numeric;
+BEGIN
+ SELECT player_id INTO v_player_id FROM public.planets WHERE id=p_origin_planet_id AND NOT is_destroyed;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Origin planet not found or destroyed'; END IF;
+ v_distance:=public.calculate_fleet_distance(p_origin_planet_id,p_destination_planet_id);
+ v_time:=public.calculate_fleet_time(p_origin_planet_id,p_destination_planet_id,p_ship_id,p_quantity);
+ RETURN public.calculate_player_fleet_fuel_for_distance(v_distance,v_time,v_player_id,p_ship_id,p_quantity,100);
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.calculate_fleet_fuel_mixed(
+ p_origin_planet_id uuid,p_destination_planet_id uuid,p_ships jsonb
+) RETURNS numeric LANGUAGE plpgsql STABLE SET search_path='public','pg_temp' AS $function$
+DECLARE r record; v_player_id uuid; v_distance numeric; v_time numeric;
+ v_total numeric:=0; v_min_speed numeric:=NULL; v_slowest_ship text;
+BEGIN
+ IF p_ships IS NULL OR jsonb_typeof(p_ships)<>'object' OR p_ships='{}'::jsonb
+ THEN RAISE EXCEPTION 'Fleet composition must be a non-empty JSON object'; END IF;
+ SELECT player_id INTO v_player_id FROM public.planets WHERE id=p_origin_planet_id AND NOT is_destroyed;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Origin planet not found or destroyed'; END IF;
+ v_distance:=public.calculate_fleet_distance(p_origin_planet_id,p_destination_planet_id);
+ FOR r IN SELECT key ship_id,value::bigint quantity FROM jsonb_each_text(p_ships) ORDER BY key LOOP
+   IF r.quantity<=0 THEN RAISE EXCEPTION 'Invalid quantity for %',r.ship_id; END IF;
+   IF v_min_speed IS NULL OR public.calculate_player_ship_speed(v_player_id,r.ship_id)<v_min_speed THEN
+     v_min_speed:=public.calculate_player_ship_speed(v_player_id,r.ship_id); v_slowest_ship:=r.ship_id;
+   END IF;
+ END LOOP;
+ IF v_min_speed IS NULL OR v_min_speed<=0 THEN RAISE EXCEPTION 'Fleet contains no valid ships'; END IF;
+ v_time:=public.calculate_fleet_time(p_origin_planet_id,p_destination_planet_id,v_slowest_ship,1);
+ FOR r IN SELECT key ship_id,value::bigint quantity FROM jsonb_each_text(p_ships) ORDER BY key LOOP
+   v_total:=v_total+public.calculate_player_fleet_fuel_for_distance(v_distance,v_time,v_player_id,r.ship_id,r.quantity,100);
+ END LOOP;
+ RETURN v_total;
+END $function$;
+
+REVOKE EXECUTE ON FUNCTION public.calculate_fleet_fuel_for_distance(numeric,text,bigint) FROM PUBLIC,anon,authenticated;
+
+DO $$
+DECLARE v_sql text;
+BEGIN
+ FOR v_sql IN SELECT pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='public' AND p.proname IN ('start_fleet','start_fleet_mixed')
+ LOOP
+  v_sql:=replace(v_sql,
+   'if v_origin_galaxy<>v_dest_galaxy then v_distance:=20000*abs(v_origin_galaxy-v_dest_galaxy); elsif v_origin_system<>v_dest_system then v_distance:=2700+95*abs(v_origin_system-v_dest_system); elsif v_origin_position<>v_dest_position then v_distance:=1000+5*abs(v_origin_position-v_dest_position); else v_distance:=5; end if;',
+   'if v_mission_type=''EXPEDITION'' then v_distance:=public.calculate_expedition_distance(p_origin_planet_id); elsif v_mission_type=''RECYCLE'' then v_distance:=public.calculate_fleet_distance_to_coordinates(p_origin_planet_id,v_dest_galaxy,v_dest_system,v_dest_position); else v_distance:=public.calculate_fleet_distance(p_origin_planet_id,p_destination_planet_id); end if;');
+  EXECUTE v_sql;
+ END LOOP;
+ SELECT pg_get_functiondef(p.oid) INTO v_sql FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='public' AND p.proname='start_colonize_fleet';
+ v_sql:=replace(v_sql,
+  'if v_origin.galaxy<>p_galaxy then v_distance:=20000*abs(v_origin.galaxy-p_galaxy); elsif v_origin.system<>p_system then v_distance:=2700+95*abs(v_origin.system-p_system); elsif v_origin.position<>p_position then v_distance:=1000+5*abs(v_origin.position-p_position); else v_distance:=5; end if;',
+  'v_distance:=public.calculate_fleet_distance_to_coordinates(p_origin_planet_id,p_galaxy,p_system,p_position);');
+ EXECUTE v_sql;
+END $$;

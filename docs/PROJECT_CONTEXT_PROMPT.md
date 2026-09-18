@@ -4,6 +4,7 @@
 >
 > This file is the project's **operational control panel**, not its encyclopedia. Durable technical
 > knowledge lives in specialized READMEs and living monitors (see the index at the end).
+> Consolidated from the local operational work and `origin/main` during the 2026-09-18 integration merge.
 
 ---
 
@@ -65,22 +66,90 @@ Global planet heuristics ("first guest / first homeworld / first planet") and an
 `player_id` without an ownership check are **not allowed**. Detail:
 [`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md).
 
-## 4. CURRENT STATUS
+## 4. Tool-selection gate (mandatory)
 
-Baseline: HEAD `ea677f0` = origin/main (`ea677f0`); the working tree also holds local
-documentation/identity work that must not be lost.
+Before **every** task that will implement, review, audit or modify project material, ChatGPT must first make
+an explicit tool/agent selection.
+
+- **ChatGPT:** architecture, system-level interpretation, audit design, cross-system decisions and final verification.
+- **Cline + DeepSeek:** complex or multi-file implementation, difficult debugging, deep bounded audits and
+  operations requiring repository execution; heavy-duty reasoning vessel, still cost-conscious.
+- **Copilot:** small/localized implementation, UI components, CSS, TypeScript changes, mechanical fixes.
+- **Qwen / LM Studio:** local experiments, prototypes and tasks where API cost matters.
+
+For Cline/DeepSeek missions always state: **🧠 Intelligence** (None/Low/Medium/High/Extra) · **💰 Cost
+expected** (LOW/MEDIUM/HIGH) · **🎯 Why** (one sentence).
+
+The selected tool is not automatically the one that performs the whole task: ChatGPT remains responsible for
+choosing the mission, defining boundaries and verifying the result. No tool is the project's independent
+brain: agents execute approved work; they do not redefine canonical gameplay or architecture without an
+explicit project decision. Detailed workflow:
+[`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md).
+
+## 5. OGameX reference layer
+
+OGameX is a permanent architectural/gameplay-pattern reference, not a dependency:
+
+```text
+study → understand → compare → adapt → validate
+```
+
+The first-pass OGameX → L.G.I. subsystem map is established; deep audits use it only where comparison can
+expose a concrete architectural gap. Never copy Laravel/PHP/ORM/routing.
+Method and map: [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) →
+[`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md).
+
+## 6. Current gameplay / universe decisions
+
+### Universe evolution
+
+- Persistent internal clock; must progress conceptually while the site/server is offline.
+- Resume processing detects elapsed time and catches up missed events.
+- Normal galaxy system-expansion timing: `8 × G^0.75` hours per new system.
+- Every 12 real hours: one global 1% roll for a special galaxy after G100.
+- Special galaxies start with 10 systems and use a separate expansion formula.
+- AI population targets roughly 5–10% of available universe slots, with tolerance and reconciliation as space
+  expands.
+- Production verification confirmed active pg_cron jobs `universe-heartbeat` (1 minute) and
+  `deuteria-fleet-worker` (1 second); the repository/dump alone does not expose those cron rows.
+
+### Protected UI area
+
+Wallpaper/background behaviour is a protected area. Gameplay work must not casually alter established
+CSS/background authority. Create a dedicated UI/CSS README when a frontend audit makes that worthwhile.
+
+## 7. Current status
 
 ### CLOSED
 
 ```text
-Buildings lifecycle functional verification    13/13 PASS (transactional test, no residue)
-Frontend identity chain                        anonymous session → players.user_id → planets.player_id
-Guest identity registration                    register_guest_player (anonymous JWT) + onboarding
-Initial functional audit                       2026-09-18, see systems/README_FUNCTIONAL_AUDIT.md
-Universe Evolution base engine                 clock, catch-up, expansion, rolls, AI, heartbeat, monitor
-Ownership hardening (CRITICAL #1)              migration 20260918030000 APPLIED to Supabase LIVE
-                                               2026-09-18 and verified (pg_get_functiondef + functional
-                                               ownership tests + buildings 13/13 regression)
+Buildings lifecycle functional verification   13/13 PASS (transactional, no residue); the UI consumes the
+                                              authoritative can_start_building() contract; user browser test pending
+Frontend identity chain                       anonymous session → players.user_id → planets.player_id
+Guest identity registration                   register_guest_player (anonymous JWT) + onboarding
+Initial functional audit                      2026-09-18 → systems/README_FUNCTIONAL_AUDIT.md
+Research domain                               authoritative can_start_research() contract (server-computed cost,
+                                              time, prerequisites, queue and reason_code), ownership/security
+                                              gates, legacy helper APIs closed, regression battery
+                                              (supabase/tests/research_lifecycle.sql) and browser level-up /
+                                              resource-deduction flow validated
+Ownership hardening (CRITICAL #1)             migration 20260918030000 APPLIED to LIVE and verified; six owned
+                                              RPCs hardened (start_building, start_research, start_ship,
+                                              start_defense, start_fleet, sync_current_planet_resources) →
+                                              systems/README_OWNERSHIP_HARDENING.md
+Fleet movement lifecycle hardening            persisted event timing, downtime/catch-up, concurrent worker
+                                              serialization, duplicate-run protection, private worker APIs
+Fleet propulsion / mission-speed / fuel       Hyperspace fuel reduction removed (lifeform fuel_reduction_percent
+                                              is the source); fleet_speed split into peaceful/war/holding and the
+                                              dispatchers select class → E^(1/3) → item/lifeform modifiers;
+                                              supabase/tests/fleet_speed_classes.sql 22/22 PASS
+Universe Evolution engine + monitor           clock, catch-up, normal/special expansion, galaxy rolls, AI
+                                              reconciliation, heartbeat, read-only monitor and Cloudflare
+                                              production deployment (Worker lagranimplosion) validated
+Migration-history reconciliation              forward gap: 10 migrations recovered verbatim; inverse drift:
+                                              39 local files, 0 REAL_DIVERGENCE, 0 AMBIGUOUS, LOCAL − LIVE = ∅
+                                              (docs/MIGRATION_DRIFT_RECONCILIATION.md ·
+                                              docs/MIGRATION_INVERSE_DRIFT_AUDIT.md)
 ```
 
 ### OPEN — CRITICAL
@@ -92,25 +161,28 @@ Ownership hardening (CRITICAL #1)              migration 20260918030000 APPLIED 
 ### OPEN — HIGH
 
 ```text
-Research audit: DONE + lifecycle test 24/24 PASS (systems/README_RESEARCH.md §12) — UI cost/time still pending
-Research client contract: DEFECT confirmado y reproducible en LIVE (can_research/check_research_requirements
-  SECURITY INVOKER sobre research_prerequisites con RLS restrictiva; sin bypass de gameplay; test instrumentado,
-  decisión de arquitectura pendiente — systems/README_RESEARCH.md §1b/§12.1)
-Fleet engine sweep: canonical pipeline CONVERGED (classes PEACEFUL/WAR/HOLDING, test 22/22 PASS); OPEN:
-  ACS_HOLD/HOLDING/DEFEND not dispatchable (class + holding_fleet_speed prepared) — systems/README_FLEET_ENGINE.md §8/§10
+Basic game engine audit order (systems/README_GAME_ENGINE_AUDIT.md)
+  1 construction  backend + integration validated · pending the user's browser test
+  2 research      CLOSED (contract + browser flow validated)
+  3 fleet         backend lifecycle/propulsion/fuel/mission classes converged · browser certification OPEN
+  4 transport     audit pending
+  5 attack        audit pending
+  6 combat        audit pending
 Shipyard audit/tests
 Defence audit/tests
+Fleet browser certification + technology/mission-specific deep audits (systems/README_FLEET_ENGINE.md §15)
+Research UI cost/time: the research view must consume the authoritative contract (can_start_research) instead
+  of base cost/time columns; pending frontend switch
+Migration-history completion: 221 ledger rows still have no local file, and two out-of-band monitor ACL
+  changes (private + public monitor) need a FORWARD migration for reproducibility — no `supabase db push`
+  or `migration repair` from this copy until then
 Browser certification of Buildings (user-run functional test)
-Migration history watch: inverse drift CLOSED — 39 local files · REAL_DIVERGENCE 0 · AMBIGUOUS 0 ·
-  LOCAL - LIVE = EMPTY (16 files re-labelled to the LIVE version, 3 obsolete local artefacts preserved,
-  2 payloads recovered verbatim). Remaining: 221 ledger rows with no local file (next mission) and 2
-  out-of-band monitor ACLs that need a forward migration; still no `supabase db push` / `migration repair`
-  from this copy (docs/MIGRATION_INVERSE_DRIFT_AUDIT.md · docs/MIGRATION_DRIFT_RECONCILIATION.md)
 ```
 
 ### OPEN — MEDIUM
 
 ```text
+Economy semantics audit (resource balances, production/consumption semantics, modifier ordering)
 Combat UI
 Fleet mission lifecycle UI
 Lifeforms UI
@@ -121,130 +193,125 @@ player_messages integration
 ### OPEN — LOW
 
 ```text
-placeholder modules (chrome notices)
-legacy/projection cleanup   (calculate_building_production_delta is BROKEN with no consumers)
-unused tables               (dashboard_widgets, player_notes, player_messages)
-lint cleanup                (3 pre-existing errors)
+Final security/RLS hardening phase (deferred unless a concrete defect requires earlier intervention)
+Dead legacy fleet cluster cleanup + duplicated lifeform modifier sum + the calculate_universe_rates decision
+Dead lifeform keys (civilian_ship_speed_percent, recall_fuel_recovery_percent)
+Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, friends)
 ```
 
-## 5. Functional map (compact)
+## 8. Established / CLOSED decisions
 
-```text
-Identity    CLOSED / verified (ownership hardening applied)   Planets    YES        Economy  PARTIAL
-Buildings   VERIFIED (browser test pending)  Research   AUDITED / tests pending
-Shipyard    PARTIAL / no tests               Defence    PARTIAL / no tests
-Fleet       PARTIAL                          Combat     PARTIAL / backend without UI
-Expeditions PARTIAL                          Lifeforms  PARTIAL / backend without UI
-Universe    YES                              Evolution  YES / ACTIVE
-AI planets  YES                              Messages   PARTIAL
-Auth/Guest  YES                              Frontend   PARTIAL
-Scheduling  YES (pg_cron active)
-```
+- Supabase is the backend authority; GitHub/repository state is the code/history authority.
+- The project follows `Context → Audit → Plan → Implement → Test → Verify → Document`.
+- OGameX is a reference layer, not a dependency; never copy Laravel/PHP/ORM/routing.
+- `Player → active planet → universe` is the canonical frontend/domain contract; global planet heuristics and
+  any client-provided `player_id` without an ownership check are forbidden.
+- Universe evolution is separate from galaxy/system expansion; `calculate_universe_scaling(E)` contains only
+  the E → category transformation (no technology, planet, lifeform, item, event, alliance or mission
+  modifiers).
+- Durable detail is segregated into specialized documentation; moving detail out of this file is not deletion,
+  and history stays traceable.
+- The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
+- Universe Evolution engine validation, monitor validation and production deployment validation are CLOSED for
+  the currently implemented clock/catch-up/expansion/roll/AI/heartbeat surface.
+- The public monitor backend is versioned by migrations `20260918020000` … `20260918020300`; the public RPC is
+  intentionally callable by `anon` and `authenticated`, while the full monitor stays private.
+- Basic-engine certification includes a user-performed web functional test; backend existence alone is
+  insufficient.
+- Research is functionally closed: authoritative `can_start_research()` contract, security/ownership checks,
+  regression battery and browser level-up/resource-deduction flow validated.
+- Ownership hardening is closed for the six critical player/planet action RPCs; the final security/RLS phase
+  remains separate.
+- Fleet engine deep audit remains OPEN only for browser certification and the remaining
+  technology/mission-specific comparisons; player-aware propulsion/cargo/fuel integration is implemented, the
+  live prerequisite graph is coherent and dispatch/return timing plus duplicate-run behaviour are
+  backend-verified.
+- The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later
+  prompts must be bounded and cost-aware.
+- Migration history: LIVE `supabase_migrations.schema_migrations` is the certified ledger; the local history
+  was reconciled deliberately (verbatim recovery + version re-labels). `supabase db push` / `db reset` /
+  `migration repair` are PROHIBITED from this copy until the remaining ledger recovery is complete.
 
-Full table (exists · backend · deployed · frontend · connected · real data · tests · status), core
-chains per domain, RPC inventory, duplicates and gaps:
-[`systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md).
-Economy layers (authoritative / projection / legacy) and the broken helper:
-[`systems/README_ECONOMY.md`](systems/README_ECONOMY.md).
-
-## 6. Universe Evolution — exists, deployed, connected and active
-
-Do **not** redesign it. Live (2026-09-18): `universe_clock` ticking every 60 s, `universe_expansion_state`
-and `universe_population_state` present, `pg_cron` running `universe-heartbeat` (60 s) and
-`deuteria-fleet-worker` (1 s), catch-up v2, normal expansion `8 × G^0.75` hours for G1–G100, special
-galaxy roll every 12 h at 1 % (10 initial systems, separate growth), AI population reconciliation to a
-≈7.5 % target with tolerance, persistent timestamps and downtime catch-up. Observed live: 101 galaxies,
-233 AI planets ≈ 7.26 %.
-
-Rules: [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) ·
-monitor: [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md).
-
-## 7. Protected areas
-
-**CSS / wallpaper / visual foundation are protected areas.** Gameplay work must not alter the
-established CSS or background authority. Detail stays where it is documented; create a dedicated UI/CSS
-README only when a frontend audit justifies it.
-
-## 8. OGameX
-
-OGameX = **architectural reference, NOT a dependency.**
-
-```text
-study → understand → compare → adapt → validate
-```
-
-The first-pass OGameX → L.G.I. map is established; deep comparison happens only where it can expose a
-concrete architectural gap.
-[`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) · [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md)
+Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
 ## 9. Documentation & memory system
 
-```text
-Persistent ChatGPT memory          cross-session principles and preferences
-        ↕
-PROJECT_CONTEXT_PROMPT.md          operational memory / index (this file)
-        ↕
-Specialized READMEs / monitors     durable technical detail
-        ↕
-Real repository + Supabase state   actual implementation and live state
-```
-
-When a document grows too large: **segregate before deleting** — move durable detail to the right
-README, leave a concise summary/link here, keep traceability. Rules:
-[`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md).
-
-## 10. Working rules (compact)
+Three-layer continuity model:
 
 ```text
-Choose the appropriate agent/tool for the task (ChatGPT · Cline+DeepSeek · Copilot · Qwen/LM Studio)
-  and state Intelligence + expected cost for Cline/DeepSeek missions.
-Do not blindly trust generated changes.
-Verify against real Git and Supabase state before believing any claim.
-Check whether the functionality already exists before creating anything new.
-Keep prompts bounded; do not repeat repository-wide discovery once the map exists.
-After meaningful work: update the specialized README (durable detail) and this file (operational state).
+PROJECT_CONTEXT_PROMPT.md      compact operational memory, status and roadmap (this file)
+        ↓
+specialized READMEs            durable detail per system/domain
+        ↓
+living monitors / reports      observability, audits and validated evidence
 ```
 
-Core loop: `Context → audit → plan → implement → test → verify → document → update context`
-Full protocol, agent responsibilities and cost discipline:
-[`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md).
+Rules: keep this file compact; segregate durable detail before deleting anything; after meaningful work update
+the specialized README (durable knowledge) and this file (operational state); always preserve traceability for
+superseded decisions. Details: [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md).
 
-## 11. NEXT ENGINEERING STEP
+## 10. Session recovery
+
+At the beginning of a substantial session:
+
+1. Recover persistent memory/context.
+2. Read this file.
+3. Follow only the specialized README/monitor links relevant to the task.
+4. Inspect current Git/repository state.
+5. Inspect Supabase when backend state matters.
+6. Reconcile documentation with reality before modifying anything.
+
+At the end of meaningful work:
+
+1. Update the relevant specialized README/monitor if durable knowledge changed.
+2. Update this file if operational state or OPEN/CLOSED decisions changed.
+3. Preserve traceability for superseded decisions.
+4. Leave the repository testable and recoverable.
+
+## 11. Specialized documentation index
+
+| Area | Document | Role |
+|---|---|---|
+| Memory/documentation | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) | Rules for memory and documentation segregation |
+| Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) | Durable architecture and design decisions |
+| Functional audit | [`systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md) | exists/deployed/connected/verified map, gaps and tests |
+| Identity & access | [`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md) | Identity chain, RLS model and ownership hardening |
+| Ownership hardening | [`systems/README_OWNERSHIP_HARDENING.md`](systems/README_OWNERSHIP_HARDENING.md) | Owned RPC authorization and hardening evidence |
+| Economy | [`systems/README_ECONOMY.md`](systems/README_ECONOMY.md) | Resources, production, costs, settlement semantics |
+| Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Construction/research/fleet audit, guarantees, next validations |
+| Research | [`systems/README_RESEARCH.md`](systems/README_RESEARCH.md) | Research audit vs Buildings + client availability contract |
+| Fleet engine | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) | Prerequisites, propulsion, mission classes, fuel, lifecycle |
+| Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, expansion and AI |
+| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract and deployment evidence |
+| Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
+| Migration drift (forward) | [`MIGRATION_DRIFT_RECONCILIATION.md`](MIGRATION_DRIFT_RECONCILIATION.md) | Verbatim recovery, verification and push rules |
+| Migration drift (inverse) | [`MIGRATION_INVERSE_DRIFT_AUDIT.md`](MIGRATION_INVERSE_DRIFT_AUDIT.md) | Inverse audit, blocker resolution, push-safety state |
+| OGameX reference + map | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) · [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Method + concrete OGameX → L.G.I. comparison |
+| Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | Tool/agent responsibilities and workflow |
+| Production DB baseline | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
+| Supabase engine manifest | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) | Backend engine/runtime boundary and scheduler status |
+
+Create another specialized README only when a domain contains enough durable knowledge to justify independent
+maintenance.
+
+## 12. Next engineering step
 
 ```text
-1. Ownership hardening: DONE — migration 20260918030000 applied to Supabase LIVE and verified on
-   2026-09-18 (no guest bypass in the six RPCs; legitimate owner ALLOWED, foreign owner REJECTED,
-   auth.uid() NULL REJECTED; buildings lifecycle 13/13 PASS; identity regression PASS; history recorded).
-2. Next: begin the Research audit (same chain shape as Buildings, still without audit or tests).
-3. Then: Shipyard, Defence, Fleet/Combat mission lifecycle, Lifeforms UI.
+1. Fleet browser certification (selection, dispatch, persisted countdown, arrival, resolution, return) plus
+   the remaining technology/mission-specific fleet comparisons (systems/README_FLEET_ENGINE.md §15).
+2. Shipyard and Defence audits (same chain shape already certified for Buildings and Research).
+3. Research UI: consume the authoritative can_start_research contract instead of base cost/time columns.
+4. Migration-history completion: recover the 221 ledger rows verbatim and add the two FORWARD migrations for
+   the out-of-band monitor ACLs (docs/MIGRATION_INVERSE_DRIFT_AUDIT.md §9). No push from this copy until then.
+5. Then: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
 
-Universe Evolution is **not** the next implementation target: it already exists, is deployed and is
-active. The transversal security block (ownership hardening) is now closed.
-
-## 12. Specialized documentation index
-
-| Area | Document |
-|---|---|
-| Memory/documentation system | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) |
-| Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) |
-| Functional audit (map, gaps, tests) | [`systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md) |
-| Identity & access | [`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md) |
-| Economy | [`systems/README_ECONOMY.md`](systems/README_ECONOMY.md) |
-| Game engine audit (construction) | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) |
-| Research (audit vs Buildings) | [`systems/README_RESEARCH.md`](systems/README_RESEARCH.md) |
-| Fleet engine (classes, modifiers, fuel) | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) |
-| Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) |
-| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) |
-| Rate/fleet engine monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) |
-| OGameX reference + map | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) · [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) |
-| Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) |
-| Production DB baseline | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) |
-| Supabase engine manifest | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) |
+The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
+active, and is **not** the next implementation target.
 
 ---
 
-## Golden rule
+## 13. Golden rule
 
 > **Do not guess when the project can be inspected.**
 >

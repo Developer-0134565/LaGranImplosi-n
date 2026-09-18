@@ -199,6 +199,12 @@ Known implemented components:
 
 **Important:** the implementation is not considered fully closed until every fleet dispatch entrypoint uses the canonical travel-time helper for the persisted mission arrival time.
 
+## Fleet integration update — 2026-09-18
+
+The current live fleet audit centralized player-aware propulsion, cargo and fuel calculations and integrated mixed-fleet speed selection into the dispatch path. The ship prerequisite graph was checked against research/building definitions and no dangling references were found. A real divergence in `start_colonize_fleet()` was found and corrected: it now uses player-aware speed, canonical travel-time, evolution scaling and player-aware fuel calculation. A transactional live colonization test passed after fixing two implementation defects in the new path.
+
+This does **not** close dispatch convergence. `start_fleet`, `start_fleet_mixed`, `start_colonize_fleet`, expedition and recycle must still be traced end-to-end to prove that every persisted `arrives_at`/`returns_at` uses the canonical movement formula.
+
 ## Current open audit
 
 ### A. Fleet dispatch convergence — OPEN
