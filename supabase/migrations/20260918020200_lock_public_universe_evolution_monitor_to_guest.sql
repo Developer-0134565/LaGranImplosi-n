@@ -1,0 +1,1 @@
+revoke execute on function public.get_universe_evolution_monitor_public(uuid) from authenticated;
