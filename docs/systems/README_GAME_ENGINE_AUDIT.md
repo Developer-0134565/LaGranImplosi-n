@@ -186,3 +186,25 @@ Those are separate layers/phases.
 ## Documentation rule
 
 When a construction test changes the confirmed state, update this document first. Update `docs/PROJECT_CONTEXT_PROMPT.md` only when the operational OPEN/CLOSED/certification state changes.
+
+
+## Ownership hardening — 2026-09-18
+
+### Status
+
+**CLOSED / VERIFIED LIVE.** Ownership hardening is treated as a cross-cutting security gate for the owned game-action entrypoints, not as a gameplay-domain fix.
+
+The live migration `20260918030000_harden_player_ownership_in_owned_rpcs` is applied. Six critical RPCs were hardened:
+
+- `start_building(uuid, uuid, text)`
+- `start_research(uuid, uuid, text)`
+- `start_ship(uuid, uuid, text, bigint)`
+- `start_defense(uuid, uuid, text, bigint)`
+- `start_fleet(uuid, uuid, uuid, text, bigint, text)`
+- `sync_current_planet_resources(uuid, uuid, timestamptz)`
+
+Live inspection confirms all six are `SECURITY DEFINER` with `search_path = public, pg_temp`. The entrypoints validate the authenticated user against `players.user_id`; planet-scoped actions additionally validate that the planet belongs to the supplied player and is not destroyed. NULL `auth.uid()` is rejected.
+
+The transactional foreign-owner regression rejected all six calls without committing mutations. The NULL-auth regression also rejected all six calls when executed as `authenticated` with no JWT subject. `start_fleet` is not executable by `anon`, which is an ACL restriction rather than a failed ownership guard.
+
+Detailed evidence and the migration/reproducibility finding are tracked in [`README_OWNERSHIP_HARDENING.md`](README_OWNERSHIP_HARDENING.md).
