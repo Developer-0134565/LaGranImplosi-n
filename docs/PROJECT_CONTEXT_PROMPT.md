@@ -186,14 +186,14 @@ Wallpaper/background behavior is a protected area. Gameplay work must not casual
 
 Current order:
 
-1. 🏗️ Construction — **in progress**
+1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
 2. 🔬 Research
 3. 🚀 Fleet movement
 4. 📦 Transport
 5. ⚔️ Attack
 6. 💥 Combat
 
-Construction currently has the main lifecycle audited through queue/completion. Remaining construction checks are **production after building level-up**, **real concurrency/repeated completion safety**, and the **user's browser functional test**. Construction is not yet certified.
+Construction: the full lifecycle (validación → coste/tiempo → descuento atómico de recursos → cola → procesado → completado → persistencia de nivel → producción) is audited, with documented concurrency/idempotency guarantees (planet row lock + active-queue guard; queue row lock + `COMPLETED` early-return + `target = current+1` guard + PK upsert + `SKIP LOCKED` processors). The Buildings UI now consumes the authoritative `can_start_building()` contract (cost of the next level, level, availability + reason) and settles temporal state with `sync_current_planet_resources()`. Tests: `scripts/verify-buildings.mjs` (live, read-only) and `supabase/tests/buildings_lifecycle.sql` (transactional, non-committing). Remaining for certification: the user's browser functional test.
 
 Living audit: [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md)
 
