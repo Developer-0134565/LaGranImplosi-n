@@ -187,7 +187,7 @@ Wallpaper/background behavior is a protected area. Gameplay work must not casual
 Current order:
 
 1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
-2. 🔬 Research
+2. 🔬 Research — **CLOSED: backend/security contract + browser functional flow validated**
 3. 🚀 Fleet movement
 4. 📦 Transport
 5. ⚔️ Attack
@@ -217,6 +217,10 @@ Detailed evolution and monitor state:
 - [systems/README_UNIVERSE_EVOLUTION.md](systems/README_UNIVERSE_EVOLUTION.md)
 - [systems/README_UNIVERSE_EVOLUTION_MONITOR.md](systems/README_UNIVERSE_EVOLUTION_MONITOR.md)
 
+### CLOSED — Ownership Hardening — 2026-09-18
+
+The ownership-hardening migration `20260918030000` is applied LIVE. Exactly six owned action/state RPCs were hardened: `start_building`, `start_research`, `start_ship`, `start_defense`, `start_fleet`, `sync_current_planet_resources`. Live verification confirms authenticated owners can enter the functions, foreign-player calls are rejected, and NULL `auth.uid()` is rejected. No unintended mutation was observed in the transactional rejection tests. Detailed evidence: [`systems/README_OWNERSHIP_HARDENING.md`](systems/README_OWNERSHIP_HARDENING.md).
+
 ### OPEN — Final security/RLS hardening — LOW / FINAL PHASE
 
 Security remains a final hardening phase unless a concrete defect requires earlier intervention. Deferred hardening is not permission to ignore an actual security issue.
@@ -239,6 +243,8 @@ Security remains a final hardening phase unless a concrete defect requires earli
 - Production deployment validation is closed for the current Universe Evolution monitor: Cloudflare Worker deployment + public Overview verification succeeded.
 - Public monitor backend is versioned by migrations 20260918020000 through 20260918020300; the public RPC is intentionally callable by anon and authenticated, while the full monitor remains private.
 - Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
+- Research is now functionally closed: authoritative `can_start_research()` contract, security/ownership checks, regression battery and browser level-up/resource-deduction flow were validated.
+- Ownership hardening is closed for the six critical player/planet action RPCs; the final security/RLS phase remains separate.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
 - Production verification confirmed active pg_cron jobs for `universe-heartbeat` (1 minute) and `deuteria-fleet-worker` (1 second); the repository/dump alone did not expose those cron rows.
 
@@ -300,6 +306,7 @@ At the end of meaningful work:
 | Memory/documentation | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) | Rules for memory and documentation segregation |
 | Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) | Durable architecture and design decisions |
 | Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Living audit of construction/research/fleet/transport/attack/combat |
+| Ownership hardening | [`systems/README_OWNERSHIP_HARDENING.md`](systems/README_OWNERSHIP_HARDENING.md) | Durable ownership/security audit for owned RPC entrypoints |
 | OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX reference index and method |
 | OGameX map | [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Concrete OGameX → L.G.I. subsystem comparison |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
