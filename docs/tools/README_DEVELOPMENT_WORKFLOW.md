@@ -1,4 +1,4 @@
-# DEVELOPMENT WORKFLOW — LA GRAN IMPLOSIÓN
+# DEVELOPMENT WORKFLOW — LA GRAN IMPLISIÓN
 
 ## Purpose
 
@@ -86,7 +86,6 @@ Long-lived cross-session principle
 
 Do not duplicate the same detailed explanation across multiple documents. Keep one canonical detailed location and reference it from shorter operational documents.
 
-
 ## Agent audit cost-control protocol
 
 The first DeepSeek/Cline recognition audit demonstrated that an unrestricted repository-wide prompt can consume a very large context budget (the observed first run processed approximately 1.39 million tokens). That cost is acceptable only for an exceptional initial mapping when the project is otherwise poorly understood; it is not the normal audit pattern.
@@ -135,7 +134,6 @@ DeepSeek is a reasoning/execution aid inside the workflow, not a source of truth
 
 The first recognition audit found two overlapping local repository copies, substantial Git/production migration drift, an existing PostgreSQL universe-evolution engine, and active production cron jobs. Future work should exploit that map rather than pay for another global scan.
 
-
 ## 2026-09-18 — Tool-use lesson from Universe Evolution
 
 The Universe Evolution monitor was intentionally split across tools according to task size:
@@ -147,3 +145,27 @@ The Universe Evolution monitor was intentionally split across tools according to
 This confirms the project rule that the heavy-duty vessel should not be used for every task. Token/cost discipline is part of the workflow.
 
 The monitor implementation was synced to GitHub main with only the monitor frontend files committed. TypeScript and production build passed; remaining lint findings are repository-level/pre-existing and unrelated to the monitor.
+
+## 2026-09-18 — Production deployment lesson
+
+The monitor was deployed only after the local repository was synchronized with `origin/main`, TypeScript/build validation passed and Wrangler authentication was verified.
+
+Deployment sequence:
+
+```text
+Git sync
+  ↓
+TypeScript
+  ↓
+production build
+  ↓
+Wrangler authentication
+  ↓
+Cloudflare deploy
+  ↓
+public browser validation
+```
+
+The deployed Worker was `lagranimplosion`, version `a5cba4c6-b82f-4c73-b445-f32fb887614`. Production browser validation confirmed the Overview monitor rendered `HEALTHY` with live Universe 1 data.
+
+The bundle-size warning (~543 kB minified client chunk) is recorded as a future optimization item only; it did not block deployment or functional validation.
