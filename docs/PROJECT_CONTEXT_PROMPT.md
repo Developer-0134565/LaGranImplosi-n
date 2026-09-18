@@ -188,7 +188,7 @@ Current order:
 
 1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
 2. 🔬 Research — **CLOSED: backend/security contract + browser functional flow validated**
-3. 🚀 Fleet movement — **OPEN / HIGH: propulsion + cargo + fuel integrated; colonize convergence fixed; remaining dispatch/return verification and browser certification**
+3. 🚀 Fleet movement — **OPEN / HIGH: propulsion + cargo + fuel integrated; colonize convergence fixed and transactionally verified; remaining dispatch/return verification and browser certification**
 4. 📦 Transport
 5. ⚔️ Attack
 6. 💥 Combat
