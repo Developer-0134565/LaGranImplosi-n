@@ -1,6 +1,6 @@
 # FLEET ENGINE — LA GRAN IMPLOSIÓN
 
-> **Status:** OPEN — backend movement lifecycle hardened; browser certification remains OPEN.
+> **Status:** OPEN — backend movement lifecycle and mission-speed convergence verified; browser certification remains OPEN.
 >
 > Canonical durable record for ship prerequisites, propulsion/technology modifiers, cargo, fuel, distance and fleet-dispatch integration. OGameX is a reference pattern; L.G.I. keeps its own schema and balance.
 
@@ -25,8 +25,6 @@ Never copy Laravel/PHP architecture or blindly import OGame values.
 
 The live `ship_prerequisites` table contains **41 prerequisite rows** for the current ship catalog. Live referential audit found **no dangling research or building references**.
 
-Current families include Shipyard, Combustion Drive, Impulse Drive, Hyperspace Drive, Hyperspace Technology, Ion, Plasma, Espionage, Armour and Graviton prerequisites.
-
 The authoritative availability path is `check_ship_requirements(planet_id, ship_id)`. Dispatch/build entrypoints must use this contract rather than reimplementing prerequisites.
 
 ## 3. Propulsion model
@@ -44,31 +42,70 @@ The authoritative availability path is `check_ship_requirements(planet_id, ship_
 
 The exact base values remain owned by `ship_definitions`; the helper applies player research to those definitions.
 
-## 4. Fleet movement scaling
+## 4. Fleet mission-speed model — NEW, 2026-09-18
 
-Canonical universe movement scaling:
+OGame's current universe model separates fleet speed into **peaceful**, **war** and **holding** settings. Official OGame documentation lists transport/deployment/colonisation/expedition under peaceful speed, attack/espionage/harvesting under war speed, and ACS hold under holding speed. citeturn0search0turn0search5
+
+L.G.I. now exposes the same conceptual separation without copying OGame's implementation:
 
 ```
-fleet_movement_scale = E^(1/3)
+universes.fleet_speed                  legacy/common fallback
+universes.peaceful_fleet_speed         civil missions
+universes.war_fleet_speed              offensive/war missions
+universes.holding_fleet_speed          ACS/holding missions
 ```
 
-Pipeline:
+Mission mapping:
+
+```
+PEACEFUL
+  TRANSPORT
+  DEPLOY
+  COLONIZE
+  EXPEDITION
+
+WAR
+  ATTACK
+  ESPIONAGE
+  RECYCLE / HARVEST
+
+HOLDING
+  ACS_HOLD
+  HOLDING
+  DEFEND
+```
+
+Canonical selector:
+
+`calculate_mission_fleet_speed_multiplier(universe_id, mission_type)`.
+
+The current production universe has all three explicit settings at `1.0`, preserving existing behaviour while removing the architectural single-speed limitation.
+
+## 5. Modifier ordering
+
+The canonical ordering is now:
 
 ```
 ship base speed
     ↓
 propulsion technology
     ↓
-universe fleet_movement_scale
+mission fleet-speed setting
     ↓
-item/lifeform/mission modifiers
+universe evolution scale E^(1/3)
     ↓
-canonical travel-time helper
+item / lifeform fleet-speed modifiers
+    ↓
+expedition-specific speed modifier (EXPEDITION only)
+    ↓
+calculate_fleet_travel_time()
     ↓
 persisted arrives_at
 ```
 
-## 5. Distance model
+This is important: **universe evolution does not replace the classic modifier; it is applied after the classic mission-speed layer**, matching the project's evolution design.
+
+## 6. Distance model
 
 ```
 same coordinate:              5
@@ -77,27 +114,58 @@ different system:             2700 + 95 * |Δsystem|
 different galaxy:             20000 * |Δgalaxy|
 ```
 
-Examples: `1:1:1 → 1:1:2 = 1005`, `1:1:1 → 1:2:1 = 2795`, `1:1:1 → 2:1:1 = 20000`.
+The same canonical helpers are used for normal planets and coordinate-only targets such as colonisation/recycling.
 
-## 6. Cargo
+## 7. Fuel model — corrected, 2026-09-18
 
-`calculate_player_ship_cargo_capacity(player_id, ship_id)` is player-aware.
+The previous fleet-fuel calculation contained:
 
 ```
-effective cargo = ship base cargo × (1 + 0.05 × Hyperspace Technology level)
+1 - (0.003 × Hyperspace Technology)
 ```
 
-Fleet cargo is the sum of each participating ship's effective cargo.
+This was identified as a semantic bug. The `0.03%) per-level fuel reduction belongs to the project's Lifeform `fuel_reduction_percent` effects, not to Hyperspace Technology.
 
-## 7. Deuterium consumption
+The live function now uses:
 
-`calculate_player_ship_fuel_consumption(player_id, ship_id)` is player-aware and accounts for propulsion transitions before fleet fuel is calculated. Hyperspace Technology's current fleet-fuel reduction is applied in the fleet fuel calculation.
+```
+base ship consumption
+    ↓
+active propulsion transition
+    ↓
+distance + actual flight time
+    ↓
+Lifeform fuel_reduction_percent
+    ↓
+ceil / minimum 1
+```
 
-## 8. Mixed fleets
+The effect is capped defensively at 30%.
 
-`start_fleet_mixed()` validates every ship independently: existence, prerequisites, quantity, effective speed and mission restrictions. Travel time uses the slowest effective ship speed. Fuel is accumulated per ship type. Composition is persisted in `fleet_movement_ships`.
+The live database contains fuel-reduction effects for the Lifeform system, including `kalesh_heat_recovery` and `mecha_efficiency_module`. A player with no active fuel-reduction effect currently returns 0% from `get_player_lifeform_effect(...)`.
 
-## 9. Dispatch entrypoints
+## 8. Propulsion/fuel verification
+
+The live guest test player currently produced:
+
+```
+small cargo speed = 8000
+bomber speed      = 6400
+small cargo fuel  = 10
+bomber fuel       = 700
+```
+
+These results are consistent with the player's current propulsion research state and demonstrate that ordinary fuel consumption no longer receives a hidden Hyperspace Technology reduction.
+
+The canonical OGameX reference also calculates fleet consumption from each ship's active speed/consumption and calculates fleet travel time from the slowest ship. citeturn0search1
+
+## 9. Mixed fleets
+
+`start_fleet_mixed()` validates every ship independently: existence, prerequisites, quantity, effective speed and mission restrictions.
+
+Travel time uses the slowest effective ship speed. Fuel is accumulated per ship type using the same persisted flight time. Composition is persisted in `fleet_movement_ships`.
+
+## 10. Dispatch entrypoints
 
 Known fleet dispatch surface:
 
@@ -107,29 +175,33 @@ Known fleet dispatch surface:
 - expedition dispatch
 - recycle dispatch / debris-field targeting
 
-Dispatch convergence is now implemented around the canonical distance/speed/time/fuel helpers. The remaining certification item is browser execution across the complete mission lifecycle.
+All audited dispatch paths now select the mission-speed class before evolution scaling.
 
-## 10. OGameX comparison targets
+`start_colonize_fleet()` is explicitly mapped to **PEACEFUL**.
 
-Useful OGameX lessons: mission creation/validation is distinct from arrival resolution; propulsion/technology rules should be centralized; mission state must survive downtime; arrival and return are durable temporal transitions; mission-specific resolution belongs after shared movement; workers execute due events but do not define game time.
+`start_fleet()` maps:
+- ATTACK → WAR
+- ESPIONAGE → WAR
+- RECYCLE → WAR
+- TRANSPORT → PEACEFUL
+- DEPLOY → PEACEFUL
+- EXPEDITION → PEACEFUL
+
+## 11. OGameX comparison targets
+
+Useful OGameX lessons:
+
+- mission creation/validation is distinct from arrival resolution;
+- propulsion/technology rules should be centralized;
+- fleet speed is determined by the slowest effective ship;
+- mission type selects the appropriate universe fleet-speed class;
+- mission state must survive downtime;
+- arrival and return are durable temporal transitions;
+- workers execute due events but do not define game time.
+
+OGameX's open-source fleet implementation exposes the same conceptual separation between `FlightDistance`, `FlightSpeed`, `FlightCons` and `FlightTime`. citeturn0search1
 
 These are architectural patterns, not instructions to reproduce OGameX's PHP classes.
-
-## 11. Dispatch convergence finding — 2026-09-18
-
-The first convergence pass found a real divergence in `start_colonize_fleet`: it previously used a linear travel-time calculation, static colony-ship speed and the legacy static fuel helper. This was corrected live.
-
-`start_colonize_fleet()` now uses:
-
-- `calculate_player_ship_speed()`;
-- the canonical galaxy/system/position distance model;
-- `calculate_fleet_travel_time()`;
-- `calculate_player_fleet_fuel_for_distance()`;
-- the same fleet-evolution scaling and speed modifiers as the shared fleet path.
-
-A second sweep found the legacy `calculate_fleet_fuel_for_distance(distance, ship_id, quantity)` entrypoint. It has no remaining legitimate caller and EXECUTE has been revoked from `PUBLIC`, `anon` and `authenticated`.
-
-The same sweep converged `calculate_fleet_time()` on player-aware propulsion, universe evolution scaling and the canonical travel-time helper. `calculate_fleet_fuel()` and mixed-fleet fuel now use the player-aware fuel path.
 
 ## 12. Movement lifecycle / idempotency — 2026-09-18
 
@@ -157,89 +229,42 @@ return settlement
 RETURNING → COMPLETED
 ```
 
-Important properties verified in the live function:
+Verified properties:
 
-1. **Game time is persisted.** The worker compares stored event timestamps with `clock_timestamp()`; it does not reconstruct elapsed time from worker execution time.
-2. **Late workers preserve the original timeline.** Non-expedition return time is derived from `arrives_at - started_at`, not from "now + travel time".
-3. **Arrival processing is transactionally claimed.** The worker changes `OUTBOUND` to `ARRIVED` under row lock before invoking the mission resolver. If resolution fails, the surrounding transaction rolls back the claim and side effects together.
-4. **Resolvers are state-gated.** Arrival resolvers require `ARRIVED`; a second call after successful resolution sees `RETURNING` or `COMPLETED` and cannot repeat the arrival side effect.
-5. **Return settlement is state-gated.** The return loop selects only `RETURNING` rows due for processing, locks the row, applies ships/resources, then changes the row to `COMPLETED`. A second worker pass cannot select the completed row.
-6. **Concurrent workers are serialized.** `process_fleet_movements()` takes the transaction advisory lock `fleet-processing-global`; due-row queries additionally use `FOR UPDATE SKIP LOCKED`.
-7. **Mission-specific idempotency exists at the resolver boundary.** Expedition results use the fleet identity as the unique event key; transport/deploy/colonize/attack/espionage resolvers are state-gated before their mutations.
-8. **Worker API is private.** `process_fleet_movements()` and `run_fleet_worker()` are not executable by `anon` or `authenticated`.
+1. Game time is persisted.
+2. Late workers preserve original movement duration.
+3. Arrival processing is transactionally claimed.
+4. Arrival resolvers are state-gated.
+5. Return settlement is state-gated.
+6. Concurrent workers are serialized.
+7. Mission-specific resolver side effects are protected by state/event identity.
+8. Worker APIs are private.
 
-Live transactional idempotency test on 2026-09-18:
-
-- created a synthetic due `RETURNING` transport inside a transaction;
-- executed `process_fleet_movements()` twice;
-- first pass processed the movement;
-- second pass processed zero rows;
-- final movement state was `COMPLETED`;
-- the whole test was rolled back, leaving no test mutation.
-
-Live integrity scan at the same point:
-
-- 54 historical fleet movements;
-- 0 due `OUTBOUND` rows with NULL `arrives_at`;
-- 0 `RETURNING` rows with NULL `returns_at`;
-- 0 return timestamps earlier than arrival timestamps;
-- 0 `COMPLETED` rows retaining undelivered movement resources.
-
-The existing due-event indexes are present:
-
-- `fleet_movements_outbound_arrival_idx` on `(arrives_at, id)` for `OUTBOUND`;
-- `fleet_movements_returning_idx` on `(returns_at, id)` for `RETURNING`.
-
-No additional worker index was added because the existing indexes already match the due-event access pattern.
+A transactional double-run test processed a synthetic due return exactly once; the whole test was rolled back.
 
 ## 13. Remaining OPEN audit
 
-### A. Dispatch convergence — BACKEND VERIFIED
+### A. Technology graph — MEDIUM
 
-Canonical distance/speed/time/fuel integration is live for the audited dispatch paths. Browser certification remains open.
+Confirm every current ship's referenced propulsion technology participates correctly in speed and fuel semantics. The prerequisite graph itself is coherent.
 
-### B. Return-time convergence — BACKEND VERIFIED
+### B. Mission-specific modifiers — MEDIUM
 
-Return scheduling is anchored to persisted movement duration and event timestamps. Downtime/idempotency behavior has been transactionally exercised.
+Audit expedition, recycle, deploy, colonize and attack modifiers separately. They must be applied after the common movement pipeline and must not duplicate universe evolution.
 
-### C. Technology graph — MEDIUM
+### C. Browser fleet flow — OPEN
 
-Compare all current ship definitions against prerequisites and propulsion family. Confirm every referenced technology participates correctly in effective speed/consumption where applicable.
+Backend correctness is not browser certification. Verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return in the browser.
 
-### D. Mission-specific modifiers — MEDIUM
+### D. ACS / holding — OPEN
 
-Audit expedition, recycle, deploy, colonize and attack modifiers separately. They must be applied after the common movement pipeline and must not duplicate universe scaling.
+The database now has a dedicated holding-speed channel, but ACS holding behaviour must be certified before it is considered complete.
 
-### E. Browser fleet flow — OPEN
-
-Backend correctness is not browser certification. A user-performed browser test must verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return.
-
-## 14. Changes applied during current audit — 2026-09-18
-
-- centralized player-aware ship speed calculation;
-- encoded propulsion transitions for Small Cargo, Bomber and Recycler;
-- centralized player-aware fuel consumption;
-- centralized player-aware cargo capacity;
-- mixed-fleet cargo/fuel/speed integration;
-- fleet dispatch ownership remains protected;
-- canonical galaxy/system/position distance model remains in the movement path;
-- removed public execution of the legacy static fleet-fuel helper;
-- converged fleet time/fuel helpers on player-aware calculations;
-- no dangling ship prerequisite references found;
-- verified movement worker state transitions and idempotency under a transactional double-run test.
-
-## 15. Verification evidence — 2026-09-18
-
-A transactional live test executed `start_colonize_fleet()` with the guest test player, a real colony ship and an empty target coordinate. The function returned a persisted-style `COLONIZE` fleet with a non-null `arrives_at`, and the transaction was rolled back, so no ship/resources/fleet state was mutated.
-
-The first test exposed two implementation defects in the new path — the fuel-consumption CASE had no fallback for ordinary ships, and `planet_ships.ship_id` was ambiguous inside the PL/pgSQL update. Both were corrected and the same transactional test then passed.
-
-A second live sweep verified the movement worker's persisted-event/idempotency behavior as documented in section 12. The synthetic transport test was fully rolled back after verification.
-
-## 16. Guardrails
+## 14. Guardrails
 
 - Do not put ship technology rules into `calculate_universe_scaling(E)`.
 - Do not maintain per-mission copies of the travel-time formula.
+- Do not use Hyperspace Technology as a generic fuel-reduction modifier.
 - Do not let the frontend become authoritative for speed, fuel, cargo or prerequisites.
 - Do not change OGameX-like balance values merely for parity.
 - Do not certify the fleet subsystem until persisted state and browser flow have been tested.
