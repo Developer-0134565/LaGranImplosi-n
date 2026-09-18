@@ -159,7 +159,15 @@ Backend correctness is not browser certification. A user-performed browser test 
 - canonical galaxy/system/position distance model remains in the movement path;
 - no dangling ship prerequisite references found.
 
-## 14. Guardrails
+## 14. Verification evidence — 2026-09-18
+
+A transactional live test executed `start_colonize_fleet()` with the guest test player, a real colony ship and an empty target coordinate. The function returned a persisted-style `COLONIZE` fleet with a non-null `arrives_at`, and the transaction was rolled back, so no ship/resources/fleet state was mutated.
+
+The first test exposed two implementation defects in the new path — the fuel-consumption CASE had no fallback for ordinary ships, and `planet_ships.ship_id` was ambiguous inside the PL/pgSQL update. Both were corrected and the same transactional test then passed.
+
+The propulsion thresholds are consistent with classic OGame reference material: Small Cargo switches at Impulse 5, Bomber at Hyperspace 8, and Recycler at Impulse 17 / Hyperspace 15; the classic speed increments are +10% Combustion, +20% Impulse and +30% Hyperspace. citeturn0search0turn0search3
+
+## 15. Guardrails
 
 - Do not put ship technology rules into `calculate_universe_scaling(E)`.
 - Do not maintain per-mission copies of the travel-time formula.
