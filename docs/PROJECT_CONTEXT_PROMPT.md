@@ -188,7 +188,7 @@ Current order:
 
 1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
 2. 🔬 Research — **CLOSED: backend/security contract + browser functional flow validated**
-3. 🚀 Fleet movement — **OPEN / HIGH: propulsion + cargo + fuel integrated; colonize convergence fixed and transactionally verified; remaining dispatch/return verification and browser certification**
+3. 🚀 Fleet movement — **OPEN / HIGH: backend dispatch + return lifecycle now converged and transactionally idempotency-verified; browser certification remains**
 4. 📦 Transport
 5. ⚔️ Attack
 6. 💥 Combat
@@ -196,6 +196,12 @@ Current order:
 Construction: the full lifecycle (validación → coste/tiempo → descuento atómico de recursos → cola → procesado → completado → persistencia de nivel → producción) is audited, with documented concurrency/idempotency guarantees (planet row lock + active-queue guard; queue row lock + `COMPLETED` early-return + `target = current+1` guard + PK upsert + `SKIP LOCKED` processors). The Buildings UI now consumes the authoritative `can_start_building()` contract (cost of the next level, level, availability + reason) and settles temporal state with `sync_current_planet_resources()`. Tests: `scripts/verify-buildings.mjs` (live, read-only) and `supabase/tests/buildings_lifecycle.sql` (transactional, non-committing). Remaining for certification: the user's browser functional test.
 
 Living audit: [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md)
+
+### CLOSED — Fleet movement lifecycle hardening — 2026-09-18
+
+The backend movement lifecycle is now verified for persisted event timing, downtime/catch-up semantics, concurrent worker serialization and duplicate-run protection. Canonical distance/speed/time/fuel paths are in place, the legacy static fuel helper is no longer executable by public roles, and a transactional double-run test processed a synthetic due return exactly once. Remaining fleet work is browser certification plus mission-specific/technology deep audits.
+
+Detailed durable evidence: [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md).
 
 ### OPEN — OGameX subsystem deep audits
 
@@ -245,7 +251,7 @@ Security remains a final hardening phase unless a concrete defect requires earli
 - Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
 - Research is now functionally closed: authoritative `can_start_research()` contract, security/ownership checks, regression battery and browser level-up/resource-deduction flow were validated.
 - Ownership hardening is closed for the six critical player/planet action RPCs; the final security/RLS phase remains separate.
-- Fleet engine deep audit is OPEN: player-aware propulsion/cargo/fuel integration is implemented; the live prerequisite graph is coherent; a real colonization travel-time divergence was found and corrected to the canonical movement pipeline; remaining dispatch/return verification and browser certification remain.
+- Fleet engine deep audit remains OPEN only for browser certification and the remaining technology/mission-specific comparisons: player-aware propulsion/cargo/fuel integration is implemented; the live prerequisite graph is coherent; the colonization divergence was corrected; movement dispatch/return timing and duplicate-run behavior are now backend-verified.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
 - Production verification confirmed active pg_cron jobs for `universe-heartbeat` (1 minute) and `deuteria-fleet-worker` (1 second); the repository/dump alone did not expose those cron rows.
 
