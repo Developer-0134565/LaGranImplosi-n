@@ -70,11 +70,28 @@ production
 | Queue processing | 🟢 | `process_building_queue_for_planet()` exists |
 | Completion | 🟢 | `complete_building()` guards status, finish time and expected target level |
 | Persistence | 🟢 | Completion persists the building level and queue state |
-| Basic idempotency | 🟢 | Already-completed/non-building states are guarded |
-| Production after construction | 🟡 | Must be explicitly validated as the next construction test |
-| Real concurrency/race safety | 🟡 | Must be tested/reasoned with concurrent completion attempts |
+| Basic idempotency | 🟢 | Live test confirmed a repeated completion returns the existing target level without advancing it again |
+| Production after construction | 🟢 | Live test confirmed persisted level changes feed the production engine; level 2 → 3 changed the production calculation |
+| Production projection helpers | 🟡 | `calculate_building_production_delta()` currently fails because it references `economy_rate`/`production_rate` while `calculate_universe_rates()` returns `economy`/`production`. `project_building_production()` also does not apply the live energy-limitation factor used by `calculate_planet_production()`. Neither helper was found in the GitHub frontend search, so this is currently a helper-layer issue, not a proven blocker for `start_building()`/completion. |
+| Real concurrency/race safety | 🟡 | Lock ordering and concurrent completion behavior still require a dedicated race test/reasoning pass |
 | Web functional test | 🟡 | User must validate the complete construction flow through the web UI |
-| Certification | 🟡 | Pending production, concurrency and user web validation |
+| Certification | 🟡 | Pending concurrency and user web validation |
+
+### Verified live construction test
+
+Test environment: inactive **TEST - Universe 1**, planet **Dev Homeworld**. No production-universe mutation was used for the construction test.
+
+Observed sequence:
+
+1. Started `metal_mine` from level 2 toward level 3.
+2. Queue row was created with target level 3 and status `BUILDING`.
+3. Test completion time was moved into the past while preserving the queue constraint `finishes_at > started_at`.
+4. `complete_building()` changed the persisted building to level 3 and queue status to `COMPLETED`.
+5. A second `complete_building()` call did not advance the building again.
+6. Production was recalculated from persisted building state.
+7. The test planet was restored to its previous level/resources/fields and the test queue row was removed.
+
+This verifies logical idempotency and the construction → persisted level → production path. It does **not** yet prove multi-session transactional race safety.
 
 ### Evidence discipline
 
@@ -86,13 +103,25 @@ Do not describe a live database test as executed unless its result is directly o
 
 ## Construction — next tests
 
-### A. Building → production
+### A. Concurrency / race safety
 
-Prove that after a building changes from level N to N+1, the resulting production is correct and derives from the persisted building state. Keep the classic/base engine separate from future universe-evolution modifiers.
+Prove that two concurrent completion attempts cannot advance one queue item twice or produce an unintended N→N+2 transition. Also inspect lock ordering between:
 
-### B. Completion concurrency / repeated completion
+- `start_building()`
+- `process_building_queue_for_planet()`
+- `complete_building()`
+- `process_planet_tick()`
 
-Verify that two completion attempts cannot advance one queue item twice or produce an unintended N→N+2 transition. Distinguish logical idempotency from real transactional race safety.
+Distinguish logical idempotency from real transactional race safety.
+
+### B. Helper-layer cleanup
+
+Decide whether the broken/semantically inconsistent production projection helpers are:
+
+- obsolete and should be removed, or
+- used by UI/future systems and should be corrected against the authoritative production engine.
+
+Do not modify them merely because they are imperfect; first establish whether they are part of an active contract.
 
 ### C. User web validation
 
