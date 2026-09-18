@@ -101,3 +101,17 @@ Superseded by:
 ## Maintenance rule
 
 Keep `PROJECT_CONTEXT_PROMPT.md` concise. Move detailed architecture explanations here when they remain useful but are no longer required to recover the immediate project state.
+
+
+## Universe Evolution observability boundary
+
+Universe Evolution execution and observability are deliberately separated:
+
+Evolution engine
+→ private monitor RPC
+→ sanitized public monitor RPC
+→ React Overview monitor
+
+The frontend never calls the full internal monitor. The public function is a read-only SECURITY DEFINER with an empty search_path and a fixed safe response whitelist. It is callable by both anon and authenticated because the game supports guest and authenticated UI sessions.
+
+The monitor reports operational state; it does not infer engine health solely from a timestamp and never executes repair work.
