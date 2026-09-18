@@ -147,6 +147,7 @@ Do not load every specialized document by default.
 | `docs/reference/README_OGAMEX.md` | OGameX reference/pattern map | REFERENCE |
 | `docs/architecture/README_ARCHITECTURE.md` | Durable L.G.I. architecture decisions | LIVING |
 | `docs/systems/README_UNIVERSE_EVOLUTION.md` | Universe evolution and expansion knowledge | LIVING |
+| `docs/systems/README_OWNERSHIP_HARDENING.md` | Owned RPC authorization and hardening evidence | LIVING / CLOSED |
 | `docs/tools/README_DEVELOPMENT_WORKFLOW.md` | Cline/Qwen/Copilot/GitHub/Supabase workflow | LIVING |
 
 Add future system-specific documents to this index when they become substantial enough to justify separation.
