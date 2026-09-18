@@ -188,7 +188,7 @@ Current order:
 
 1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
 2. 🔬 Research — **CLOSED: backend/security contract + browser functional flow validated**
-3. 🚀 Fleet movement — **OPEN / HIGH: backend dispatch + return lifecycle now converged and transactionally idempotency-verified; browser certification remains**
+3. 🚀 Fleet movement — **OPEN / HIGH: backend lifecycle + propulsion/fuel + mission-speed classes converged and verified; browser certification remains**
 4. 📦 Transport
 5. ⚔️ Attack
 6. 💥 Combat
@@ -206,6 +206,12 @@ Detailed durable evidence: [`systems/README_FLEET_ENGINE.md`](systems/README_FLE
 ### OPEN — OGameX subsystem deep audits
 
 The structural map is complete at first-pass level. Deep comparison continues where it can expose a concrete architectural gap. Fleet is the current deep-audit target: propulsion technologies, ship prerequisites, cargo/fuel modifiers, distance and mission lifecycle are being compared against OGameX patterns.
+
+### CLOSED — Fleet propulsion / mission-speed / fuel convergence — 2026-09-18
+
+Live fleet audit found and corrected two semantic divergences: the generic Hyperspace Technology fuel reduction was removed from fleet fuel calculation and fuel reduction is now sourced from Lifeform `fuel_reduction_percent`; and the single `universes.fleet_speed` path was split into `peaceful_fleet_speed`, `war_fleet_speed` and `holding_fleet_speed`. `start_fleet`, `start_fleet_mixed` and `start_colonize_fleet` now select the mission class first, then apply universe evolution scaling, then item/lifeform modifiers. Current Universe 1 values remain 1/1/1, so existing behaviour is preserved.
+
+OGameX/current OGame references confirm the conceptual mission-speed split: peaceful = transport/deploy/colonize/expedition, war = attack/espionage/harvesting, holding = ACS hold. Detailed evidence and remaining fleet audit items: [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md).
 
 ### OPEN — Economy semantics — MEDIUM
 
