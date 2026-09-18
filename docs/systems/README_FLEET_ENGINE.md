@@ -115,7 +115,23 @@ Useful OGameX lessons: mission creation/validation is distinct from arrival reso
 
 These are architectural patterns, not instructions to reproduce OGameX's PHP classes.
 
-## 11. Remaining OPEN audit
+## 11. Dispatch convergence finding — 2026-09-18
+
+The first convergence pass found a real divergence in `start_colonize_fleet`: it previously used a linear travel-time calculation, static colony-ship speed and the legacy static fuel helper. This was corrected live.
+
+`start_colonize_fleet()` now uses:
+
+- `calculate_player_ship_speed()`;
+- the canonical galaxy/system/position distance model;
+- `calculate_fleet_travel_time()`;
+- `calculate_player_fleet_fuel_for_distance()`;
+- the same fleet-evolution scaling and speed modifiers as the shared fleet path.
+
+`process_fleet_movements()` already resolves due arrivals from persisted `arrives_at` and derives non-expedition return time from the persisted flight duration, preserving downtime/catch-up semantics.
+
+This closes the identified colonization formula divergence, but the dispatch audit remains open until all mission entrypoints and browser flow are certified.
+
+## 12. Remaining OPEN audit
 
 ### A. Dispatch convergence — HIGH
 One canonical travel-time formula must feed all persisted `arrives_at` timestamps.
@@ -132,7 +148,7 @@ Audit expedition, recycle, deploy, colonize and attack modifiers separately. The
 ### E. Browser fleet flow — OPEN
 Backend correctness is not browser certification. A user-performed browser test must verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return.
 
-## 12. Changes applied during current audit — 2026-09-18
+## 13. Changes applied during current audit — 2026-09-18
 
 - centralized player-aware ship speed calculation;
 - encoded propulsion transitions for Small Cargo, Bomber and Recycler;
@@ -143,7 +159,7 @@ Backend correctness is not browser certification. A user-performed browser test 
 - canonical galaxy/system/position distance model remains in the movement path;
 - no dangling ship prerequisite references found.
 
-## 13. Guardrails
+## 14. Guardrails
 
 - Do not put ship technology rules into `calculate_universe_scaling(E)`.
 - Do not maintain per-mission copies of the travel-time formula.
