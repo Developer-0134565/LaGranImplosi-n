@@ -4,7 +4,7 @@
 
 **CLOSED / VERIFIED LIVE — 2026-09-18**
 
-Ownership hardening closes the direct player/planet ownership boundary for the six critical client-facing game-action/state entrypoints identified by the audit.
+Ownership hardening closes the direct player/planet ownership boundary for the six critical entrypoints changed by the hardening migration, while the broader audit also verified four additional SECURITY DEFINER `start_*` entrypoints already contained equivalent ownership guards.
 
 ## Hardened RPCs
 
@@ -65,6 +65,23 @@ null_auth_rejection_passed
 ```
 
 All six calls rejected the unauthenticated request. No mutation was committed.
+
+### Extended ownership audit
+
+The broader `SECURITY DEFINER` `start_*` surface was also inspected. Four additional entrypoints already contain ownership guards and were verified with the same foreign-player transactional test:
+
+- `start_colonize_fleet(uuid, uuid, integer, integer, integer)`
+- `start_fleet_mixed(uuid, uuid, uuid, jsonb, text)`
+- `start_lifeform_building(uuid, text)`
+- `start_lifeform_research(uuid, text)`
+
+Result:
+
+```text
+extended_foreign_owner_rejection_passed
+```
+
+These four were not part of the six-function ownership migration because the live definitions already enforce the player resolved from the supplied planet against `auth.uid()` (or the guest path where applicable).
 
 ### ACL note
 
