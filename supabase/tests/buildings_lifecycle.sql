@@ -170,6 +170,17 @@ begin
 
     select count(*) into v_level from t_results where resultado <> 'PASS';
     if v_level > 0 then
+        raise notice '===== BUILDINGS TEST FAILURES =====';
+
+        for v_status, v_building in
+            select resultado, prueba
+            from t_results
+            where resultado <> 'PASS'
+            order by orden
+        loop
+            raise notice 'FAIL -> % : %', v_building, v_status;
+        end loop;
+
         raise exception 'BUILDINGS TEST FAILED: % prueba(s) con FAIL', v_level;
     end if;
     raise notice 'BUILDINGS LIFECYCLE TEST: ALL PASS (transacción revertida, sin cambios reales)';
