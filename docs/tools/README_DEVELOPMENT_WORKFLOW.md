@@ -134,3 +134,16 @@ DeepSeek is a reasoning/execution aid inside the workflow, not a source of truth
 ### 2026-09-17 observation
 
 The first recognition audit found two overlapping local repository copies, substantial Git/production migration drift, an existing PostgreSQL universe-evolution engine, and active production cron jobs. Future work should exploit that map rather than pay for another global scan.
+
+
+## 2026-09-18 — Tool-use lesson from Universe Evolution
+
+The Universe Evolution monitor was intentionally split across tools according to task size:
+
+- ChatGPT + Supabase direct: architecture, live RPC/security diagnosis, controlled engine tests and final verification.
+- Copilot: bounded React/TypeScript monitor implementation and UI integration.
+- Cline/DeepSeek: reserved for repository-heavy or difficult tasks; not used for the small Supabase permission correction.
+
+This confirms the project rule that the heavy-duty vessel should not be used for every task. Token/cost discipline is part of the workflow.
+
+The monitor implementation was synced to GitHub main with only the monitor frontend files committed. TypeScript and production build passed; remaining lint findings are repository-level/pre-existing and unrelated to the monitor.
