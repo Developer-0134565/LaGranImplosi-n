@@ -88,6 +88,10 @@ begin
       ('3. edificio invalido -> rechazado (BUILDING_NOT_FOUND)',
        case when v_ok then 'PASS' else 'FAIL' end);
 
+    /* Sincronizamos recursos antes de medir el descuento: start_building también
+       liquida el tick pendiente, por lo que medir antes introduciría producción
+       histórica en la diferencia del coste. */
+    perform * from public.process_planet_tick(v_planet);
     select metal into v_before_metal from public.planet_resources where planet_id = v_planet;
     v_queue := public.start_building(v_player, v_planet, v_building);
     select metal into v_after_metal from public.planet_resources where planet_id = v_planet;
