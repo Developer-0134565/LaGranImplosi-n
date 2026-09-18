@@ -1,4 +1,4 @@
-# UNIVERSE EVOLUTION MONITOR — LA GRAN IMPLOSIÓN
+# UNIVERSE EVOLUTION MONITOR — LA GRAN IMPLISIÓN
 
 ## Purpose
 
@@ -22,6 +22,8 @@ sanitized UI contract
 React UniverseEvolutionMonitor
         ↓
 Overview
+        ↓
+Cloudflare Worker production deployment
 ```
 
 ### Private monitor RPC
@@ -134,6 +136,26 @@ This validates the complete path:
 ```
 Supabase → sanitized RPC → authenticated EXECUTE → React → monitor UI
 ```
+
+## Production deployment validation — 2026-09-18
+
+The monitor was verified on the deployed Cloudflare Worker after the production build and asset upload completed successfully.
+
+```text
+Worker          lagranimplosion
+URL             https://lagranimplosion.lagranimplosion.workers.dev
+Version         a5cba4c6-b82f-4c73-b445-f32fb887614
+Status          HEALTHY
+Clock lag       0s
+Ticks pending   0
+Expansion       0 pending
+Galaxy rolls    0 due
+AI deficit      0
+```
+
+The public Overview rendered the monitor correctly in production and showed Universe 1 with 101 galaxies, 207 systems, 3105 positions and 226 AI planets at 7.28% density against the 7.50% target with ±0.25% tolerance.
+
+This closes the current monitor deployment/validation phase.
 
 ## Security notes
 
