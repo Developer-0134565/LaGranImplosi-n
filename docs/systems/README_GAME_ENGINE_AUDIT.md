@@ -208,3 +208,16 @@ Live inspection confirms all six are `SECURITY DEFINER` with `search_path = publ
 The transactional foreign-owner regression rejected all six calls without committing mutations. The NULL-auth regression also rejected all six calls when executed as `authenticated` with no JWT subject. `start_fleet` is not executable by `anon`, which is an ACL restriction rather than a failed ownership guard.
 
 Detailed evidence and the migration/reproducibility finding are tracked in [`README_OWNERSHIP_HARDENING.md`](README_OWNERSHIP_HARDENING.md).
+
+
+## Research — current audit status
+
+**CLOSED / VERIFIED — 2026-09-18.**
+
+Research now uses the authoritative `can_start_research(p_player_id, p_planet_id, p_research_id)` contract for UI availability. The contract calculates the server-side target level, authoritative cost and research time, prerequisite state, queue state, resource availability and the active expedition-item research-speed modifier. It validates player/planet ownership and authentication before exposing the result.
+
+The regression contract battery passed **12/12** assertions, including ownership, prerequisite details, server-side target level, grants/ACL closure of legacy helpers, read-only behavior, foreign-player rejection and NULL-auth rejection. A valid `start_research` call was also exercised transactionally, and the prerequisite-invalid path was rejected correctly.
+
+The browser flow was subsequently validated by the user: research levels increased correctly and resources were deducted correctly. No further Research backend changes are required for the current contract.
+
+The UI intentionally reads definition metadata (`id`, name, description, max level) for presentation but obtains actionable cost/time/availability from `can_start_research()`. A bulk availability RPC remains deferred as an optimization; the current one-RPC-per-definition approach is the certified path.
