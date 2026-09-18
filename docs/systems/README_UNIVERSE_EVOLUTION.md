@@ -153,3 +153,27 @@ These values are evidence of current implementation state, not permission to ass
 ### Audit rule after this discovery
 
 Do not launch another repository-wide recognition prompt for Universe Evolution. The next Cline/DeepSeek task should be a directed, read-only subsystem audit limited to evolution-rate/scaling consumers, universe clock/tick/heartbeat, galaxy roll/system expansion, AI reconciliation, exact formulas/modifier ordering, and contradictions between implementation, live Supabase state and the specialized monitors. It must identify exact files/functions and evidence without modifying code, migrations or database state.
+
+
+## 2026-09-18 — Directed validation and monitor closure
+
+Controlled live tests completed the current evolution-engine validation surface:
+
+- persistent clock catch-up after approximately 48 hours of inactivity;
+- long-overdue expansion batching with the 10,000-work cap;
+- 7-day expansion + AI reconciliation simulation;
+- heartbeat failure/recovery after removing/restoring the clock;
+- concurrent heartbeat execution without duplicate/corrupt expansion;
+- normal G100 expansion using the agreed 8 × G^0.75 hour interval;
+- special galaxy expansion using the separate 1.05 growth factor;
+- overdue galaxy-roll processing with bounded roll catch-up.
+
+The engine returned to a healthy live state after testing. Active Universe 1 was observed with 101 galaxies (100 normal + 1 special), 207 systems, 3105 positions and 226 AI planets at 7.28% density against a 7.50% target with ±0.25% tolerance.
+
+Detailed observability is maintained separately in [README_UNIVERSE_EVOLUTION_MONITOR.md](README_UNIVERSE_EVOLUTION_MONITOR.md). The monitor is read-only and distinguishes schedule backlog from actual work backlog.
+
+The full monitor RPC is private. The frontend consumes only the sanitized public RPC, callable by anon and authenticated. The monitor passed an end-to-end CATCHING_UP → HEALTHY recovery test with lag and pending ticks returning to zero.
+
+### Migration state caveat
+
+The monitor SQL is versioned in GitHub migrations 20260918020000–20260918020300. Live SQL objects and privileges were verified. Supabase migration-history synchronization previously showed these versions absent from the queried history table, so migration state must be reconciled carefully before any future CLI migration replay.
