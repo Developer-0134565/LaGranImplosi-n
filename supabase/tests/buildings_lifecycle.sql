@@ -3,6 +3,10 @@
 -- ----------------------------------------------------------------------------
 -- NO ES UNA MIGRACIÓN. Es un test manual transaccional: todo ocurre dentro de
 -- una transacción que termina en ROLLBACK, por lo que NO modifica datos reales.
+--
+-- Identidad: el test fija `request.jwt.claims` para simular la sesión ANÓNIMA del
+-- frontend (auth.uid() = players.user_id), el mismo contrato que aplica la migración
+-- 20260918030000_harden_player_ownership_in_owned_rpcs.sql.
 -- ============================================================================
 
 begin;
@@ -10,6 +14,7 @@ begin;
 do $test$
 declare
     v_player uuid;
+    v_user uuid;
     v_planet uuid;
     v_building text := 'metal_mine';
     v_level int;
@@ -25,18 +30,23 @@ declare
 begin
     create temp table t_results(orden serial, prueba text, resultado text) on commit drop;
 
-    select p.player_id, p.id into v_player, v_planet
+    select p.player_id, p.id, pl.user_id into v_player, v_planet, v_user
     from public.planets p
     join public.players pl on pl.id = p.player_id
     where coalesce(pl.is_guest, false) = true
+      and pl.user_id is not null
       and p.is_destroyed = false
     order by (select count(*) from public.planet_buildings pb where pb.planet_id = p.id), p.created_at
     limit 1;
 
     if v_planet is null then
-        raise exception 'TEST_ABORT: no hay planeta de invitado disponible';
+        raise exception 'TEST_ABORT: no hay planeta de invitado con user_id disponible';
     end if;
-    raise notice 'TEST planet=% player=% building=%', v_planet, v_player, v_building;
+    raise notice 'TEST planet=% player=% user=% building=%', v_planet, v_player, v_user, v_building;
+
+    /* Identidad de sesión simulada (equivale a la sesión ANÓNIMA del frontend:
+       auth.uid() = players.user_id). Sin esto, las RPC endurecidas rechazan la operación. */
+    perform set_config('request.jwt.claims', json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
 
     insert into public.planet_buildings(planet_id, building_id, level)
     values (v_planet, 'solar_plant', 20)
@@ -160,6 +170,21 @@ begin
     insert into t_results(prueba, resultado) values
       ('8. producción de metal tras el nivel nuevo (' || v_prod_before || ' -> ' || v_prod_after || ')',
        case when v_prod_after > v_prod_before then 'PASS' else 'FAIL' end);
+
+    /* 9) OWNERSHIP: una sesión que NO es dueña del player debe ser rechazada
+       (no basta con conocer el UUID del jugador). */
+    perform set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid()::text, 'role', 'authenticated')::text, true);
+    v_ok := false;
+    begin
+        perform public.start_building(v_player, v_planet, v_building);
+    exception when others then
+        v_ok := sqlerrm like 'Player does not belong to authenticated user%';
+        if not v_ok then raise; end if;
+    end;
+    insert into t_results(prueba, resultado) values
+      ('9. sesión ajena no puede operar sobre el player (ownership)',
+       case when v_ok then 'PASS' else 'FAIL' end);
+    perform set_config('request.jwt.claims', json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
 
     raise notice '----- BUILDINGS LIFECYCLE TEST -----';
     for v_status, v_building in

@@ -1,3 +1,15 @@
+-- OBSOLETE LOCAL ARTIFACT — 2026-09-18 (inverse-drift blocker resolution)
+-- Reason: incomplete local representation of the applied payload. LIVE applied
+--   20260916020215_harden_fleet_arrival_queue_timestamps (4 functions, 9486 bytes); this file holds
+--   only process_shipyard_queue_until + process_defense_queue_until (its first normalised 2258 chars
+--   are identical to the start of that payload, and its own closing comment says the migration installs
+--   the authoritative resolve_attack_arrival / resolve_espionage_arrival definitions).
+-- Dependencies: both queue processors were later superseded (20260918094108, 20260918094128) and
+--   resolve_attack_arrival by 20260916020648; resolve_espionage_arrival and process_defense_queue_until
+--   still match LIVE.
+-- Authoritative file: supabase/migrations/20260916020215_harden_fleet_arrival_queue_timestamps.sql
+-- Kept for traceability. NOT a migration (the .obsolete extension is not discovered by the CLI).
+
 -- Resolve shipyard/defense queues only through the logical fleet event timestamp.
 -- This prevents a late worker from exposing future units/defenses to an attack or espionage report.
 

@@ -145,8 +145,18 @@ Do not load every specialized document by default.
 |---|---|---|
 | `docs/PROJECT_CONTEXT_PROMPT.md` | Compact operational memory and roadmap | CANONICAL OPERATIONAL CONTEXT |
 | `docs/reference/README_OGAMEX.md` | OGameX reference/pattern map | REFERENCE |
+| `docs/reference/OGAMEX_LGI_MAP.md` | Concrete OGameX → L.G.I. subsystem comparison | REFERENCE |
 | `docs/architecture/README_ARCHITECTURE.md` | Durable L.G.I. architecture decisions | LIVING |
-| `docs/systems/README_UNIVERSE_EVOLUTION.md` | Universe evolution and expansion knowledge | LIVING |
-| `docs/tools/README_DEVELOPMENT_WORKFLOW.md` | Cline/Qwen/Copilot/GitHub/Supabase workflow | LIVING |
+| `docs/systems/README_FUNCTIONAL_AUDIT.md` | Functional map: exists/deployed/connected/verified + gaps + tests | LIVING |
+| `docs/systems/README_IDENTITY_AND_ACCESS.md` | Identity chain, RLS model and ownership hardening | LIVING |
+| `docs/systems/README_ECONOMY.md` | Resources, production, costs, settlement: authoritative vs projection vs legacy | LIVING |
+| `docs/systems/README_GAME_ENGINE_AUDIT.md` | Construction audit, guarantees and next validations | LIVING |
+| `docs/systems/README_RESEARCH.md` | Research audit vs the Buildings reference contract | LIVING |
+| `docs/systems/README_UNIVERSE_EVOLUTION.md` | Evolution formulas, clock, catch-up, expansion and AI | LIVING |
+| `docs/systems/README_UNIVERSE_EVOLUTION_MONITOR.md` | Read-only observability, public RPC contract and deployment evidence | LIVING |
+| `docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md` | Canonical scaling, travel-time and fleet integration audit | LIVING |
+| `docs/tools/README_DEVELOPMENT_WORKFLOW.md` | Tool/agent responsibilities, operating rules and workflow | LIVING |
+| `docs/PRODUCTION_DB_BASELINE.md` | Production database/source-of-truth baseline | REFERENCE |
+| `supabase/ENGINE_MANIFEST.md` | Backend engine/runtime boundary and scheduler status | LIVING |
 
 Add future system-specific documents to this index when they become substantial enough to justify separation.

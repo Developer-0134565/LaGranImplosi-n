@@ -1,319 +1,250 @@
 # PROJECT CONTEXT — LA GRAN IMPLOSIÓN
 
-> **Purpose:** compact operational memory for continuing development safely across sessions.
+> **Purpose:** compact operational memory to continue development safely across sessions.
 >
-> This file is the project's **operational control panel**, not its encyclopedia. Durable technical knowledge belongs in specialized README files and living monitors.
+> This file is the project's **operational control panel**, not its encyclopedia. Durable technical
+> knowledge lives in specialized READMEs and living monitors (see the index at the end).
 
 ---
 
-## 1. Mission
+## 1. What L.G.I. is
 
-La Gran Implosión is an OGame-like browser game built with React/TypeScript/Vite on the frontend and Supabase/Postgres as the game backend.
+La Gran Implosión is an OGame-like browser game: **React 19 / TypeScript / Vite** on the frontend and
+**Supabase/PostgreSQL** as the authoritative game backend, served through a **Cloudflare Worker**
+(`worker/`). It may use genre concepts while keeping its own mechanics, architecture and
+universe-evolution model; OGameX is a reference, never a dependency or an authority over L.G.I. rules.
 
-The project may use established genre concepts while keeping its own mechanics, architecture and universe-evolution model. OGameX is a reference, never a dependency or authority over L.G.I. rules.
+```text
+src/       presentation / client integration
+worker/    Cloudflare HTTP + assets boundary
+supabase/  authoritative game engine, schema and migrations
+```
 
----
-
-## 2. Operating Rules
-
-Before substantial work:
-
-1. Recover this context and the relevant specialized documentation.
-2. Inspect the real repository/Git state and Supabase state when applicable.
-3. Check whether the requested functionality already exists before creating anything new.
-4. Preserve completed work unless there is a documented reason to change it.
-5. Treat contradictions between documentation and implementation as audit findings; verify before changing anything.
-6. For substantial new systems, check OGameX for a useful conceptual pattern before designing from scratch.
-7. Give implementation agents bounded, project-specific specifications; do not delegate architecture invention implicitly.
-8. Do not delete useful historical knowledge merely to reduce document size. Segregate durable detail into the appropriate README first.
-9. Implementation-agent prompts must be bounded to the known task and should not repeat repository-wide discovery after the initial map exists.
-10. Before sending a Cline/DeepSeek prompt, state the Intelligence level and an expected cost band; use deeper/high-cost audits only when they materially reduce uncertainty.
-11. Before implementing, reviewing, auditing or modifying anything, explicitly choose the most appropriate tool/agent for the task (ChatGPT, Cline + DeepSeek, Copilot, or Qwen/LM Studio) based on scope, difficulty, required access and cost. This choice is mandatory before execution.
-12. After meaningful work, update the specialized README/monitor when durable knowledge changes and update this file when operational state, decisions or OPEN/CLOSED status changes.
-
-Core loop:
-
-`Context → audit → plan → implement → test → verify → document → update context`
-
-Detailed tooling workflow: [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md)
-
----
-
-## 3. Source of Truth
-
-Use the following hierarchy when sources disagree:
+## 2. Source of truth
 
 ```text
 LIVE SUPABASE STATE / DEFINITIONS
         ↓
 CURRENT GITHUB CODE + CHECKED-IN MIGRATIONS
         ↓
-SPECIALIZED PROJECT DOCUMENTATION / LIVING MONITORS
+SPECIALIZED DOCUMENTATION / LIVING MONITORS
         ↓
 PROJECT_CONTEXT_PROMPT.md
         ↓
-OGameX REFERENCE / PATTERN ANALYSIS
+OGAMEX REFERENCE / PATTERN ANALYSIS
         ↓
 OLD SESSION CONVERSATIONS / ASSUMPTIONS
 ```
 
-OGameX does **not** define L.G.I. rules. It is a reference library for conceptual patterns, established approaches, formulas and architecture.
+Canonical: Supabase is the backend authority · GitHub is the code/history authority · the game is
+`Player → active Planet → Universe` · a capability is not "done" because a function exists (execution,
+persistence, transitions, idempotency, concurrency, integration, documentation and the user's browser
+validation also matter) · durable detail is segregated, never deleted.
 
-Memory/documentation architecture: [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md)
+## 3. Canonical architecture
 
----
-
-## 4. Current Architecture
-
-Canonical high-level model:
-
-`Player → active Planet → Universe`
-
-Backend: Supabase/PostgreSQL.
-Frontend: React/TypeScript/Vite.
-
-Runtime boundary:
+Layers are validated in this order:
 
 ```text
-src/       → presentation/client integration
-worker/    → Cloudflare HTTP/assets boundary
-supabase/  → authoritative game engine/schema/migrations
+1. BASIC GAME ENGINE      construction / research / fleet / transport / attack / combat
+2. TEMPORAL LAYER         persistent clock / workers / events / catch-up / downtime recovery
+3. UNIVERSE EVOLUTION     evolving rates / expansion / special galaxies / AI population
 ```
 
-Gameplay layers are validated in this order:
+Identity contract (single model since 2026-09-18):
 
 ```text
-1. BASIC GAME ENGINE
-   construction / research / fleet / transport / attack / combat
-
-2. TEMPORAL LAYER
-   persistent clock / workers / events / catch-up / downtime recovery
-
-3. UNIVERSE EVOLUTION
-   evolving rates / expansion / special galaxies / AI population
+anonymous session (supabase.auth.signInAnonymously)
+   ↓ auth.uid()
+players.user_id → players.id
+   ↓ planets.player_id
+activePlanet (own homeworld) → planet_resources.planet_id
 ```
 
-The basic engine must be coherent and playable before temporal/evolution work is allowed to hide underlying gameplay defects.
+Global planet heuristics ("first guest / first homeworld / first planet") and any client-provided
+`player_id` without an ownership check are **not allowed**. Detail:
+[`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md).
 
-Detailed durable architecture: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
+## 4. CURRENT STATUS
 
----
+Baseline: HEAD `ea677f0` = origin/main (`ea677f0`); the working tree also holds local
+documentation/identity work that must not be lost.
 
-## 5. Development Environment
-
-Current responsibility model:
+### CLOSED
 
 ```text
-ChatGPT              = architecture + audit + interpretation + coordination + tool/agent selection
-Cline + DeepSeek     = primary heavy-duty execution/reasoning vessel for complex, multi-file, debugging and repository-wide-but-bounded operations
-Copilot              = fast scoped implementation/refactoring for localized tasks
-Qwen / LM Studio     = local laboratory, experimentation and alternative reasoning without API cost
-OGameX               = pattern/reference knowledge
-Supabase             = live backend/game-state authority
-GitHub               = code/history/documentation authority
-Memory               = cross-session continuity
-PROJECT_CTX          = current operational context
+Buildings lifecycle functional verification    13/13 PASS (transactional test, no residue)
+Frontend identity chain                        anonymous session → players.user_id → planets.player_id
+Guest identity registration                    register_guest_player (anonymous JWT) + onboarding
+Initial functional audit                       2026-09-18, see systems/README_FUNCTIONAL_AUDIT.md
+Universe Evolution base engine                 clock, catch-up, expansion, rolls, AI, heartbeat, monitor
+Ownership hardening (CRITICAL #1)              migration 20260918030000 APPLIED to Supabase LIVE
+                                               2026-09-18 and verified (pg_get_functiondef + functional
+                                               ownership tests + buildings 13/13 regression)
 ```
 
-### Mandatory tool-selection gate
-
-Before **every** task that will implement, review, audit or modify project material, ChatGPT must first make an explicit tool/agent selection.
-
-Decision principles:
-
-- **ChatGPT:** architecture, system-level interpretation, audit design, cross-system decisions and final verification.
-- **Cline + DeepSeek:** complex or multi-file implementation, difficult debugging, deep bounded audits and operations requiring repository execution. DeepSeek is the project's heavy-duty reasoning vessel, but must still be used cost-consciously.
-- **Copilot:** small/localized implementation, UI components, CSS, TypeScript changes, straightforward refactors and mechanical fixes.
-- **Qwen / LM Studio:** local experiments, prototypes, alternative reasoning and tasks where avoiding API cost is useful.
-
-The selected tool is not automatically the one that performs the whole task: ChatGPT remains responsible for choosing the mission, defining boundaries and verifying the result.
-
-For Cline/DeepSeek missions, always state:
-
-- **🧠 Intelligence:** None / Low / Medium / High / Extra
-- **💰 Cost expected:** LOW / MEDIUM / HIGH
-- **🎯 Why:** short justification
-
-Do not deploy the most powerful agent merely because it is available. Match the agent to the task, while reserving DeepSeek/Cline for missions where its additional reasoning/execution capability materially helps.
-
-No tool is the project's independent brain. Agents execute approved work; they do not redefine canonical gameplay or architecture without an explicit project decision.
-
-Detailed workflow: [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md)
-
----
-
-## 6. OGameX Reference Layer
-
-OGameX is a permanent architectural/gameplay-pattern reference, not a dependency.
-
-Use:
-
-`study → understand → compare → adapt → validate`
-
-The first-pass OGameX → L.G.I. subsystem map is established. Deep audits use it only where comparison can expose a concrete architectural gap.
-
-Detailed methodology and map: [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) → [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md)
-
----
-
-## 7. Current Gameplay / Universe Decisions
-
-### Universe evolution
-
-- Persistent internal clock.
-- Must progress conceptually while the site/server is offline.
-- Resume processing detects elapsed time and catches up missed events.
-- Normal galaxy system-expansion timing: `8 × G^0.75` hours per new system.
-- Every 12 real hours: one global 1% roll for a special galaxy after G100.
-- Special galaxies start with 10 systems and use a separate expansion formula.
-- AI population targets roughly 5–10% of available universe slots, with tolerance and reconciliation as space expands.
-
-**CLOSED — 2026-09-18:** Universe Evolution engine + observability + production deployment are validated end-to-end. Live engine tests covered clock catch-up, overdue batching, concurrency, failure/recovery, normal/special expansion, galaxy rolls and AI reconciliation. The monitor recovered from CATCHING_UP to HEALTHY, and the deployed production Overview showed lag 0s, 0 pending ticks, 0 expansion backlog, 0 galaxy rolls due and 0 AI deficit.
-
-Detailed formulas, scheduling, catch-up, observability and deployment evidence:
-- [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md)
-- [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md)
-
-### Protected UI area
-
-Wallpaper/background behavior is a protected area. Gameplay work must not casually alter established CSS/background authority. Create a dedicated UI/CSS README when a frontend audit makes that worthwhile.
-
----
-
-## 8. Current OPEN Work
-
-### OPEN — BASIC GAME ENGINE AUDIT — HIGH
-
-Current order:
-
-1. 🏗️ Construction — **backend + integration validated; pending the user's browser test**
-2. 🔬 Research
-3. 🚀 Fleet movement
-4. 📦 Transport
-5. ⚔️ Attack
-6. 💥 Combat
-
-Construction: the full lifecycle (validación → coste/tiempo → descuento atómico de recursos → cola → procesado → completado → persistencia de nivel → producción) is audited, with documented concurrency/idempotency guarantees (planet row lock + active-queue guard; queue row lock + `COMPLETED` early-return + `target = current+1` guard + PK upsert + `SKIP LOCKED` processors). The Buildings UI now consumes the authoritative `can_start_building()` contract (cost of the next level, level, availability + reason) and settles temporal state with `sync_current_planet_resources()`. Tests: `scripts/verify-buildings.mjs` (live, read-only) and `supabase/tests/buildings_lifecycle.sql` (transactional, non-committing). Remaining for certification: the user's browser functional test.
-
-Living audit: [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md)
-
-### OPEN — OGameX subsystem deep audits
-
-The structural map is complete at first-pass level. Deep comparison continues where it can expose a concrete architectural gap, beginning with gameplay lifecycle/background processing as the motor audit advances.
-
-### OPEN — Economy semantics — MEDIUM
-
-Audit resource balances, production/consumption semantics and modifier ordering against the current database/functions. Do not mix future evolution semantics into the base-engine certification unless a concrete dependency requires it.
-
-### CLOSED — Universe Evolution engine + monitor validation
-
-Universe Evolution is now implemented and directly validated in live Supabase. The persistent clock, catch-up, normal/special galaxy expansion, galaxy-roll processing, AI reconciliation and heartbeat were tested with controlled overdue/concurrency/failure-recovery scenarios.
-
-The operational monitor is also validated end-to-end. Active Universe 1 reached HEALTHY after a temporary CATCHING_UP state, with lag 0s, ticks due 0, expansion backlog 0, galaxy rolls due 0 and AI deficit 0.
-
-Production deployment is also validated: Cloudflare Worker `lagranimplosion`, version `a5cba4c6-b82f-4c73-b445-f32fb887614`, served the Overview monitor successfully with the same healthy live state.
-
-Detailed evolution and monitor state:
-- [systems/README_UNIVERSE_EVOLUTION.md](systems/README_UNIVERSE_EVOLUTION.md)
-- [systems/README_UNIVERSE_EVOLUTION_MONITOR.md](systems/README_UNIVERSE_EVOLUTION_MONITOR.md)
-
-### OPEN — Final security/RLS hardening — LOW / FINAL PHASE
-
-Security remains a final hardening phase unless a concrete defect requires earlier intervention. Deferred hardening is not permission to ignore an actual security issue.
-
----
-
-## 9. Established / CLOSED Decisions
-
-- Supabase is the backend authority.
-- GitHub/repository state is the code/history authority.
-- The project follows `Context → Audit → Plan → Implement → Test → Verify → Document`.
-- OGameX is a reference layer, not a dependency.
-- Player → active planet → universe is the canonical frontend/domain contract.
-- Universe evolution is separate from galaxy/system expansion.
-- Durable detail is segregated into specialized documentation.
-- Historical decisions remain traceable; moving detail out of this file is not deletion.
-- The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
-- Universe Evolution engine validation is closed for the currently implemented clock/catch-up/expansion/roll/AI/heartbeat surface.
-- Universe Evolution Monitor validation is closed: sanitized public RPC + React UI + authenticated execution + recovery-to-HEALTHY were verified.
-- Production deployment validation is closed for the current Universe Evolution monitor: Cloudflare Worker deployment + public Overview verification succeeded.
-- Public monitor backend is versioned by migrations 20260918020000 through 20260918020300; the public RPC is intentionally callable by anon and authenticated, while the full monitor remains private.
-- Basic-engine certification includes a user-performed web functional test; backend existence alone is insufficient.
-- The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later prompts must be bounded and cost-aware.
-- Production verification confirmed active pg_cron jobs for `universe-heartbeat` (1 minute) and `deuteria-fleet-worker` (1 second); the repository/dump alone did not expose those cron rows.
-
-Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
-
----
-
-## 10. Documentation & Memory System
-
-The project uses a three-layer continuity model:
+### OPEN — CRITICAL
 
 ```text
-Persistent ChatGPT memory
+(none)
+```
+
+### OPEN — HIGH
+
+```text
+Research audit: DONE + lifecycle test 24/24 PASS (systems/README_RESEARCH.md §12) — UI cost/time still pending
+Research client contract: DEFECT confirmado y reproducible en LIVE (can_research/check_research_requirements
+  SECURITY INVOKER sobre research_prerequisites con RLS restrictiva; sin bypass de gameplay; test instrumentado,
+  decisión de arquitectura pendiente — systems/README_RESEARCH.md §1b/§12.1)
+Fleet engine sweep: canonical pipeline CONVERGED (classes PEACEFUL/WAR/HOLDING, test 22/22 PASS); OPEN:
+  ACS_HOLD/HOLDING/DEFEND not dispatchable (class + holding_fleet_speed prepared) — systems/README_FLEET_ENGINE.md §8/§10
+Shipyard audit/tests
+Defence audit/tests
+Browser certification of Buildings (user-run functional test)
+Migration history watch: inverse drift CLOSED — 39 local files · REAL_DIVERGENCE 0 · AMBIGUOUS 0 ·
+  LOCAL - LIVE = EMPTY (16 files re-labelled to the LIVE version, 3 obsolete local artefacts preserved,
+  2 payloads recovered verbatim). Remaining: 221 ledger rows with no local file (next mission) and 2
+  out-of-band monitor ACLs that need a forward migration; still no `supabase db push` / `migration repair`
+  from this copy (docs/MIGRATION_INVERSE_DRIFT_AUDIT.md · docs/MIGRATION_DRIFT_RECONCILIATION.md)
+```
+
+### OPEN — MEDIUM
+
+```text
+Combat UI
+Fleet mission lifecycle UI
+Lifeforms UI
+Expedition result UI
+player_messages integration
+```
+
+### OPEN — LOW
+
+```text
+placeholder modules (chrome notices)
+legacy/projection cleanup   (calculate_building_production_delta is BROKEN with no consumers)
+unused tables               (dashboard_widgets, player_notes, player_messages)
+lint cleanup                (3 pre-existing errors)
+```
+
+## 5. Functional map (compact)
+
+```text
+Identity    CLOSED / verified (ownership hardening applied)   Planets    YES        Economy  PARTIAL
+Buildings   VERIFIED (browser test pending)  Research   AUDITED / tests pending
+Shipyard    PARTIAL / no tests               Defence    PARTIAL / no tests
+Fleet       PARTIAL                          Combat     PARTIAL / backend without UI
+Expeditions PARTIAL                          Lifeforms  PARTIAL / backend without UI
+Universe    YES                              Evolution  YES / ACTIVE
+AI planets  YES                              Messages   PARTIAL
+Auth/Guest  YES                              Frontend   PARTIAL
+Scheduling  YES (pg_cron active)
+```
+
+Full table (exists · backend · deployed · frontend · connected · real data · tests · status), core
+chains per domain, RPC inventory, duplicates and gaps:
+[`systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md).
+Economy layers (authoritative / projection / legacy) and the broken helper:
+[`systems/README_ECONOMY.md`](systems/README_ECONOMY.md).
+
+## 6. Universe Evolution — exists, deployed, connected and active
+
+Do **not** redesign it. Live (2026-09-18): `universe_clock` ticking every 60 s, `universe_expansion_state`
+and `universe_population_state` present, `pg_cron` running `universe-heartbeat` (60 s) and
+`deuteria-fleet-worker` (1 s), catch-up v2, normal expansion `8 × G^0.75` hours for G1–G100, special
+galaxy roll every 12 h at 1 % (10 initial systems, separate growth), AI population reconciliation to a
+≈7.5 % target with tolerance, persistent timestamps and downtime catch-up. Observed live: 101 galaxies,
+233 AI planets ≈ 7.26 %.
+
+Rules: [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) ·
+monitor: [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md).
+
+## 7. Protected areas
+
+**CSS / wallpaper / visual foundation are protected areas.** Gameplay work must not alter the
+established CSS or background authority. Detail stays where it is documented; create a dedicated UI/CSS
+README only when a frontend audit justifies it.
+
+## 8. OGameX
+
+OGameX = **architectural reference, NOT a dependency.**
+
+```text
+study → understand → compare → adapt → validate
+```
+
+The first-pass OGameX → L.G.I. map is established; deep comparison happens only where it can expose a
+concrete architectural gap.
+[`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) · [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md)
+
+## 9. Documentation & memory system
+
+```text
+Persistent ChatGPT memory          cross-session principles and preferences
         ↕
-PROJECT_CONTEXT_PROMPT.md
+PROJECT_CONTEXT_PROMPT.md          operational memory / index (this file)
         ↕
-Specialized READMEs / living monitors
+Specialized READMEs / monitors     durable technical detail
         ↕
-Real repository + Supabase state
+Real repository + Supabase state   actual implementation and live state
 ```
 
-Use each layer for its intended purpose:
+When a document grows too large: **segregate before deleting** — move durable detail to the right
+README, leave a concise summary/link here, keep traceability. Rules:
+[`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md).
 
-- **Persistent memory:** cross-session principles, important decisions and continuity.
-- **PROJECT_CONTEXT_PROMPT.md:** compact current state, active decisions, OPEN/CLOSED work and navigation.
-- **Specialized READMEs/monitors:** detailed durable knowledge and system-specific audit state.
-- **Repository/Supabase:** actual implementation and live state.
+## 10. Working rules (compact)
 
-When a document becomes too large, **segregate before deleting**. Move durable detail to an appropriate README, leave a concise summary/link here, and preserve traceability. Only remove information after it has been confirmed obsolete, duplicated or genuinely useless.
+```text
+Choose the appropriate agent/tool for the task (ChatGPT · Cline+DeepSeek · Copilot · Qwen/LM Studio)
+  and state Intelligence + expected cost for Cline/DeepSeek missions.
+Do not blindly trust generated changes.
+Verify against real Git and Supabase state before believing any claim.
+Check whether the functionality already exists before creating anything new.
+Keep prompts bounded; do not repeat repository-wide discovery once the map exists.
+After meaningful work: update the specialized README (durable detail) and this file (operational state).
+```
 
-System rules: [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md)
+Core loop: `Context → audit → plan → implement → test → verify → document → update context`
+Full protocol, agent responsibilities and cost discipline:
+[`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md).
+
+## 11. NEXT ENGINEERING STEP
+
+```text
+1. Ownership hardening: DONE — migration 20260918030000 applied to Supabase LIVE and verified on
+   2026-09-18 (no guest bypass in the six RPCs; legitimate owner ALLOWED, foreign owner REJECTED,
+   auth.uid() NULL REJECTED; buildings lifecycle 13/13 PASS; identity regression PASS; history recorded).
+2. Next: begin the Research audit (same chain shape as Buildings, still without audit or tests).
+3. Then: Shipyard, Defence, Fleet/Combat mission lifecycle, Lifeforms UI.
+```
+
+Universe Evolution is **not** the next implementation target: it already exists, is deployed and is
+active. The transversal security block (ownership hardening) is now closed.
+
+## 12. Specialized documentation index
+
+| Area | Document |
+|---|---|
+| Memory/documentation system | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) |
+| Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) |
+| Functional audit (map, gaps, tests) | [`systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md) |
+| Identity & access | [`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md) |
+| Economy | [`systems/README_ECONOMY.md`](systems/README_ECONOMY.md) |
+| Game engine audit (construction) | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) |
+| Research (audit vs Buildings) | [`systems/README_RESEARCH.md`](systems/README_RESEARCH.md) |
+| Fleet engine (classes, modifiers, fuel) | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) |
+| Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) |
+| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) |
+| Rate/fleet engine monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) |
+| OGameX reference + map | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) · [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) |
+| Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) |
+| Production DB baseline | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) |
+| Supabase engine manifest | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) |
 
 ---
 
-## 11. Session Recovery
-
-At the beginning of a substantial session:
-
-1. Recover persistent memory/context.
-2. Read this file.
-3. Follow only the specialized README/monitor links relevant to the task.
-4. Inspect current Git/repository state.
-5. Inspect Supabase when backend state matters.
-6. Reconcile documentation with reality before modifying anything.
-
-At the end of meaningful work:
-
-1. Update the relevant specialized README/monitor if durable knowledge changed.
-2. Update this file if operational state or OPEN/CLOSED decisions changed.
-3. Preserve traceability for superseded decisions.
-4. Leave the repository testable and recoverable.
-
----
-
-## 12. Specialized Documentation Index
-
-| Area | Document | Role |
-|---|---|---|
-| Memory/documentation | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) | Rules for memory and documentation segregation |
-| Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) | Durable architecture and design decisions |
-| Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Living audit of construction/research/fleet/transport/attack/combat |
-| OGameX | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) | OGameX reference index and method |
-| OGameX map | [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Concrete OGameX → L.G.I. subsystem comparison |
-| Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, galaxies and AI |
-| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract, status semantics, validation and production deployment |
-| Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
-| Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | ChatGPT, Cline, Qwen, Copilot and tool responsibilities |
-| Production DB | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
-| Supabase engine | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) | Current backend engine/runtime boundary and scheduler status |
-
-Create another specialized README only when a domain contains enough durable knowledge to justify independent maintenance.
-
----
-
-## 13. Golden Rule
+## Golden rule
 
 > **Do not guess when the project can be inspected.**
 >

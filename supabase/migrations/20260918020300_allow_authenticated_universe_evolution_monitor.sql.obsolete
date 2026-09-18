@@ -1,0 +1,19 @@
+-- OBSOLETE LOCAL ARTIFACT — 2026-09-18 (inverse-drift blocker resolution)
+-- Reason: no ledger row exists for this content (no version, no name and no SQL match among the 260
+--   payloads), yet its effect IS present in LIVE (PUBLIC revoked; anon + authenticated granted on
+--   get_universe_evolution_monitor_public) → OUT-OF-BAND apply. The ledger only records the earlier part
+--   of that ACL chain: 20260918015023 (revoke public/anon/authenticated + grant anon) and 20260918015116
+--   (revoke authenticated). The GRANT to authenticated is unrecorded.
+-- OPEN: a forward migration is required for reproducibility (docs/MIGRATION_INVERSE_DRIFT_AUDIT.md
+--   § Blocker Resolution).
+-- NOT a migration (the .obsolete extension is not discovered by the CLI).
+
+-- The frontend is used by signed-in players, so the sanitized monitor RPC
+-- must be callable by authenticated users as well as anonymous visitors.
+-- The function itself remains SECURITY DEFINER with a restricted, read-only
+-- response surface; this migration only expands EXECUTE to the authenticated role.
+
+revoke execute on function public.get_universe_evolution_monitor_public(uuid) from public;
+
+grant execute on function public.get_universe_evolution_monitor_public(uuid)
+  to anon, authenticated;

@@ -20,6 +20,42 @@ Detailed durable description of how the project's tools cooperate. Keep `PROJECT
 | GitHub | Code, migrations and documentation authority |
 | DeepSeek | Optional secondary reasoning aid; never authoritative |
 
+## Mandatory tool-selection gate
+
+Before **every** task that implements, reviews, audits or modifies project material, the coordinating agent must make an explicit tool/agent selection based on scope, difficulty, required access and cost.
+
+- **ChatGPT:** architecture, system-level interpretation, audit design, cross-system decisions and final verification.
+- **Cline + DeepSeek:** complex or multi-file implementation, difficult debugging, deep bounded audits and operations requiring repository execution. Heavy-duty vessel, but cost-conscious.
+- **Copilot:** small/localized implementation, UI components, CSS, TypeScript changes, straightforward refactors and mechanical fixes.
+- **Qwen / LM Studio:** local experiments, prototypes, alternative reasoning and tasks where avoiding API cost matters.
+
+For any Cline/DeepSeek mission always state: **🧠 Intelligence** (None/Low/Medium/High/Extra) · **💰 Cost expected** (LOW/MEDIUM/HIGH) · **🎯 Why** (one sentence).
+
+Do not deploy the most powerful agent merely because it is available. The selected tool is not required to perform the whole task: the coordinating agent remains responsible for choosing the mission, defining its boundaries and verifying the result.
+
+No tool is the project's independent brain: agents execute approved work; they do not redefine canonical gameplay or architecture without an explicit project decision.
+
+## Project-wide operating rules
+
+1. Recover this context and the relevant specialized documentation before substantial work.
+2. Inspect the real repository/Git state and Supabase state when applicable.
+3. Check whether the requested functionality already exists before creating anything new.
+4. Preserve completed work unless there is a documented reason to change it.
+5. Treat contradictions between documentation and implementation as audit findings; verify before changing anything.
+6. For substantial new systems, check OGameX for a useful conceptual pattern before designing from scratch.
+7. Give implementation agents bounded, project-specific specifications; do not delegate architecture invention implicitly.
+8. Do not delete useful historical knowledge to shorten a document. Segregate durable detail into the appropriate README first.
+9. Implementation-agent prompts must be bounded and must not repeat repository-wide discovery once the initial map exists.
+10. State the Intelligence level and an expected cost band before sending a Cline/DeepSeek prompt; use deeper/high-cost audits only when they materially reduce uncertainty.
+11. Choose the most appropriate tool/agent explicitly before implementing, reviewing, auditing or modifying anything (see the gate above).
+12. After meaningful work, update the specialized README/monitor when durable knowledge changes and update `PROJECT_CONTEXT` when operational state, decisions or OPEN/CLOSED status changes.
+
+Core loop:
+
+```text
+Context → audit → plan → implement → test → verify → document → update context
+```
+
 ## Standard development loop
 
 ```text

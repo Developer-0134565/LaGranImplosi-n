@@ -1,0 +1,98 @@
+-- =============================================================================
+-- RECOVERED MIGRATION — 20260918015016
+-- ledger name : register_universe_evolution_monitor
+-- provenance  : Supabase LIVE supabase_migrations.schema_migrations.statements
+--               (verbatim payload of the original apply_migration call; recovered during
+--                blocker resolution of the inverse-drift audit, 2026-09-18)
+-- ALREADY APPLIED IN LIVE — do not re-apply; this file exists for traceability only.
+-- =============================================================================
+create or replace function public.get_universe_evolution_monitor(p_universe_id uuid)
+returns table(
+  universe_id uuid, universe_name text, is_active boolean, status text,
+  clock_last_tick_at timestamptz, clock_next_tick_at timestamptz, clock_interval_seconds integer,
+  clock_is_processing boolean, clock_lag_seconds bigint, clock_ticks_due bigint,
+  galaxy_count bigint, normal_galaxy_count bigint, special_galaxy_count bigint, system_count bigint,
+  unlocked_positions bigint, expansion_pending_galaxies bigint, expansion_oldest_lag_seconds bigint,
+  expansion_batch_limit integer, next_galaxy_roll_at timestamptz, galaxy_roll_interval_seconds integer,
+  galaxy_roll_probability numeric, galaxy_rolls_due bigint, ai_planets_count bigint, ai_density numeric,
+  ai_density_target numeric, ai_density_tolerance numeric, ai_density_lower_bound numeric,
+  ai_density_upper_bound numeric, ai_deficit bigint, ai_generation_batch integer, ai_estimated_batches bigint,
+  next_ai_reconciliation_at timestamptz, last_success_at timestamptz, last_failure_at timestamptz,
+  consecutive_failures integer, last_ticks_executed integer, last_systems_expanded integer,
+  last_error text, health_updated_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $function$
+with base as (
+  select u.id,u.name,u.is_active,
+    uc.last_tick_at,uc.next_tick_at,uc.tick_interval_seconds,uc.is_processing,
+    ue.next_galaxy_roll_at,ue.galaxy_roll_interval_seconds,ue.galaxy_roll_probability,
+    up.unlocked_systems,up.unlocked_positions,up.ai_planets_count,
+    up.ai_density_target,up.ai_density_tolerance,up.ai_generation_batch,up.next_reconciliation_at,
+    ph.last_success_at,ph.last_failure_at,ph.consecutive_failures,ph.last_ticks_executed,
+    ph.last_systems_expanded,ph.last_error,ph.updated_at as health_updated_at
+  from public.universes u
+  left join public.universe_clock uc on uc.universe_id=u.id
+  left join public.universe_expansion_state ue on ue.universe_id=u.id
+  left join public.universe_population_state up on up.universe_id=u.id
+  left join public.universe_process_health ph on ph.universe_id=u.id
+  where u.id=p_universe_id
+),
+galaxies as (
+  select count(*)::bigint galaxy_count,
+    count(*) filter(where is_special=false)::bigint normal_galaxy_count,
+    count(*) filter(where is_special=true)::bigint special_galaxy_count,
+    coalesce(sum(system_count),0)::bigint system_count,
+    count(*) filter(where next_system_expansion_at<=now())::bigint expansion_pending_galaxies,
+    coalesce(greatest(extract(epoch from(now()-min(next_system_expansion_at) filter(where next_system_expansion_at<=now()))),0)::bigint,0) expansion_oldest_lag_seconds
+  from public.universe_galaxies where universe_id=p_universe_id
+),
+calculated as (
+  select b.*,g.*,
+    greatest(extract(epoch from(now()-b.next_tick_at)),0)::bigint clock_lag_seconds,
+    case when b.next_tick_at is null or b.tick_interval_seconds is null or b.tick_interval_seconds<=0 then 0::bigint
+      when now()<b.next_tick_at then 0::bigint
+      else floor(extract(epoch from(now()-b.next_tick_at))/b.tick_interval_seconds)::bigint+1 end clock_ticks_due,
+    case when b.next_galaxy_roll_at is null or b.galaxy_roll_interval_seconds is null or b.galaxy_roll_interval_seconds<=0 then 0::bigint
+      when now()<b.next_galaxy_roll_at then 0::bigint
+      else floor(extract(epoch from(now()-b.next_galaxy_roll_at))/b.galaxy_roll_interval_seconds)::bigint+1 end galaxy_rolls_due,
+    greatest(
+      ceil(coalesce(b.unlocked_positions,0)::numeric*
+        greatest(coalesce(b.ai_density_target,0)-coalesce(b.ai_density_tolerance,0),0)
+      )::bigint-coalesce(b.ai_planets_count,0),0::bigint) ai_deficit
+  from base b cross join galaxies g
+),
+final as (
+  select c.*,case
+    when c.is_active=false then 'INACTIVE'
+    when coalesce(c.consecutive_failures,0)>0 then 'FAILED'
+    when c.last_failure_at is not null and c.last_success_at is not null and c.last_failure_at>c.last_success_at then 'FAILED'
+    when c.is_processing then 'CATCHING_UP'
+    when c.clock_ticks_due>0 and c.last_success_at is not null
+      and c.last_success_at>=now()-make_interval(secs=>greatest(c.tick_interval_seconds*3,300)) then 'CATCHING_UP'
+    when c.clock_ticks_due>greatest(3::bigint,ceil(greatest(c.tick_interval_seconds,1)/60.0)::bigint*3) then 'STALLED'
+    when c.last_success_at is null then 'DEGRADED'
+    when c.expansion_pending_galaxies>0 or c.galaxy_rolls_due>0 or c.ai_deficit>0 then 'DEGRADED'
+    when c.last_failure_at is not null and c.last_success_at is not null
+      and c.last_failure_at<=c.last_success_at
+      and c.last_failure_at>=now()-make_interval(secs=>greatest(c.tick_interval_seconds*10,600)) then 'RECOVERING'
+    else 'HEALTHY' end status
+  from calculated c
+)
+select f.id,f.name,f.is_active,f.status,f.last_tick_at,f.next_tick_at,f.tick_interval_seconds,f.is_processing,
+  f.clock_lag_seconds,f.clock_ticks_due,f.galaxy_count,f.normal_galaxy_count,f.special_galaxy_count,f.system_count,
+  coalesce(f.unlocked_positions,f.system_count*15),f.expansion_pending_galaxies,f.expansion_oldest_lag_seconds,10000::integer,
+  f.next_galaxy_roll_at,f.galaxy_roll_interval_seconds,f.galaxy_roll_probability,f.galaxy_rolls_due,
+  coalesce(f.ai_planets_count,0),
+  case when coalesce(f.unlocked_positions,0)>0 then coalesce(f.ai_planets_count,0)::numeric/f.unlocked_positions else 0::numeric end,
+  coalesce(f.ai_density_target,0),coalesce(f.ai_density_tolerance,0),
+  greatest(coalesce(f.ai_density_target,0)-coalesce(f.ai_density_tolerance,0),0),
+  coalesce(f.ai_density_target,0)+coalesce(f.ai_density_tolerance,0),f.ai_deficit,coalesce(f.ai_generation_batch,0),
+  case when coalesce(f.ai_generation_batch,0)>0 then ceil(f.ai_deficit::numeric/f.ai_generation_batch)::bigint else 0::bigint end,
+  f.next_reconciliation_at,f.last_success_at,f.last_failure_at,coalesce(f.consecutive_failures,0),
+  coalesce(f.last_ticks_executed,0),coalesce(f.last_systems_expanded,0),f.last_error,f.health_updated_at
+from final f;
+$function$;

@@ -1,0 +1,101 @@
+{
+ "date": "2026-09-18",
+ "renames": [
+  {
+   "from": "20260913044000_harden_internal_rpc_permissions.sql",
+   "to": "20260913043732_harden_internal_rpc_permissions.sql",
+   "fromVersion": "20260913044000",
+   "toVersion": "20260913043732"
+  },
+  {
+   "from": "20260913051000_fix_start_fleet_guest_auth.sql",
+   "to": "20260913051303_fix_start_fleet_guest_auth.sql",
+   "fromVersion": "20260913051000",
+   "toVersion": "20260913051303"
+  },
+  {
+   "from": "20260913080500_grant_authenticated_building_and_research_rpcs.sql",
+   "to": "20260913080256_grant_authenticated_building_and_research_rpcs.sql",
+   "fromVersion": "20260913080500",
+   "toVersion": "20260913080256"
+  },
+  {
+   "from": "20260913091000_harden_calculate_building_cost_security.sql",
+   "to": "20260913090452_harden_calculate_building_cost_security.sql",
+   "fromVersion": "20260913091000",
+   "toVersion": "20260913090452"
+  },
+  {
+   "from": "20260913094500_harden_start_research_concurrency.sql",
+   "to": "20260913093737_harden_start_research_concurrency.sql",
+   "fromVersion": "20260913094500",
+   "toVersion": "20260913093737"
+  },
+  {
+   "from": "20260913100000_harden_start_fleet_destination_universe.sql",
+   "to": "20260913093046_harden_start_fleet_destination_universe.sql",
+   "fromVersion": "20260913100000",
+   "toVersion": "20260913093046"
+  },
+  {
+   "from": "20260913103000_remove_orphan_strict_audit_table.sql",
+   "to": "20260913103153_remove_orphan_strict_audit_table.sql",
+   "fromVersion": "20260913103000",
+   "toVersion": "20260913103153"
+  },
+  {
+   "from": "20260914073000_align_economy_projection_helpers.sql",
+   "to": "20260914052934_align_economy_projection_helpers.sql",
+   "fromVersion": "20260914073000",
+   "toVersion": "20260914052934"
+  },
+  {
+   "from": "20260914074800_integrate_evolution_over_resource_time.sql",
+   "to": "20260914054021_integrate_evolution_over_resource_time.sql",
+   "fromVersion": "20260914074800",
+   "toVersion": "20260914054021"
+  },
+  {
+   "from": "20260914215000_close_legacy_state_mutation_entrypoints.sql",
+   "to": "20260914214728_close_legacy_state_mutation_entrypoints.sql",
+   "fromVersion": "20260914215000",
+   "toVersion": "20260914214728"
+  },
+  {
+   "from": "20260915050000_add_guest_temporal_ui_sync_rpc.sql",
+   "to": "20260915045311_add_guest_temporal_ui_sync_rpc.sql",
+   "fromVersion": "20260915050000",
+   "toVersion": "20260915045311"
+  },
+  {
+   "from": "20260915_add_sidebar_social_data_v1.sql",
+   "to": "20260915032657_20260915_add_sidebar_social_data_v1.sql",
+   "fromVersion": null,
+   "toVersion": "20260915032657"
+  },
+  {
+   "from": "20260916020500_harden_fleet_event_time_rewards.sql",
+   "to": "20260916015541_harden_fleet_event_time_rewards.sql",
+   "fromVersion": "20260916020500",
+   "toVersion": "20260916015541"
+  },
+  {
+   "from": "20260916021500_fix_attack_arrival_temporal_order.sql",
+   "to": "20260916020648_fix_attack_arrival_temporal_order.sql",
+   "fromVersion": "20260916021500",
+   "toVersion": "20260916020648"
+  },
+  {
+   "from": "20260918020100_add_public_universe_evolution_monitor.sql",
+   "to": "20260918015023_add_public_universe_evolution_monitor.sql",
+   "fromVersion": "20260918020100",
+   "toVersion": "20260918015023"
+  },
+  {
+   "from": "20260918020200_lock_public_universe_evolution_monitor_to_guest.sql",
+   "to": "20260918015116_lock_public_universe_evolution_monitor_to_guest.sql",
+   "fromVersion": "20260918020200",
+   "toVersion": "20260918015116"
+  }
+ ]
+}
