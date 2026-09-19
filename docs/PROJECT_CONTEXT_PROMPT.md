@@ -92,6 +92,11 @@ The development workflow and tool-selection gate are defined in
 - ACS_HOLD support to a foreign planet requires an explicit, revocable, planet-scoped authorization granted by the
   destination owner; planet existence is never authorization, and no alliance/buddy system is invented.
 - Documentation detail is segregated; moving it to a specialized README is not deletion.
+- Migration provenance is governed by the [Migration Provenance Gate](MIGRATION_PROVENANCE_GATE.md):
+  `20260919180000_fix_planet_support_authorization_ambiguity.sql` is **LOCAL_ONLY / NOT_DEPLOYED /
+  BLOCKED**, while LIVE-only versions `20260919055336`, `20260919061454`, `20260919062509` and
+  `20260919070020` are **NOT_RECOVERABLE**. Missing provenance blocks deployment; never reconstruct
+  lost SQL, create same-version placeholders, mark migrations reverted, or edit the migration ledger.
 
 ## 6. CLOSED
 
@@ -181,6 +186,7 @@ Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or 
 | OGameX method | [`docs/reference/README_OGAMEX.md`](reference/README_OGAMEX.md) |
 | OGameX map | [`docs/reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) |
 | Rate/fleet monitor | [`docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) |
+| Migration provenance gate | [`docs/MIGRATION_PROVENANCE_GATE.md`](MIGRATION_PROVENANCE_GATE.md) |
 
 ## 11. Next engineering boundary
 
