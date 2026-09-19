@@ -164,3 +164,29 @@ LIVE database modified             NO
 ```
 
 The four non-LIVE files remain untouched because they are the previously classified version-drift cases. The repository now has complete SQL provenance for every LIVE ledger version. `supabase db push` remains prohibited until those four drift files and the two out-of-band ACL changes are handled by the dedicated reconciliation decision.
+
+
+## 9. Final reconciliation — 2026-09-19
+
+The final migration blocker is **CLOSED**.
+
+```text
+LIVE ledger before final reconciliation     261 rows
+Forward provenance migration                 20260919042952
+LIVE ledger after reconciliation             261 rows
+Local active migration files                 261
+Local .superseded history                    4
+LIVE - LOCAL                                 0
+LOCAL - LIVE                                 0
+```
+
+The forward migration reasserts three already-certified end states without changing gameplay balance:
+
+- `peaceful_fleet_speed`, `war_fleet_speed`, `holding_fleet_speed` and the canonical mission-speed classifier;
+- canonical player-aware fleet fuel calculation with `fuel_reduction_percent` as the sole generic reduction;
+- private monitor ACL hardening and public monitor `anon` + `authenticated` execute access.
+
+The four unledgered `origin/main` migration files were **not deleted as history**. They are preserved as
+`.superseded` artifacts with provenance headers and are no longer discovered by the Supabase migration CLI.
+
+This closes the repository↔LIVE migration provenance blocker. No `migration repair`, reset, or replay was used.
