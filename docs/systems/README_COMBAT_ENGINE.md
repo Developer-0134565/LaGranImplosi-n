@@ -234,3 +234,40 @@ For ACS, keep this semantic unchanged.
 - no second combat engine;
 - no migration-history rewrite;
 - no changes to live schema were made by this audit.
+
+
+## 11. Participant schema migration — 2026-09-19
+
+Implemented forward-only migration 20260919070000_add_combat_battle_participants.
+
+### Durable identity added
+
+combat_battle_participants now provides one stable identity per battle participant with:
+
+- ATTACKER/FLEET support for the existing mobile attacker;
+- DEFENDER/PLANET for the stationary target;
+- DEFENDER/FLEET for future ACS/HOLDING fleets;
+- player_id, fleet_id, planet_id, and origin_planet_id for deterministic ownership/settlement;
+- mission_type retained as movement provenance rather than as the participant identity.
+
+Participant-aware nullable foreign keys are now present on:
+
+- combat_individual_units.participant_id;
+- combat_round_snapshot_units.participant_id;
+- combat_shots.attacker_participant_id;
+- combat_shots.target_participant_id;
+- combat_round_damage.target_participant_id.
+
+### Compatibility boundary
+
+The existing combat writers still operate unchanged. The old unit uniqueness constraints were intentionally not removed yet. This migration therefore adds the identity layer without pretending that ACS is implemented. Historical rows remain valid with participant_id NULL.
+
+The next migration must, in one controlled step:
+
+1. create/backfill participants for the active single-attacker battle path;
+2. populate participant IDs through initialization/snapshot/shot/damage writers;
+3. replace the old unit uniqueness keys with participant-aware keys;
+4. add participant-aware regression fixtures;
+5. only then enable multiple defending fleet participants.
+
+LIVE verification after application: combat_battle_participants exists and currently contains 0 rows; no historical combat data was rewritten by this migration.
