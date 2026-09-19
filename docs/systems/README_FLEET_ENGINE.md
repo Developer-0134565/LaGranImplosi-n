@@ -434,3 +434,12 @@ The first HOLDING migration was compared against the recovered canonical worker 
 - the private worker ACL (`REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated`).
 
 This was detected before ACS dispatch implementation and corrected LIVE by migration `20260919060000_restore_fleet_worker_hardening` and the matching repository migration file. LIVE verification confirms the worker remains private and the HOLDING transitions are present. Do not edit migration history to repair this class of drift; add a forward correction migration.
+
+
+## 21. ACS combat prerequisite audit — 2026-09-19
+
+Before implementing player-facing ACS dispatch, combat integration must be treated as a separate structural work item. LIVE `combat_battles` currently has one `fleet_id`, one `attacker_player_id` and one `defender_planet_id`; `resolve_combat(uuid)` snapshots exactly one attacking fleet plus the target planet's stationary ships/defenses. `resolve_attack_arrival(uuid)` then writes surviving attacker ships back to the movement and target planet state. This is a single-defender model, not yet an ACS multi-defender model.
+
+Therefore the next implementation boundary is **not** to make `resolve_attack_arrival()` inspect ACS rows ad hoc. First define a durable battle-participant model that can attribute each defending support fleet to its owner and source movement, preserve per-fleet survival, and settle each surviving fleet back to its own origin. This matches the OGameX reference pattern where ACS defender fleets are explicit battle participants with fleet/owner identity and multi-defender results.
+
+No combat schema or resolver changes were made in this audit.
