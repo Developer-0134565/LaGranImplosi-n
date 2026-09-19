@@ -2,8 +2,8 @@
 
 > **Status:** BACKEND CONVERGED / MISSION MODIFIERS CLOSED — movement lifecycle, propulsion/technology routing,
 > mission-speed classes, fuel and modifier ordering are verified against LIVE. **Browser certification remains
-> OPEN**. The HOLDING class
-> (ACS/holding/defend) is prepared at the classifier/universe level but its gameplay is **not implemented**.
+> OPEN**. The HOLDING class now has its **persistence/lifecycle contract** (mission types, `holding_until`, `HOLDING`
+> state and worker transitions), but **ACS/holding/defend gameplay dispatch and combat integration remain OPEN**.
 >
 > Canonical durable record for ship prerequisites, propulsion technology, mission speed classes, cargo,
 > fuel, distance, dispatch and the movement lifecycle. OGameX is a reference pattern; L.G.I. keeps its own
@@ -228,7 +228,7 @@ effective speed and mission restrictions. Travel time uses the **slowest effecti
 accumulated per ship type using the same persisted flight time; composition is persisted in
 `fleet_movement_ships`.
 
-## 11. Movement lifecycle / idempotency — 2026-09-18
+## 11. Movement lifecycle / idempotency — 2026-09-19
 
 The shared worker was hardened specifically for downtime recovery, duplicate execution and concurrent
 workers. Current live `process_fleet_movements()` semantics:
@@ -242,9 +242,11 @@ row lock + global transaction advisory lock
         ↓
 OUTBOUND → ARRIVED
         ↓
-mission-specific resolver                 (resolve_transport/deploy/attack/espionage/colonize/expedition/recycle)
+mission-specific resolver                 (including HOLDING → persisted holding state)
         ↓
-ARRIVED → RETURNING or COMPLETED
+ARRIVED → HOLDING / RETURNING / COMPLETED
+        ↓
+HOLDING → RETURNING when holding_until is due
         ↓
 persisted return timestamp
         ↓
@@ -285,16 +287,16 @@ EXPEDITION belongs to PEACEFUL). It now resolves the class with
 `fleet_speed = peaceful_fleet_speed = 1` and the delays were identical before/after
 (4439/6659/11099 and 4438/6658/11096 for three live expedition fleets).
 
-## 13. ACS / HOLDING / DEFEND — state: OPEN (not implemented)
+## 13. ACS / HOLDING / DEFEND — state: OPEN (lifecycle contract implemented, gameplay not implemented)
 
 | Layer | State | Evidence (LIVE) |
 |---|---|---|
 | Speed class | **DEFINITION_ONLY** | the classifier maps `ACS_HOLD`/`HOLDING`/`DEFEND` → `holding_fleet_speed` |
 | Universe column | **READY** | `universes.holding_fleet_speed` exists, `NOT NULL DEFAULT 1`, independent from the other two |
 | Dispatch RPC | **NOT_IMPLEMENTED** | `start_fleet`, `start_fleet_mixed`, `start_colonize_fleet` reject any mission outside the 7 implemented ones |
-| Persistence | **NOT_IMPLEMENTED** | `fleet_movements_mission_type_chk` allows only ATTACK, TRANSPORT, DEPLOY, ESPIONAGE, COLONIZE, RECYCLE, EXPEDITION |
-| Tables | **NOT_IMPLEMENTED** | no ACS/holding/support table exists (`fleet_movements`, `fleet_movement_ships` only) |
-| Resolution / UI | **NOT_IMPLEMENTED** | no `resolve_*` branch, no UI entry point |
+| Persistence | **PARTIAL / CONTRACT READY** | `fleet_movements` now accepts `ACS_HOLD`/`HOLDING`/`DEFEND` and persists `holding_until`; no separate support table is required yet |
+| Lifecycle worker | **PARTIAL / IMPLEMENTED** | due outbound support becomes `HOLDING`; due `holding_until` becomes `RETURNING`, reusing outbound duration for return |
+| Dispatch / combat / UI | **NOT_IMPLEMENTED** | no player-facing support dispatch, combat integration or UI entry point yet |
 
 Required pipeline when it is built (do not ship a partial version):
 
@@ -309,8 +311,11 @@ start_acs_hold/start_defend (SECURITY DEFINER, ownership check)
    ↓ return leg: reuse the duration (worker pattern of §11)
 ```
 
-Also required: `fleet_movements.mission_type` CHECK extension, destination semantics (support target =
-foreign planet), holding-duration persistence and fleet-support combat integration.
+Completed in migration `20260919053220_add_fleet_holding_lifecycle`: `fleet_movements.mission_type` now admits
+`ACS_HOLD`/`HOLDING`/`DEFEND`, `holding_until` is persisted, `HOLDING` is a durable movement state, and the worker
+transitions `OUTBOUND → HOLDING → RETURNING` while reusing the outbound duration. The new mission types require a
+non-null `holding_until`. Still required: destination semantics (support target = foreign planet), player-facing
+support dispatch, fleet-support combat integration and UI.
 
 ## 14. Route classification (map produced by the sweep)
 
@@ -336,7 +341,8 @@ foreign planet), holding-duration persistence and fleet-support combat integrati
 
 ### 15.1 Domain-level OPEN
 
-1. **ACS / HOLDING / DEFEND not implemented** (§13) — the only domain-level gameplay OPEN item of the fleet engine.
+1. **ACS / HOLDING / DEFEND gameplay not implemented** (§13) — the lifecycle contract is now in place, but dispatch,
+   support semantics, combat integration and UI remain the domain-level gameplay OPEN item.
 2. **Browser fleet flow — OPEN**: backend correctness is not browser certification. Verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return in the browser.
 
 ### 15.2 Design / hygiene decisions left open
