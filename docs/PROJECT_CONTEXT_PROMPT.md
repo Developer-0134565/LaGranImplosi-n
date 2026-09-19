@@ -318,6 +318,17 @@ The latest read-only audits supersede stale assumptions:
 - **Universe Evolution:** runtime engine is already active in LIVE. Do not design a second clock, scheduler, worker or catch-up mechanism.
 - **Canonical fleet open work:** browser certification, future ACS/HOLDING/DEFEND design, and bounded hygiene only.
 
+## 12.2 ACS / HOLDING / DEFEND lifecycle implementation — 2026-09-19
+
+The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supersedes the older “definition-only/no persistence” wording, while gameplay remains intentionally open:
+
+- Migration `20260919053220_add_fleet_holding_lifecycle` adds `fleet_movements.holding_until`, admits `ACS_HOLD` / `HOLDING` / `DEFEND` mission types, admits durable `HOLDING` status, and requires `holding_until` for those mission types.
+- `process_fleet_movements()` now transitions due support movements `OUTBOUND → HOLDING`, then due `holding_until` `HOLDING → RETURNING`, reusing the persisted outbound duration for the return leg.
+- No ACS/DEFEND player-facing dispatch RPC, support-combat integration, target semantics or UI has been implemented yet.
+- No separate ACS support table was introduced; the current design reuses `fleet_movements` + `fleet_movement_ships`.
+- Before building dispatch, verify the live worker against the pre-change/canonical worker body to ensure the lifecycle migration preserved all existing mission-specific arrival/return branches. Any discrepancy must be corrected with a new migration, not by editing migration history.
+- Next bounded task: audit the existing fleet dispatch/ownership contracts and OGameX ACS defend pattern, then define the minimal `start_acs_hold` / `start_defend` contract before implementing any player-facing RPC.
+
 ---
 
 ## 13. Golden rule
