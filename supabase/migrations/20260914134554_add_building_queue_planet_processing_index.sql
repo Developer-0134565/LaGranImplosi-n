@@ -1,0 +1,1 @@
+create index if not exists idx_building_queue_planet_building_finish on public.building_queue (planet_id, finishes_at, created_at) where status = 'BUILDING';
