@@ -214,6 +214,14 @@ begin
     ('7. damage application no rompe identidad ['||v_n||' NULL tras resolver]',
      case when v_n=0 then 'PASS' else 'FAIL' end);
 
+    /* The fixture may finish in round 1. Exercise the next-round cloning
+       function explicitly so participant propagation is tested independently
+       of the combat result. */
+    perform public.create_combat_next_round(
+        v_battle_id,
+        (select max(round_number) from public.combat_individual_units where battle_id=v_battle_id)
+    );
+
     select count(*) into v_n
     from public.combat_individual_units
     where battle_id=v_battle_id
@@ -222,7 +230,7 @@ begin
 
     insert into t_results(prueba,resultado) values
     ('8. rounds posteriores conservan participant_id ['||v_n||']',
-     case when v_n>0 then 'PASS' else 'FAIL: no se creó ronda posterior' end);
+     case when v_n>0 then 'PASS' else 'FAIL' end);
 
     /* -----------------------------------------------------------------------
        9. Settlement
