@@ -2,14 +2,14 @@
 
 ## Purpose
 
-Detailed durable description of how the project's tools cooperate. Keep `PROJECT_CONTEXT.md` focused on the compact operational rules.
+Detailed durable description of how the project's tools cooperate. Keep `docs/PROJECT_CONTEXT_PROMPT.md` focused on the compact operational rules.
 
 ## Tool responsibilities
 
 | Tool | Role |
 |---|---|
 | Persistent memory | Cross-session continuity and durable project principles |
-| `PROJECT_CONTEXT.md` | Compact operational context, status and roadmap |
+| `docs/PROJECT_CONTEXT_PROMPT.md` | Compact operational context, status and roadmap |
 | Specialized docs | Detailed durable domain/tool knowledge |
 | ChatGPT | Architecture, audit, design, coordination and review |
 | OGameX | External pattern/reference library |
@@ -112,7 +112,7 @@ Implementation detail only
 → specialized document if durable; otherwise no context change
 
 Operational state / active decision
-→ PROJECT_CONTEXT.md
+→ docs/PROJECT_CONTEXT_PROMPT.md
 
 Long-lived cross-session principle
 → persistent memory

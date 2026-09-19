@@ -1,23 +1,19 @@
 # PROJECT CONTEXT — LA GRAN IMPLOSIÓN
 
-> **Purpose:** compact operational memory to continue development safely across sessions.
+> **Purpose:** compact operational memory for safe session recovery.
 >
-> This file is the project's **operational control panel**, not its encyclopedia. Durable technical
-> knowledge lives in specialized READMEs and living monitors (see the index at the end).
-> Consolidated from the local operational work and `origin/main` during the 2026-09-18 integration merge.
+> This document is the operational control panel, not an encyclopedia. Durable technical detail belongs in
+> the specialized documents linked below.
 
----
+## 1. Project mission
 
-## 1. What L.G.I. is
-
-La Gran Implosión is an OGame-like browser game: **React 19 / TypeScript / Vite** on the frontend and
-**Supabase/PostgreSQL** as the authoritative game backend, served through a **Cloudflare Worker**
-(`worker/`). It may use genre concepts while keeping its own mechanics, architecture and
-universe-evolution model; OGameX is a reference, never a dependency or an authority over L.G.I. rules.
+La Gran Implosión is an OGame-like browser game with a React/TypeScript/Vite frontend, a Cloudflare Worker
+boundary and Supabase/PostgreSQL as the authoritative game backend. The project keeps its own mechanics,
+architecture and universe-evolution model. OGameX is a reference library, never a dependency or authority.
 
 ```text
-src/       presentation / client integration
-worker/    Cloudflare HTTP + assets boundary
+src/       presentation and client integration
+worker/    Cloudflare HTTP and asset boundary
 supabase/  authoritative game engine, schema and migrations
 ```
 
@@ -30,383 +26,159 @@ CURRENT GITHUB CODE + CHECKED-IN MIGRATIONS
         ↓
 SPECIALIZED DOCUMENTATION / LIVING MONITORS
         ↓
-PROJECT_CONTEXT_PROMPT.md
+docs/PROJECT_CONTEXT_PROMPT.md
         ↓
-OGAMEX REFERENCE / PATTERN ANALYSIS
-        ↓
-OLD SESSION CONVERSATIONS / ASSUMPTIONS
+OGAMEX REFERENCE / OLD SESSION ASSUMPTIONS
 ```
 
-Canonical: Supabase is the backend authority · GitHub is the code/history authority · the game is
-`Player → active Planet → Universe` · a capability is not "done" because a function exists (execution,
-persistence, transitions, idempotency, concurrency, integration, documentation and the user's browser
-validation also matter) · durable detail is segregated, never deleted.
-
-## 3. Canonical architecture
-
-Layers are validated in this order:
+The canonical identity chain is:
 
 ```text
-1. BASIC GAME ENGINE      construction / research / fleet / transport / attack / combat
-2. TEMPORAL LAYER         persistent clock / workers / events / catch-up / downtime recovery
-3. UNIVERSE EVOLUTION     evolving rates / expansion / special galaxies / AI population
+auth.uid() → players.user_id → players.id → owned active planet → universe
 ```
 
-Identity contract (single model since 2026-09-18):
+Ownership checks are mandatory. Do not infer an active planet from global “first planet” heuristics or trust
+client-provided player identity without backend authorization.
+
+## 3. Architecture and terminology
+
+Validated layer order:
 
 ```text
-anonymous session (supabase.auth.signInAnonymously)
-   ↓ auth.uid()
-players.user_id → players.id
-   ↓ planets.player_id
-activePlanet (own homeworld) → planet_resources.planet_id
+BASIC GAME ENGINE → TEMPORAL LAYER → UNIVERSE EVOLUTION
 ```
 
-Global planet heuristics ("first guest / first homeworld / first planet") and any client-provided
-`player_id` without an ownership check are **not allowed**. Detail:
-[`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md).
+Canonical fleet terms:
 
-## 4. Tool-selection gate (mandatory)
+- **PEACEFUL:** `TRANSPORT`, `DEPLOY`, `COLONIZE`, `EXPEDITION`
+- **WAR:** `ATTACK`, `ESPIONAGE`, `RECYCLE`
+- **HOLDING:** `ACS_HOLD`, `HOLDING`, `DEFEND`
+- **Canonical fleet pipeline:** `calculate_player_ship_speed` → `calculate_mission_fleet_speed_multiplier`
+  → evolution `E^(1/3)` → mission/item/lifeform modifiers → `calculate_fleet_travel_time`
+  → `calculate_player_fleet_fuel_for_distance`
+- `calculate_mission_fleet_speed_multiplier()` is an internal backend helper, not a public API.
+- Supabase functions/RPCs are authoritative for speed, fuel, cargo, prerequisites and movement state.
 
-Before **every** task that will implement, review, audit or modify project material, ChatGPT must first make
-an explicit tool/agent selection.
+Detailed fleet rules, mission matrix, modifier order, propulsion routing, fuel semantics and lifecycle:
+[`docs/systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md).
 
-- **ChatGPT:** architecture, system-level interpretation, audit design, cross-system decisions and final verification.
-- **Cline + DeepSeek:** complex or multi-file implementation, difficult debugging, deep bounded audits and
-  operations requiring repository execution; heavy-duty reasoning vessel, still cost-conscious.
-- **Copilot:** small/localized implementation, UI components, CSS, TypeScript changes, mechanical fixes.
-- **Qwen / LM Studio:** local experiments, prototypes and tasks where API cost matters.
+## 4. Rules for work
 
-For Cline/DeepSeek missions always state: **🧠 Intelligence** (None/Low/Medium/High/Extra) · **💰 Cost
-expected** (LOW/MEDIUM/HIGH) · **🎯 Why** (one sentence).
+1. Recover this context and only the specialized documents relevant to the task.
+2. Inspect the real repository/Git state and Supabase state when backend state matters.
+3. Check whether a capability already exists before creating another path.
+4. Preserve completed work; contradictions between documentation and implementation are findings to verify.
+5. Do not duplicate canonical formulas or make the frontend authoritative.
+6. OGameX informs comparison only; never copy its Laravel/PHP/ORM/routing architecture blindly.
+7. Use bounded implementation/audit scopes and validate with the smallest relevant test.
+8. Document durable discoveries in the specialized README first, then update this context only when operational
+   state or an active decision changes.
 
-The selected tool is not automatically the one that performs the whole task: ChatGPT remains responsible for
-choosing the mission, defining boundaries and verifying the result. No tool is the project's independent
-brain: agents execute approved work; they do not redefine canonical gameplay or architecture without an
-explicit project decision. Detailed workflow:
-[`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md).
+The development workflow and tool-selection gate are defined in
+[`docs/tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md).
 
-## 5. OGameX reference layer
+## 5. Active decisions
 
-OGameX is a permanent architectural/gameplay-pattern reference, not a dependency:
+- Universe evolution is a separate temporal/domain layer; technology, mission and item modifiers do not belong
+  in `calculate_universe_scaling(E)`.
+- The seven implemented fleet missions use one canonical speed/travel/fuel pipeline.
+- Engine technologies enter through `calculate_player_ship_speed` and
+  `calculate_player_ship_fuel_consumption` only.
+- Fuel reduction uses Lifeform `fuel_reduction_percent`; Hyperspace Technology is not a generic fuel discount.
+- Fleet return timing reuses the persisted outbound duration; it does not recalculate speed.
+- ACS/HOLDING/DEFEND must not be exposed as partial player gameplay.
+- Documentation detail is segregated; moving it to a specialized README is not deletion.
+
+## 6. CLOSED
+
+- Mission Modifiers / Fleet Engine audit is functionally closed in LIVE for:
+  - mission classifier and PEACEFUL/WAR routing;
+  - `start_fleet`, `start_fleet_mixed` and `start_colonize_fleet`;
+  - propulsion and technology routing;
+  - evolution ordering;
+  - Lifeform and Item modifier ordering;
+  - canonical travel-time pipeline;
+  - fuel ordering and single fuel-reduction application;
+  - movement lifecycle, return timing and duplicate-run protection.
+- The three dispatchers converge on the same canonical pipeline. The mission-speed helper remains internal.
+- Legacy fleet calculation routes were retired after consumer/body checks; no legacy bypass is part of an
+  implemented mission path.
+- Universe Evolution engine, monitor and production deployment validation are closed for their current scope.
+- Ownership hardening and the current single-attacker combat participant propagation are closed for their
+  certified scopes.
+
+Evidence and detailed tests remain in
+[`docs/systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md), not in this file.
+
+## 7. OPEN
+
+### OPEN — PARTIAL: ACS / HOLDING / DEFEND
+
+Implemented infrastructure:
+
+- `HOLDING` mission classification and `holding_fleet_speed`;
+- `holding_until`;
+- durable `HOLDING` state;
+- lifecycle `OUTBOUND → ARRIVED → HOLDING → RETURNING`.
+
+Not implemented and must remain open:
+
+- player-facing dispatch;
+- complete support-destination semantics;
+- ACS/alliance/buddy eligibility rules;
+- combat integration and multi-defender settlement;
+- validated support-specific fuel semantics;
+- UI.
+
+### Other OPEN work
+
+- Browser certification of the seven implemented fleet missions.
+- Shipyard/defence and buildings browser certification where still pending.
+- Bounded hygiene decisions for `calculate_universe_rates` and unused Lifeform keys.
+- Fleet lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and `player_messages`.
+
+Do not change `OPEN — PARTIAL` to `CLOSED` because persistence or worker infrastructure exists.
+
+## 8. SUPERSEDED / protected history
+
+- Historical migration artifacts marked `.superseded` remain provenance only.
+- Do not repair migration history by reset, replay or editing old migrations; use forward-only corrections.
+- Do not restart a generic Fleet Speed audit when a directed question is sufficient.
+- Protected UI wallpaper/background behavior must not be changed casually.
+
+## 9. Session recovery
+
+1. Read `docs/PROJECT_CONTEXT_PROMPT.md`.
+2. Identify the subsystem and open only its specialized README/monitor.
+3. Inspect Git and, when relevant, LIVE Supabase state.
+4. Compare documentation with reality before changing anything.
+5. Implement only the bounded requested scope.
+6. Run targeted validation, then document durable state changes.
+
+## 10. Specialized documentation
+
+| Area | Document |
+|---|---|
+| Architecture | [`docs/architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) |
+| Fleet Engine | [`docs/systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) |
+| Universe Evolution | [`docs/systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) |
+| Combat Engine | [`docs/systems/README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) |
+| Functional audit | [`docs/systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md) |
+| Identity and access | [`docs/systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md) |
+| Economy | [`docs/systems/README_ECONOMY.md`](systems/README_ECONOMY.md) |
+| Memory system | [`docs/README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) |
+| Development workflow | [`docs/tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) |
+| OGameX method | [`docs/reference/README_OGAMEX.md`](reference/README_OGAMEX.md) |
+| OGameX map | [`docs/reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) |
+| Rate/fleet monitor | [`docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) |
+
+## 11. Next engineering boundary
 
 ```text
-study → understand → compare → adapt → validate
+1. Define and implement the minimum participant-aware combat model required by ACS.
+2. Only after that, define player-facing ACS/HOLDING/DEFEND dispatch contracts.
+3. Certify the already-converged seven fleet missions in the browser.
+4. Continue remaining browser and bounded hygiene work without reopening closed fleet rules.
 ```
 
-The first-pass OGameX → L.G.I. subsystem map is established; deep audits use it only where comparison can
-expose a concrete architectural gap. Never copy Laravel/PHP/ORM/routing.
-Method and map: [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) →
-[`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md).
-
-## 6. Current gameplay / universe decisions
-
-### Universe evolution
-
-- Persistent internal clock; must progress conceptually while the site/server is offline.
-- Resume processing detects elapsed time and catches up missed events.
-- Normal galaxy system-expansion timing: `8 × G^0.75` hours per new system.
-- Every 12 real hours: one global 1% roll for a special galaxy after G100.
-- Special galaxies start with 10 systems and use a separate expansion formula.
-- AI population targets roughly 5–10% of available universe slots, with tolerance and reconciliation as space
-  expands.
-- Production verification confirmed active pg_cron jobs `universe-heartbeat` (1 minute) and
-  `deuteria-fleet-worker` (1 second); the repository/dump alone does not expose those cron rows.
-
-### Protected UI area
-
-Wallpaper/background behaviour is a protected area. Gameplay work must not casually alter established
-CSS/background authority. Create a dedicated UI/CSS README when a frontend audit makes that worthwhile.
-
-## 7. Current status
-
-### CLOSED
-
-```text
-Buildings lifecycle functional verification   13/13 PASS (transactional, no residue); the UI consumes the
-                                              authoritative can_start_building() contract; user browser test pending
-Frontend identity chain                       anonymous session → players.user_id → planets.player_id
-Guest identity registration                   register_guest_player (anonymous JWT) + onboarding
-Initial functional audit                      2026-09-18 → systems/README_FUNCTIONAL_AUDIT.md
-Research domain                               authoritative can_start_research() contract (server-computed cost,
-                                              time, prerequisites, queue and reason_code), ownership/security
-                                              gates, legacy helper APIs closed, regression battery
-                                              (supabase/tests/research_lifecycle.sql) and browser level-up /
-                                              resource-deduction flow validated
-Ownership hardening (CRITICAL #1)             migration 20260918030000 APPLIED to LIVE and verified; six owned
-                                              RPCs hardened (start_building, start_research, start_ship,
-                                              start_defense, start_fleet, sync_current_planet_resources) →
-                                              systems/README_OWNERSHIP_HARDENING.md
-Fleet movement lifecycle hardening            persisted event timing, downtime/catch-up, concurrent worker
-                                              serialization, duplicate-run protection, private worker APIs
-Fleet propulsion / mission-speed / fuel       CLOSED functionally: Hyperspace fuel reduction removed (lifeform
-                                              fuel_reduction_percent is the source); fleet_speed split into
-                                              peaceful/war/holding and dispatchers select class → E^(1/3) →
-                                              item/lifeform modifiers; supabase/tests/fleet_speed_classes.sql
-                                              22/22 PASS; legacy calculation RPC cluster retired 2026-09-19
-Universe Evolution engine + monitor           clock, catch-up, normal/special expansion, galaxy rolls, AI
-                                              reconciliation, heartbeat, read-only monitor and Cloudflare
-                                              production deployment (Worker lagranimplosion) validated
-Migration-history recovery                     CLOSED: LIVE/local migration parity reconciled at 262/262; 4 historical
-                                              non-LIVE origin files are retained only as .superseded provenance artifacts;
-                                              no migration blocker remains
-```
-
-### OPEN — CRITICAL
-
-```text
-(none)
-```
-
-### OPEN — HIGH
-
-```text
-Basic game engine audit order (systems/README_GAME_ENGINE_AUDIT.md)
-  1 construction  backend + integration validated · pending the user's browser test
-  2 research      CLOSED (contract + browser flow validated)
-  3 fleet         backend lifecycle/propulsion/fuel/mission classes converged · browser certification OPEN
-  4 transport     audit pending
-  5 attack        audit pending
-  6 combat        audit pending
-Shipyard audit/tests and transactional lifecycle regression
-Defence audit/tests and transactional lifecycle regression
-Research UI authoritative contract: current src/App.tsx already consumes can_start_research() for cost/time/availability; the previous pending note is superseded. Browser flow remains part of the certification gate.
-Migration-history final reconciliation: all 260 LIVE ledger rows are recovered locally; remaining blocker is
-  the 4 non-LIVE drift files plus 2 out-of-band monitor ACL changes. No `supabase db push`, `migration repair`,
-  reset, pull or dump until the final reconciliation decision is closed
-Browser certification of Buildings (user-run functional test)
-```
-
-### OPEN — MEDIUM
-
-```text
-Economy semantics audit (resource balances, production/consumption semantics, modifier ordering)
-Combat UI
-Fleet mission lifecycle UI
-Lifeforms UI
-Expedition result UI
-player_messages integration
-```
-
-### OPEN — LOW
-
-```text
-Final security/RLS hardening phase (deferred unless a concrete defect requires earlier intervention)
-Bounded fleet hygiene: calculate_universe_rates canonical meaning decision + unused lifeform-key decision
-Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, friends)
-```
-
-## 8. Established / CLOSED decisions
-
-- Supabase is the backend authority; GitHub/repository state is the code/history authority.
-- The project follows `Context → Audit → Plan → Implement → Test → Verify → Document`.
-- OGameX is a reference layer, not a dependency; never copy Laravel/PHP/ORM/routing.
-- `Player → active planet → universe` is the canonical frontend/domain contract; global planet heuristics and
-  any client-provided `player_id` without an ownership check are forbidden.
-- Universe evolution is separate from galaxy/system expansion; `calculate_universe_scaling(E)` contains only
-  the E → category transformation (no technology, planet, lifeform, item, event, alliance or mission
-  modifiers).
-- Durable detail is segregated into specialized documentation; moving detail out of this file is not deletion,
-  and history stays traceable.
-- The first-pass OGameX → L.G.I. structural map is established; subsystem-specific audits remain open.
-- Universe Evolution engine validation, monitor validation and production deployment validation are CLOSED for
-  the currently implemented clock/catch-up/expansion/roll/AI/heartbeat surface.
-- The public monitor backend is versioned by migrations `20260918020000` … `20260918020300`; the public RPC is
-  intentionally callable by `anon` and `authenticated`, while the full monitor stays private.
-- Basic-engine certification includes a user-performed web functional test; backend existence alone is
-  insufficient.
-- Research is functionally closed: authoritative `can_start_research()` contract, security/ownership checks,
-  regression battery and browser level-up/resource-deduction flow validated.
-- Ownership hardening is closed for the six critical player/planet action RPCs; the final security/RLS phase
-  remains separate.
-- Fleet engine backend audit is closed for the implemented seven missions: propulsion, cargo/fuel, mission-speed
-  classes, modifiers, dispatch/return timing and duplicate-run behaviour are verified. Remaining fleet work is
-  browser certification, future ACS/HOLDING/DEFEND design, and bounded hygiene only. The dead legacy calculation
-  RPC cluster was retired 2026-09-19.
-- The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later
-  prompts must be bounded and cost-aware.
-- Migration history: LIVE `supabase_migrations.schema_migrations` remains the certified ledger; local active migrations
-  are aligned with LIVE at 262/262. Four historical origin files are preserved as `.superseded` provenance artifacts;
-  no migration repair/reset/replay was used.
-
-Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
-
-## 9. Documentation & memory system
-
-Three-layer continuity model:
-
-```text
-PROJECT_CONTEXT_PROMPT.md      compact operational memory, status and roadmap (this file)
-        ↓
-specialized READMEs            durable detail per system/domain
-        ↓
-living monitors / reports      observability, audits and validated evidence
-```
-
-Rules: keep this file compact; segregate durable detail before deleting anything; after meaningful work update
-the specialized README (durable knowledge) and this file (operational state); always preserve traceability for
-superseded decisions. Details: [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md).
-
-## 10. Session recovery
-
-At the beginning of a substantial session:
-
-1. Recover persistent memory/context.
-2. Read this file.
-3. Follow only the specialized README/monitor links relevant to the task.
-4. Inspect current Git/repository state.
-5. Inspect Supabase when backend state matters.
-6. Reconcile documentation with reality before modifying anything.
-
-At the end of meaningful work:
-
-1. Update the relevant specialized README/monitor if durable knowledge changed.
-2. Update this file if operational state or OPEN/CLOSED decisions changed.
-3. Preserve traceability for superseded decisions.
-4. Leave the repository testable and recoverable.
-
-## 11. Specialized documentation index
-
-| Area | Document | Role |
-|---|---|---|
-| Memory/documentation | [`README_MEMORY_SYSTEM.md`](README_MEMORY_SYSTEM.md) | Rules for memory and documentation segregation |
-| Architecture | [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md) | Durable architecture and design decisions |
-| Functional audit | [`systems/README_FUNCTIONAL_AUDIT.md`](systems/README_FUNCTIONAL_AUDIT.md) | exists/deployed/connected/verified map, gaps and tests |
-| Identity & access | [`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md) | Identity chain, RLS model and ownership hardening |
-| Ownership hardening | [`systems/README_OWNERSHIP_HARDENING.md`](systems/README_OWNERSHIP_HARDENING.md) | Owned RPC authorization and hardening evidence |
-| Economy | [`systems/README_ECONOMY.md`](systems/README_ECONOMY.md) | Resources, production, costs, settlement semantics |
-| Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Construction/research/fleet audit, guarantees, next validations |\n| Shipyard + Defence | [`systems/README_SHIPYARD_DEFENSE.md`](systems/README_SHIPYARD_DEFENSE.md) | Production queues, authoritative contracts and lifecycle certification |
-| Research | [`systems/README_RESEARCH.md`](systems/README_RESEARCH.md) | Research audit vs Buildings + client availability contract |
-| Fleet engine | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) | Prerequisites, propulsion, mission classes, fuel, lifecycle |\n| Combat engine | [`systems/README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) | LIVE combat V2 pipeline, participant model and ACS prerequisite |
-| Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, expansion and AI |
-| Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract and deployment evidence |
-| Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
-| Migration drift (forward) | [`MIGRATION_DRIFT_RECONCILIATION.md`](MIGRATION_DRIFT_RECONCILIATION.md) | Verbatim recovery, verification and push rules |
-| Migration drift (inverse) | [`MIGRATION_INVERSE_DRIFT_AUDIT.md`](MIGRATION_INVERSE_DRIFT_AUDIT.md) | Inverse audit, blocker resolution, push-safety state |
-| OGameX reference + map | [`reference/README_OGAMEX.md`](reference/README_OGAMEX.md) · [`reference/OGAMEX_LGI_MAP.md`](reference/OGAMEX_LGI_MAP.md) | Method + concrete OGameX → L.G.I. comparison |
-| Development workflow | [`tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md) | Tool/agent responsibilities and workflow |
-| Production DB baseline | [`PRODUCTION_DB_BASELINE.md`](PRODUCTION_DB_BASELINE.md) | Production database/source-of-truth baseline |
-| Supabase engine manifest | [`../supabase/ENGINE_MANIFEST.md`](../supabase/ENGINE_MANIFEST.md) | Backend engine/runtime boundary and scheduler status |
-
-Create another specialized README only when a domain contains enough durable knowledge to justify independent
-maintenance.
-
-## 12. Next engineering step
-
-```text
-0. ACS/HOLDING/DEFEND: combat architecture prerequisite is now audited; implement the minimum participant-aware combat model before player-facing ACS dispatch.
-1. Shipyard + Defence transactional lifecycle certification.
-2. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
-3. Buildings browser certification.
-4. Continue basic-engine closure only after the remaining lifecycle/browser gates are green; Transport/Attack are already covered by the converged fleet/combat paths.
-6. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
-7. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
-```
-
-The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
-active, and is **not** the next implementation target.
-
-
-## 12.1 Operational correction — 2026-09-19
-
-The latest read-only audits supersede stale assumptions:
-
-- **Fleet mission audit:** seven implemented mission paths are functionally converged in LIVE; no live double modifier, fuel-order defect or legacy bypass was found. ACS/HOLDING/DEFEND remains definition-only. Detailed evidence: systems/README_FLEET_ENGINE.md.
-- **Fleet legacy cleanup:** CLOSED. The dead legacy fleet calculation RPC cluster was retired in LIVE migration `20260919042419_retire_legacy_fleet_calculation_rpc_cluster`. Do not restart a generic Fleet Speed audit.
-- **Migration reconciliation:** CLOSED. LIVE ledger and local active migrations are aligned at 262/262; four historical non-LIVE files are preserved as `.superseded` provenance artifacts. Do not use migration repair/reset/replay as a recovery mechanism.
-- **Universe Evolution:** runtime engine is already active in LIVE. Do not design a second clock, scheduler, worker or catch-up mechanism.
-- **Canonical fleet open work:** browser certification, future ACS/HOLDING/DEFEND design, and bounded hygiene only.
-
-## 12.3 Holding audit correction + ACS design findings — 2026-09-19
-
-- The first HOLDING lifecycle migration preserved the mission-specific worker branches but omitted two pre-existing worker hardening details: outbound/returning partial indexes and the private EXECUTE ACL. This was corrected forward-only in 20260919060000_restore_fleet_worker_hardening; LIVE verification confirms both indexes/ACL and the HOLDING branches.
-- OGameX ACS Defend reference: ACS Defend is a distinct mission with physical arrival separated from the hold window, buddy/alliance eligibility, and multi-defender combat with per-fleet owner/mission attribution. Source reference: OGameX AcsDefendMission, FleetMissionService, DefenderFleet, and FleetDispatchAcsDefendTest.
-- L.G.I. has no LIVE alliance/buddy tables, so the OGameX eligibility rule must not be copied blindly. Support eligibility is a game-design OPEN decision.
-- Before start_acs_hold / start_defend, preserve the current canonical speed/fuel pipeline and require the existing authenticated ownership pattern. Do not route ACS through the legacy start_fleet_mixed security/authority gap.
-- LIVE combat audit: `combat_battles` currently models one attacking fleet against one target planet, and `resolve_combat()` snapshots only stationary ships/defenses on that planet. ACS cannot be safely integrated by patching `resolve_attack_arrival()` around this model; a durable multi-defender participant/ownership model is required first so each support fleet can be resolved and returned to its own origin.
-
-## 12.2 ACS / HOLDING / DEFEND lifecycle implementation — 2026-09-19
-
-The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supersedes the older “definition-only/no persistence” wording, while gameplay remains intentionally open:
-
-- Migration `20260919053220_add_fleet_holding_lifecycle` adds `fleet_movements.holding_until`, admits `ACS_HOLD` / `HOLDING` / `DEFEND` mission types, admits durable `HOLDING` status, and requires `holding_until` for those mission types.
-- `process_fleet_movements()` now transitions due support movements `OUTBOUND → HOLDING`, then due `holding_until` `HOLDING → RETURNING`, reusing the persisted outbound duration for the return leg.
-- No ACS/DEFEND player-facing dispatch RPC, support-combat integration, target semantics or UI has been implemented yet.
-- No separate ACS support table was introduced; the current design reuses `fleet_movements` + `fleet_movement_ships`.
-- Before building dispatch, verify the live worker against the pre-change/canonical worker body to ensure the lifecycle migration preserved all existing mission-specific arrival/return branches. Any discrepancy must be corrected with a new migration, not by editing migration history.
-- Next bounded task: audit the existing fleet dispatch/ownership contracts and OGameX ACS defend pattern, then define the minimal `start_acs_hold` / `start_defend` contract before implementing any player-facing RPC.
-
----
-
-## 13. Golden rule
-
-> **Do not guess when the project can be inspected.**
->
-> **Do not duplicate durable knowledge when it can be referenced.**
->
-> **Do not delete useful history merely to make the context smaller.**
->
-> Inspect → compare → decide → implement → test → document → preserve continuity.
-
-
-## 12.4 Combat architecture audit — 2026-09-19
-
-- LIVE combat V2 is confirmed as the active path: `combat_battles → combat_individual_units → snapshots → shots/RF → combat_round_damage → target resolution → apply damage → combat_rounds → next round → finalization → resolve_attack_arrival settlement`.
-- `combat_battles` is structurally single-attacker/single-target-planet. `resolve_combat()` initializes the attack fleet plus stationary planet ships/defences.
-- `combat_individual_units` has no durable fleet/owner participant identity. Its uniqueness model would collide when two support fleets contain the same ship type/unit number.
-- `resolve_attack_arrival()` settles one attacker fleet plus one stationary planet and cannot safely return multiple ACS fleets by inference.
-- Minimum ACS prerequisite is an explicit `combat_battle_participants` layer plus `participant_id` propagation through individual units, snapshots, shots and damage. Preserve aggregate ATTACKER/DEFENDER round semantics, but retain participant-level survivor identity for settlement.
-- Participant settlement must return each surviving support fleet to its own `fleet_id` / `origin_planet_id`; loot remains attacker-only, defence repair remains planet-only, debris remains battle-scoped.
-- No combat schema/function changes were made in this audit. Durable detail: `systems/README_COMBAT_ENGINE.md`.
-- Next implementation boundary: participant migration + regression fixtures; only after that `start_acs_hold` / `start_defend`.
-- Participant schema migration is now LIVE and documented as 20260919070000_add_combat_battle_participants. It adds combat_battle_participants plus nullable participant foreign keys through units/snapshots/shots/damage, but deliberately leaves existing combat writers and uniqueness constraints unchanged. LIVE participant row count is 0; no historical combat rows were rewritten.
-- Next precise implementation boundary: backfill/create participants for the current single-attacker path, propagate participant_id through combat writers, then replace uniqueness constraints with participant-aware keys. Only after regression verification should ACS multi-defender dispatch be enabled.
-
-
-
-## 12.5 Combat participant propagation — 2026-09-19
-
-- The first participant-aware combat schema is LIVE: `combat_battle_participants` plus participant FKs on units/snapshots/shots/damage.
-- Forward-only migration `20260919080000_propagate_combat_participants_v2` now uses that identity in the existing V2 single-attacker + stationary-planet path.
-- Updated writers: `resolve_combat`, unit initialization, snapshots, initial/RF shots, damage ledger, damage application, next-round cloning and `resolve_attack_arrival` settlement.
-- Current behavior is intentionally unchanged at the gameplay level: one attacker fleet + one stationary planet, same round/RF/damage/loot/repair/debris/return semantics.
-- Historical combat rows were not rewritten. Old unit/snapshot uniqueness constraints remain in place deliberately; ACS multi-fleet insertion is still blocked until those keys are replaced safely.
-- LIVE smoke verification after deployment: participant table exists, current participant row count remains 0 because no new combat was executed as part of the change; no historical combat data was mutated by the verification.
-- OGameX comparison supports the durable per-fleet attribution pattern (its current battle engine models multiple attacker/defender fleets), but no OGameX combat implementation or gameplay rule was copied.
-- Next exact boundary: create a transactional regression fixture for a fresh single-attacker battle; verify every new combat row has the correct participant chain. Only then replace the old uniqueness constraints with participant-aware keys and introduce multi-defender ACS settlement.
-
-
-## 12. Combat base-engine closure — 2026-09-19
-
-The current V2 single-attacker + stationary-planet combat identity path is now regression-certified.
-
-- Test: `supabase/tests/combat_participant_propagation.sql`
-- LIVE verification: **15/15 PASS**
-- Coverage: participants → individual units → snapshots → initial shots → rapidfire chain → damage ledger → damage application → next-round cloning → attack-arrival settlement.
-- The fixture is transactional and leaves no generated combat/fleet/planet/RF state behind.
-- Historical combat rows remain untouched.
-- Old uniqueness constraints remain intentionally unchanged.
-- ACS/HOLDING/DEFEND remains outside the current base-engine closure.
-- Lifeform-specific combat changes are deferred to the next version; they are not part of this base-engine certification.
-
-This is the current combat-engine closure boundary: **identity propagation is CLOSED; multi-fleet ACS is NOT part of the current version.**
-
-## Final base-engine sweep — 2026-09-19
-
-- CLOSED defect fixed: start_ship() had retained an unauthenticated guest fallback inconsistent with the ownership-hardening contract. Migration 20260919090000 is applied LIVE and the foreign-owner / NULL-auth regression was verified transactionally.
-- Research UI stale note corrected: src/App.tsx already consumes can_start_research() for authoritative cost/time/availability.
-- Shipyard and Defence UI consume can_build_ship()/can_build_defense() for authoritative cost/time/availability. Backend lifecycle certification is now CLOSED with 12/12 PASS; browser certification remains open.
-- Fleet mission modifier/technology/fuel audit remains CLOSED for the seven implemented mission paths.
-- Combat participant propagation remains CLOSED for the current single-attacker + planet model (15/15 fixture).
-- Lifeform-specific combat updates remain deferred to the next version. ACS/HOLDING/DEFEND remains outside the base-engine closure.
-
-## 12.6 Fleet browser integration + live test-data cleanup — 2026-09-19
-
-- Frontend Fleet selection/launch UI is now on `origin/main` in commit `90cbcf8` (`feat: add fleet ship selection and launch UI`). It is intentionally a functional dispatch surface, not merely a movement-history list: it reads available ships from `planet_ships`, lets the player select composition, choose mission/target data and launch the fleet.
-- Local runtime worker asset binding was corrected on `origin/main` by `b22b1a9` (`fix: bind worker assets for local runtime`), addressing the Vite/Cloudflare local-runtime `undefined.fetch` overlay encountered during browser verification.
-- LIVE data inspection showed the previous Fleet `0 DISPONIBLES` symptom was partly caused by stale test data: 20 `light_fighter` units belonged to obsolete `Temporal Test Defender` at G1:S2:P3, player `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`, while the real Homeworld G1:S1:P1 retained 1 `light_fighter`.
-- The obsolete test planet and its dependent test state were removed from LIVE; the additional legacy test-player planets were also removed so they no longer compete with the real human Homeworld. The real human Homeworld `f35bd4b9-f78f-4be0-968e-09acf4ffaeed` remains intact with its own inventory.
-- This was a **data cleanup**, not a gameplay-rule change. Do not recreate the deleted test planets or use them as Fleet fixtures. Future Fleet tests must use transactional fixtures or the real player's authorized Homeworld without polluting persistent game state.
-- Browser certification remains the next gate: after syncing `origin/main`, verify Fleet resolves the authenticated player's active Homeworld, displays its `planet_ships`, permits Light Fighter selection, and launches/persists a movement. The Fleet page must not fall back to an unrelated/test planet.
-- The immediate debugging lesson is canonical identity: the Fleet view must follow `auth.uid() → players.user_id → players.id → owned Homeworld → planet_ships`; do not infer the active planet from arbitrary coordinate/name rows.
-
+> **Golden rule:** inspect → compare → decide → implement → test → verify → document.

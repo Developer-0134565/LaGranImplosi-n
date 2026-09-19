@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Detailed durable knowledge for universe evolution, internal time, catch-up processing, galaxy/system expansion and AI population. `PROJECT_CONTEXT.md` keeps only the operational summary.
+Detailed durable knowledge for universe evolution, internal time, catch-up processing, galaxy/system expansion and AI population. `docs/PROJECT_CONTEXT_PROMPT.md` keeps only the operational summary.
 
 ## Separation of systems
 
@@ -225,4 +225,3 @@ The repository parity gap is therefore the actionable UE problem:
 - The broader migration inverse audit separately identified four remote-origin fleet/research migration files absent by version ID and two out-of-band monitor ACL changes.
 
 This documentation records the architecture and current state; the migration files themselves must be recovered from the LIVE ledger before any rebuild/replay workflow is considered safe.
-

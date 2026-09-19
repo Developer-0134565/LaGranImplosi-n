@@ -64,7 +64,7 @@ When new information is discovered, classify it before documenting it:
 ```text
 Is it required to understand where the project is NOW?
         │
-        ├── YES → PROJECT_CONTEXT.md
+        ├── YES → docs/PROJECT_CONTEXT_PROMPT.md
         │
         └── NO
              ↓
@@ -75,16 +75,16 @@ Does it remain useful as durable project knowledge?
         └── NO → session-only knowledge
 ```
 
-If a subject is important to both levels, keep only a **compact operational summary** in `PROJECT_CONTEXT.md` and put the detail in the specialized document.
+If a subject is important to both levels, keep only a **compact operational summary** in `docs/PROJECT_CONTEXT_PROMPT.md` and put the detail in the specialized document.
 
-## Never delete useful knowledge just to shorten `PROJECT_CONTEXT.md`
+## Never delete useful knowledge just to shorten `docs/PROJECT_CONTEXT_PROMPT.md`
 
 When the context becomes too large:
 
 1. identify detailed sections that are still useful;
 2. move their durable detail into a specialized document;
-3. replace the moved detail in `PROJECT_CONTEXT.md` with a concise summary and link/index entry;
-4. preserve the canonical decision and current status in `PROJECT_CONTEXT.md`;
+3. replace the moved detail in `docs/PROJECT_CONTEXT_PROMPT.md` with a concise summary and link/index entry;
+4. preserve the canonical decision and current status in `docs/PROJECT_CONTEXT_PROMPT.md`;
 5. only propose actual deletion when information is obsolete, duplicated or demonstrably useless.
 
 This preserves project knowledge while optimizing operational context.
@@ -113,7 +113,7 @@ After a substantial task:
 ```text
 1. Verify implementation/state.
 2. Decide whether the discovery changes operational context.
-3. Update PROJECT_CONTEXT.md only for operationally important changes.
+3. Update docs/PROJECT_CONTEXT_PROMPT.md only for operationally important changes.
 4. Update the relevant specialized document with durable detail.
 5. If no specialized document exists and the knowledge is durable, create one.
 6. Keep terminology and status synchronized.
@@ -126,7 +126,7 @@ At the start of a new project session:
 ```text
 MEMORY
   ↓
-PROJECT_CONTEXT.md
+docs/PROJECT_CONTEXT_PROMPT.md
   ↓
 Identify task/domain
   ↓
