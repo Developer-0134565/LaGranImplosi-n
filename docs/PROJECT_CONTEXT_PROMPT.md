@@ -139,10 +139,11 @@ Ownership hardening (CRITICAL #1)             migration 20260918030000 APPLIED t
                                               systems/README_OWNERSHIP_HARDENING.md
 Fleet movement lifecycle hardening            persisted event timing, downtime/catch-up, concurrent worker
                                               serialization, duplicate-run protection, private worker APIs
-Fleet propulsion / mission-speed / fuel       Hyperspace fuel reduction removed (lifeform fuel_reduction_percent
-                                              is the source); fleet_speed split into peaceful/war/holding and the
-                                              dispatchers select class → E^(1/3) → item/lifeform modifiers;
-                                              supabase/tests/fleet_speed_classes.sql 22/22 PASS
+Fleet propulsion / mission-speed / fuel       CLOSED functionally: Hyperspace fuel reduction removed (lifeform
+                                              fuel_reduction_percent is the source); fleet_speed split into
+                                              peaceful/war/holding and dispatchers select class → E^(1/3) →
+                                              item/lifeform modifiers; supabase/tests/fleet_speed_classes.sql
+                                              22/22 PASS; legacy calculation RPC cluster retired 2026-09-19
 Universe Evolution engine + monitor           clock, catch-up, normal/special expansion, galaxy rolls, AI
                                               reconciliation, heartbeat, read-only monitor and Cloudflare
                                               production deployment (Worker lagranimplosion) validated
@@ -170,7 +171,8 @@ Basic game engine audit order (systems/README_GAME_ENGINE_AUDIT.md)
   6 combat        audit pending
 Shipyard audit/tests
 Defence audit/tests
-Fleet browser certification + technology/mission-specific deep audits (systems/README_FLEET_ENGINE.md §15)
+Fleet browser certification (systems/README_FLEET_ENGINE.md §15); ACS/HOLDING/DEFEND remains future gameplay;
+mission-modifier backend audit is closed and must not be restarted generically
 Research UI cost/time: the research view must consume the authoritative contract (can_start_research) instead
   of base cost/time columns; pending frontend switch
 Migration-history final reconciliation: all 260 LIVE ledger rows are recovered locally; remaining blocker is
@@ -194,7 +196,7 @@ player_messages integration
 
 ```text
 Final security/RLS hardening phase (deferred unless a concrete defect requires earlier intervention)
-Dead legacy fleet cluster cleanup + duplicated lifeform modifier sum + the calculate_universe_rates decision
+Bounded fleet hygiene: calculate_universe_rates canonical meaning decision + unused lifeform-key decision
 Dead lifeform keys (civilian_ship_speed_percent, recall_fuel_recovery_percent)
 Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, friends)
 ```
@@ -222,10 +224,10 @@ Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, f
   regression battery and browser level-up/resource-deduction flow validated.
 - Ownership hardening is closed for the six critical player/planet action RPCs; the final security/RLS phase
   remains separate.
-- Fleet engine deep audit remains OPEN only for browser certification and the remaining
-  technology/mission-specific comparisons; player-aware propulsion/cargo/fuel integration is implemented, the
-  live prerequisite graph is coherent and dispatch/return timing plus duplicate-run behaviour are
-  backend-verified.
+- Fleet engine backend audit is closed for the implemented seven missions: propulsion, cargo/fuel, mission-speed
+  classes, modifiers, dispatch/return timing and duplicate-run behaviour are verified. Remaining fleet work is
+  browser certification, future ACS/HOLDING/DEFEND design, and bounded hygiene only. The dead legacy calculation
+  RPC cluster was retired 2026-09-19.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later
   prompts must be bounded and cost-aware.
 - Migration history: LIVE `supabase_migrations.schema_migrations` is the certified ledger; all 260 LIVE
@@ -303,9 +305,11 @@ maintenance.
 2. Re-run the migration parity audit: local LIVE-version set must be exact, with no unintended extra versions,
    and every retained file must be attributable to a LIVE ledger row or an explicit forward migration.
 3. Only after parity is closed, reconsider `supabase db push` as a no-op verification — never as a recovery tool.
-4. Then resume the basic-engine order: Fleet browser certification → Shipyard/Defence audits → Research UI
-   contract integration → Transport → Attack → Combat.
-5. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
+4. Resume the basic-engine order: Fleet browser certification → Shipyard/Defence audits → Research UI contract
+   integration → Transport → Attack → Combat.
+5. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (`calculate_universe_rates`, unused lifeform
+   keys) when the surrounding engine audit reaches it.
+6. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
 
 The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
@@ -319,7 +323,7 @@ The latest read-only audits supersede stale migration/fleet/Universe assumptions
 - **Fleet mission audit:** seven implemented mission paths are functionally converged in LIVE; no live double modifier, fuel-order defect or legacy bypass was found. ACS/HOLDING/DEFEND remains definition-only. Detailed evidence: systems/README_FLEET_ENGINE.md.
 - **Universe Evolution:** the runtime engine is already active in LIVE. Do not design a new clock, scheduler, worker or catch-up mechanism. Detailed evidence and current LIVE snapshot: systems/README_UNIVERSE_EVOLUTION.md.
 - **Migration reproducibility has passed the recovery phase:** LIVE has 260 ledger rows and all 260 now have local SQL provenance. Four remote-origin migration files remain outside the LIVE ledger, and two monitor ACL changes require explicit forward provenance. Do not run db push/reset/repair/pull/dump until the final reconciliation is complete.
-- **Canonical fleet open work:** browser certification, ACS/HOLDING design, and bounded hygiene decisions only. Do not restart a generic Fleet Speed audit.
+- **Canonical fleet open work:** browser certification, ACS/HOLDING design, and bounded hygiene decisions only. Mission Modifiers is CLOSED; the dead legacy fleet calculation cluster was retired in LIVE migration `20260919042419_retire_legacy_fleet_calculation_rpc_cluster`. Do not restart a generic Fleet Speed audit.
 - **Canonical UE open work:** provenance/parity recovery or a concrete bounded engine change only. Do not build a second UE runtime.
 
 
