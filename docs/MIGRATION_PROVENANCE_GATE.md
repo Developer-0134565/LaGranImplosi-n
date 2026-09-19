@@ -20,7 +20,8 @@ worktrees, backups, archives and the remote repository. Their SQL must not be in
 database schema or reconstructed from downstream state.
 
 `20260919180000_fix_planet_support_authorization_ambiguity.sql` remains local and must not be deployed
-while the unresolved LIVE-only provenance prevents a safe normal deployment path.
+while the unresolved LIVE-only provenance prevents a safe normal deployment path. The correction remains
+`LOCAL_ONLY / NOT_DEPLOYED / BLOCKED` until the drift is resolved through valid provenance.
 
 ## Migration provenance rules
 
@@ -30,8 +31,10 @@ while the unresolved LIVE-only provenance prevents a safe normal deployment path
 4. Never mark a migration `reverted` solely to unblock `db push`.
 5. Never manually edit the migration table or ledger to hide drift.
 6. If the provenance required to continue deployment is unavailable, deployment is **BLOCKED**.
-7. Do not run `supabase db push`, `supabase db query`, `migration repair`, reset or replay as a
-   workaround for this gate.
+7. Do not run `supabase db push`, `supabase db query`, `supabase db query --file`, `migration repair`,
+   reset or replay as a workaround for this gate.
+8. Do not deploy `20260919180000_fix_planet_support_authorization_ambiguity.sql` while the four
+   LIVE-only migrations remain unresolved.
 
 ## Operational lifecycle
 
