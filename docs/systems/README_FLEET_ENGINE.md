@@ -338,25 +338,19 @@ foreign planet), holding-duration persistence and fleet-support combat integrati
 
 ### 15.1 Domain-level OPEN
 
-1. **ACS / HOLDING / DEFEND not implemented** (§13) — the only domain-level OPEN item of the fleet engine.
-2. **Browser fleet flow — OPEN**: backend correctness is not browser certification. Verify fleet selection,
-   dispatch, persisted countdown, arrival, mission resolution and return in the browser.
-3. **Technology graph — MEDIUM**: confirm that every ship's referenced propulsion technology participates
-   correctly in speed and fuel semantics (the prerequisite graph itself is coherent).
-4. **Mission-specific modifiers — MEDIUM**: expedition, recycle, deploy, colonize and attack modifiers must be
-   applied after the common movement pipeline and must not duplicate universe evolution.
+1. **ACS / HOLDING / DEFEND not implemented** (§13) — the only domain-level gameplay OPEN item of the fleet engine.
+2. **Browser fleet flow — OPEN**: backend correctness is not browser certification. Verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return in the browser.
 
-### 15.2 Design decisions left open (deliberately not taken here)
+### 15.2 Design / hygiene decisions left open
 
-5. `calculate_universe_rates` still builds the fleet rate from the legacy `universes.fleet_speed`; deciding the
-   canonical meaning of a "general fleet rate" (three classes now exist) is a design decision.
-6. Dead legacy cluster (`calculate_fleet_time`, `calculate_fleet_fuel`, `calculate_fleet_fuel_mixed`,
-   `calculate_expedition_time`, `calculate_fleet_fuel_for_distance`) — inert but still deployed and in some
-   cases still granted to clients; cleanup is a separate mission. **Never wire them back.**
-7. Duplicated lifeform/item bonus sum (dispatchers inline vs `get_player_fleet_speed_multiplier`).
-8. Lifeform keys defined but never applied: `civilian_ship_speed_percent`, `recall_fuel_recovery_percent`.
-9. `universes.expedition_speed` survives only in dead code + `calculate_universe_rates`; it is no longer used
-   for expedition travel time (expeditions use the PEACEFUL class).
+3. `calculate_universe_rates` still builds the fleet rate from the legacy `universes.fleet_speed`; decide the canonical meaning of a general fleet-rate snapshot now that three mission-speed classes exist.
+4. Dead legacy cluster (`calculate_fleet_time`, `calculate_fleet_fuel`, `calculate_fleet_fuel_mixed`, `calculate_expedition_time`, `calculate_fleet_fuel_for_distance`) — inert but still deployed and in some cases still granted to clients; cleanup is a separate mission. **Never wire them back.**
+5. Duplicated lifeform/item bonus sum (dispatchers inline vs `get_player_fleet_speed_multiplier`).
+6. Lifeform keys defined but never applied: `civilian_ship_speed_percent`, `recall_fuel_recovery_percent`.
+7. `universes.expedition_speed` survives only in dead code + `calculate_universe_rates`; it is no longer used for expedition travel time.
+
+The 2026-09-18 directed Mission Modifiers / Technology / ACS audit found **no functional LIVE bug** in the seven implemented mission paths. Technology routing, mission class routing, modifier ordering, fuel ordering, double-application checks and live legacy-bypass checks all passed. The remaining items above are browser certification or architecture/hygiene decisions, not an unresolved gameplay defect.
+
 
 ## 16. Tests
 
