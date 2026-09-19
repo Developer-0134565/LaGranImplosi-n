@@ -1,7 +1,8 @@
 # FLEET ENGINE — LA GRAN IMPLOSIÓN
 
-> **Status:** OPEN — backend movement lifecycle, propulsion/technology routing, mission-speed classes and
-> fuel are converged and verified against LIVE; **browser certification remains OPEN**. The HOLDING class
+> **Status:** BACKEND CONVERGED / MISSION MODIFIERS CLOSED — movement lifecycle, propulsion/technology routing,
+> mission-speed classes, fuel and modifier ordering are verified against LIVE. **Browser certification remains
+> OPEN**. The HOLDING class
 > (ACS/holding/defend) is prepared at the classifier/universe level but its gameplay is **not implemented**.
 >
 > Canonical durable record for ship prerequisites, propulsion technology, mission speed classes, cargo,
@@ -183,10 +184,8 @@ final fuel = greatest(1, ceil(consumption))
 ```
 
 `hyperspace_technology` is **not** a generic fuel reduction: it only selects the engine (and therefore the
-engine consumption) inside `calculate_player_ship_fuel_consumption`. The legacy helper
-`calculate_fleet_fuel_for_distance(distance, ship, qty)` hard-fails with
-`'… is legacy: use calculate_player_fleet_fuel_for_distance(…)'`, so an old caller breaks loudly instead of
-silently using the old order.
+engine consumption) inside `calculate_player_ship_fuel_consumption`. The former legacy helper `calculate_fleet_fuel_for_distance(distance, ship, qty)` was retired on 2026-09-19;
+the live function no longer exists. The canonical helper is `calculate_player_fleet_fuel_for_distance(...)`.
 
 ## 9. Lifeform / item modifiers
 
@@ -203,10 +202,9 @@ silently using the old order.
 helper does not re-apply speed bonuses, and the fuel reduction is applied exactly once (assertion 8 counts a
 single occurrence of `fuel_reduction_percent` in the fuel helper).
 
-Architectural note (duplication, not a bug): the three dispatchers **inline** the formula that
-`get_player_fleet_speed_multiplier(player, planet)` already implements; that helper is currently used only
-by dead code (`calculate_expedition_time`), so the same modifier sum exists in two places — a divergence risk
-to converge in a future mission.
+Architectural note: the three dispatchers inline the approved modifier sum. The former duplicate helper
+`get_player_fleet_speed_multiplier(player, planet)` was retired with the dead legacy cluster on 2026-09-19,
+so the dead parallel path no longer remains deployed.
 
 ## 10. Dispatch entrypoints
 
@@ -344,12 +342,14 @@ foreign planet), holding-duration persistence and fleet-support combat integrati
 ### 15.2 Design / hygiene decisions left open
 
 3. `calculate_universe_rates` still builds the fleet rate from the legacy `universes.fleet_speed`; decide the canonical meaning of a general fleet-rate snapshot now that three mission-speed classes exist.
-4. Dead legacy cluster (`calculate_fleet_time`, `calculate_fleet_fuel`, `calculate_fleet_fuel_mixed`, `calculate_expedition_time`, `calculate_fleet_fuel_for_distance`) — inert but still deployed and in some cases still granted to clients; cleanup is a separate mission. **Never wire them back.**
-5. Duplicated lifeform/item bonus sum (dispatchers inline vs `get_player_fleet_speed_multiplier`).
-6. Lifeform keys defined but never applied: `civilian_ship_speed_percent`, `recall_fuel_recovery_percent`.
-7. `universes.expedition_speed` survives only in dead code + `calculate_universe_rates`; it is no longer used for expedition travel time.
+4. Lifeform keys defined but never applied: `civilian_ship_speed_percent`, `recall_fuel_recovery_percent`.
+5. `universes.expedition_speed` survives in `calculate_universe_rates`; it is no longer used for expedition travel time.
 
-The 2026-09-18 directed Mission Modifiers / Technology / ACS audit found **no functional LIVE bug** in the seven implemented mission paths. Technology routing, mission class routing, modifier ordering, fuel ordering, double-application checks and live legacy-bypass checks all passed. The remaining items above are browser certification or architecture/hygiene decisions, not an unresolved gameplay defect.
+The 2026-09-18/19 directed Mission Modifiers / Technology / legacy audit found **no functional LIVE bug** in
+the seven implemented mission paths. Technology routing, mission class routing, modifier ordering, fuel
+ordering, double-application checks and legacy-bypass checks all passed. The six-function dead legacy cluster
+was retired on 2026-09-19 after dependency, function-body and frontend consumer checks found no remaining callers.
+The remaining items above are browser certification or bounded architecture decisions, not an unresolved gameplay defect.
 
 
 ## 16. Tests
@@ -360,8 +360,7 @@ supabase/tests/fleet_speed_classes.sql   transactional (BEGIN … ROLLBACK) · 2
 
 Covers: single class authority · class matrix incl. HOLDING and the legacy fallback · invalid-class exception
 · 3/3 dispatch wiring · no parallel travel formula (`35000` appears only twice) · expedition hold resolves the
-class · technology routing single authority · fuel reduction applied once without hyperspace · legacy cluster
-without live consumers · ACS/HOLDING not dispatchable while `holding_fleet_speed` is ready. The failure
+class · technology routing single authority · fuel reduction applied once without hyperspace · legacy cluster verified consumer-free before retirement · ACS/HOLDING not dispatchable while `holding_fleet_speed` is ready. The failure
 message lists the failing assertions, so a run without notice output is still self-diagnosing.
 
 Related regression coverage: `supabase/tests/buildings_lifecycle.sql` (13/13 PASS), `scripts/verify-buildings.mjs`,
@@ -397,3 +396,21 @@ never an authority over L.G.I. rules.
   for its duration, apply lifeform/item modifiers once (§5 ordering), keep fuel in the order of §8 and reuse the
   outbound duration for the return leg (§11). Any new inline speed/fuel formula is a regression.
 - Update this document whenever a canonical fleet formula or integration boundary changes.
+
+
+## 19. Mission Modifiers closure / legacy cleanup — 2026-09-19
+
+Mission Modifiers is **CLOSED functionally** for the seven implemented mission paths. The canonical pipeline is
+`calculate_player_ship_speed()` → `calculate_mission_fleet_speed_multiplier()` → `E^(1/3)` → item/lifeform
+modifiers → `calculate_fleet_travel_time()` → persisted timing, with fuel delegated to
+`calculate_player_fleet_fuel_for_distance()` and no duplicate fuel modifier.
+
+Frontend inspection found only the active `start_fleet` path in `GalaxyView.tsx`; no frontend caller used the
+legacy calculation RPCs. LIVE dependency and source-body checks found no remaining database consumers. On
+2026-09-19 migration `20260919042419_retire_legacy_fleet_calculation_rpc_cluster` removed:
+`calculate_expedition_time`, `calculate_fleet_time`, `calculate_fleet_fuel`, `calculate_fleet_fuel_mixed`,
+`calculate_fleet_fuel_for_distance`, and `get_player_fleet_speed_multiplier`. `calculate_fleet_travel_time`
+and `calculate_universe_rates` were intentionally preserved.
+
+This cleanup is hygiene, not a gameplay-rule change. ACS/HOLDING/DEFEND remains intentionally unimplemented
+and browser fleet certification remains open.
