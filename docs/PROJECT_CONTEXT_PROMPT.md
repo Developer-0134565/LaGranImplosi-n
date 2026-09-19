@@ -309,6 +309,18 @@ maintenance.
 The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
 active, and is **not** the next implementation target.
 
+
+## 12.1 Operational correction — 2026-09-19
+
+The latest read-only audits supersede stale migration/fleet/Universe assumptions in older context:
+
+- **Fleet mission audit:** seven implemented mission paths are functionally converged in LIVE; no live double modifier, fuel-order defect or legacy bypass was found. ACS/HOLDING/DEFEND remains definition-only. Detailed evidence: systems/README_FLEET_ENGINE.md.
+- **Universe Evolution:** the runtime engine is already active in LIVE. Do not design a new clock, scheduler, worker or catch-up mechanism. Detailed evidence and current LIVE snapshot: systems/README_UNIVERSE_EVOLUTION.md.
+- **Migration reproducibility is now the primary repository blocker:** LIVE has 260 ledger rows; 221 still lack local files. Four remote-origin migration files have version drift/absent ledger IDs, and the mission-speed-class layer plus two monitor ACL changes require explicit provenance. Do not run db push/reset/repair/pull/dump until reconciliation is complete.
+- **Canonical fleet open work:** browser certification, ACS/HOLDING design, and bounded hygiene decisions only. Do not restart a generic Fleet Speed audit.
+- **Canonical UE open work:** provenance/parity recovery or a concrete bounded engine change only. Do not build a second UE runtime.
+
+
 ---
 
 ## 13. Golden rule
