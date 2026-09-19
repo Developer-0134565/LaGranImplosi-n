@@ -315,7 +315,9 @@ Completed in migration `20260919053220_add_fleet_holding_lifecycle`: `fleet_move
 `ACS_HOLD`/`HOLDING`/`DEFEND`, `holding_until` is persisted, `HOLDING` is a durable movement state, and the worker
 transitions `OUTBOUND → HOLDING → RETURNING` while reusing the outbound duration. The new mission types require a
 non-null `holding_until`. Still required: destination semantics (support target = foreign planet), player-facing
-support dispatch, fleet-support combat integration and UI.
+support dispatch, fleet-support combat integration and UI. OGameX currently restricts ACS Defend to buddies/alliance
+members and models physical arrival separately from the hold window; L.G.I. has no alliance/buddy tables in LIVE, so
+that eligibility rule is not imported and remains a deliberate game-design decision.
 
 ## 14. Route classification (map produced by the sweep)
 
@@ -383,6 +385,8 @@ Useful OGameX lessons (patterns, never code to reproduce):
 - mission state must survive downtime;
 - arrival and return are durable temporal transitions;
 - workers execute due events but do not define game time.
+- ACS Defend is a distinct mission: OGameX separates physical arrival from the hold window, restricts dispatch to buddies/alliance members, and feeds arrived ACS defend fleets into multi-defender combat.
+- OGameX tracks ACS defender fleet identity/owner through combat so per-fleet survival/results remain attributable; L.G.I. must decide its equivalent before combat integration.
 
 OGameX's open-source fleet implementation exposes the same conceptual separation between
 `FlightDistance`, `FlightSpeed`, `FlightCons` and `FlightTime`. These are architectural references; OGameX is
@@ -420,3 +424,13 @@ and `calculate_universe_rates` were intentionally preserved.
 
 This cleanup is hygiene, not a gameplay-rule change. ACS/HOLDING/DEFEND remains intentionally unimplemented
 and browser fleet certification remains open.
+
+
+## 20. Holding audit correction — 2026-09-19
+
+The first HOLDING migration was compared against the recovered canonical worker migration `20260918095306_harden_fleet_movement_idempotency_and_processing`. The mission-specific arrival/return branches were preserved, but the initial replacement omitted two existing hardening details:
+
+- partial indexes `fleet_movements_outbound_arrival_idx` and `fleet_movements_returning_idx`;
+- the private worker ACL (`REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated`).
+
+This was detected before ACS dispatch implementation and corrected LIVE by migration `20260919060000_restore_fleet_worker_hardening` and the matching repository migration file. LIVE verification confirms the worker remains private and the HOLDING transitions are present. Do not edit migration history to repair this class of drift; add a forward correction migration.
