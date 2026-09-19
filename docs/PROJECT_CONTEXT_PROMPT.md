@@ -171,8 +171,6 @@ Basic game engine audit order (systems/README_GAME_ENGINE_AUDIT.md)
   6 combat        audit pending
 Shipyard audit/tests
 Defence audit/tests
-Fleet browser certification (systems/README_FLEET_ENGINE.md §15); ACS/HOLDING/DEFEND remains future gameplay;
-mission-modifier backend audit is closed and must not be restarted generically
 Research UI cost/time: the research view must consume the authoritative contract (can_start_research) instead
   of base cost/time columns; pending frontend switch
 Migration-history final reconciliation: all 260 LIVE ledger rows are recovered locally; remaining blocker is
@@ -197,7 +195,6 @@ player_messages integration
 ```text
 Final security/RLS hardening phase (deferred unless a concrete defect requires earlier intervention)
 Bounded fleet hygiene: calculate_universe_rates canonical meaning decision + unused lifeform-key decision
-Dead lifeform keys (civilian_ship_speed_percent, recall_fuel_recovery_percent)
 Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, friends)
 ```
 
