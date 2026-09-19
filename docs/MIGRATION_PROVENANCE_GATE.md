@@ -48,3 +48,26 @@ LOCAL_ONLY → DEPLOYED → VERIFIED
 
 This gate is a stop condition, not a repair plan. Any future resolution requires explicit provenance
 evidence and a forward-only, reviewed decision.
+
+## Phase 1 provenance sweep — 2026-09-19
+
+The primary-source search was completed without recovering any of the four LIVE-only payloads. The
+read-only sweep covered:
+
+- all local branches, remote-tracking branches, tags, reflogs, reachable history and unreachable Git
+  objects;
+- the canonical repository and the available quarantine, consolidation-backup and ZIP artifacts;
+- exact version/name/content searches for each missing version;
+- the official GitHub repository branches, tags, migration tree and exact code/commit searches.
+
+The only exact textual hits are the current provenance statements in this document and
+`PROJECT_CONTEXT_PROMPT.md`. Those references record the known status but are not migration payloads and
+do not establish historical provenance. No version meets the recovery criterion of exact version +
+exact payload + verifiable source. The four versions therefore remain:
+
+```text
+20260919055336 → LIVE_ONLY / NOT_RECOVERABLE / BLOCKED
+20260919061454 → LIVE_ONLY / NOT_RECOVERABLE / BLOCKED
+20260919062509 → LIVE_ONLY / NOT_RECOVERABLE / BLOCKED
+20260919070020 → LIVE_ONLY / NOT_RECOVERABLE / BLOCKED
+```
