@@ -168,10 +168,9 @@ Basic game engine audit order (systems/README_GAME_ENGINE_AUDIT.md)
   4 transport     audit pending
   5 attack        audit pending
   6 combat        audit pending
-Shipyard audit/tests
-Defence audit/tests
-Research UI cost/time: the research view must consume the authoritative contract (can_start_research) instead
-  of base cost/time columns; pending frontend switch
+Shipyard audit/tests and transactional lifecycle regression
+Defence audit/tests and transactional lifecycle regression
+Research UI authoritative contract: current src/App.tsx already consumes can_start_research() for cost/time/availability; the previous pending note is superseded. Browser flow remains part of the certification gate.
 Migration-history final reconciliation: all 260 LIVE ledger rows are recovered locally; remaining blocker is
   the 4 non-LIVE drift files plus 2 out-of-band monitor ACL changes. No `supabase db push`, `migration repair`,
   reset, pull or dump until the final reconciliation decision is closed
@@ -296,11 +295,10 @@ maintenance.
 
 ```text
 0. ACS/HOLDING/DEFEND: combat architecture prerequisite is now audited; implement the minimum participant-aware combat model before player-facing ACS dispatch.
-1. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
-2. Shipyard audit/tests.
-3. Defence audit/tests.
-4. Research UI contract integration: switch the research view to the authoritative can_start_research() contract.
-5. Continue basic-engine order: Transport → Attack → Combat.
+1. Shipyard + Defence transactional lifecycle certification.
+2. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
+3. Buildings browser certification.
+4. Continue basic-engine closure only after the remaining lifecycle/browser gates are green; Transport/Attack are already covered by the converged fleet/combat paths.
 6. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
 7. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
@@ -392,3 +390,12 @@ The current V2 single-attacker + stationary-planet combat identity path is now r
 - Lifeform-specific combat changes are deferred to the next version; they are not part of this base-engine certification.
 
 This is the current combat-engine closure boundary: **identity propagation is CLOSED; multi-fleet ACS is NOT part of the current version.**
+
+## Final base-engine sweep — 2026-09-19
+
+- CLOSED defect fixed: start_ship() had retained an unauthenticated guest fallback inconsistent with the ownership-hardening contract. Migration 20260919090000 is applied LIVE and the foreign-owner / NULL-auth regression was verified transactionally.
+- Research UI stale note corrected: src/App.tsx already consumes can_start_research() for authoritative cost/time/availability.
+- Shipyard and Defence UI now consume can_build_ship()/can_build_defense() for authoritative cost/time/availability; lifecycle tests and browser certification remain OPEN.
+- Fleet mission modifier/technology/fuel audit remains CLOSED for the seven implemented mission paths.
+- Combat participant propagation remains CLOSED for the current single-attacker + planet model (15/15 fixture).
+- Lifeform-specific combat updates remain deferred to the next version. ACS/HOLDING/DEFEND remains outside the base-engine closure.
