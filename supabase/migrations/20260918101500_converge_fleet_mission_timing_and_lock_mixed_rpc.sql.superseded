@@ -1,0 +1,133 @@
+-- SUPERSEDED 2026-09-19
+-- This origin/main migration version was not present in the certified LIVE ledger.
+-- Its logical change is already represented by LIVE ledger migrations and/or the
+-- forward provenance migration 20260919042952_reconcile_fleet_mission_and_monitor_provenance.
+-- Preserved for historical traceability; not a Supabase migration file anymore.
+
+-- Converge fleet mission timing on canonical helpers and close mixed-fleet anonymous execution.
+--
+-- Live verification performed before recording this migration:
+--   * start_fleet_mixed anon EXECUTE = false
+--   * all 54 existing fleet movements are COMPLETED
+--   * start_fleet/start_fleet_mixed no longer contain the legacy expedition formula.
+--
+-- This migration is intentionally idempotent.
+
+REVOKE EXECUTE ON FUNCTION public.start_fleet_mixed(
+  uuid, uuid, uuid, jsonb, text
+) FROM anon;
+
+CREATE OR REPLACE FUNCTION public.calculate_expedition_time(
+  p_origin_planet_id uuid,
+  p_ship_id text,
+  p_quantity bigint DEFAULT 1
+)
+RETURNS numeric
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public','pg_temp'
+AS $function$
+DECLARE
+  v_universe_id uuid;
+  v_player_id uuid;
+  v_ship_speed numeric;
+  v_expedition_speed numeric;
+  v_evolution numeric;
+  v_fleet_scale numeric;
+  v_bonus numeric := 1;
+  v_distance numeric;
+BEGIN
+  IF p_quantity <= 0 THEN
+    RAISE EXCEPTION 'Quantity must be greater than 0';
+  END IF;
+
+  SELECT p.universe_id, p.player_id
+  INTO v_universe_id, v_player_id
+  FROM public.planets p
+  WHERE p.id = p_origin_planet_id
+    AND NOT p.is_destroyed;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Origin planet not found or destroyed';
+  END IF;
+
+  v_ship_speed := public.calculate_player_ship_speed(v_player_id, p_ship_id);
+
+  IF v_ship_speed IS NULL OR v_ship_speed <= 0 THEN
+    RAISE EXCEPTION 'Invalid expedition ship: %', p_ship_id;
+  END IF;
+
+  SELECT u.expedition_speed
+  INTO v_expedition_speed
+  FROM public.universes u
+  WHERE u.id = v_universe_id;
+
+  IF v_expedition_speed IS NULL OR v_expedition_speed <= 0 THEN
+    RAISE EXCEPTION 'Invalid universe expedition speed';
+  END IF;
+
+  v_evolution := public.calculate_universe_evolution_rate(v_universe_id);
+
+  SELECT fleet_movement_scale
+  INTO v_fleet_scale
+  FROM public.calculate_universe_scaling(v_evolution);
+
+  v_bonus := public.get_player_fleet_speed_multiplier(
+    v_player_id,
+    p_origin_planet_id
+  );
+
+  v_distance := public.calculate_expedition_distance(p_origin_planet_id);
+
+  RETURN public.calculate_fleet_travel_time(
+    v_distance,
+    v_ship_speed,
+    v_expedition_speed * v_fleet_scale * v_bonus,
+    100
+  );
+END;
+$function$;
+
+-- Recreate the two dispatch entrypoints from their live definitions with the
+-- expedition branch routed through calculate_expedition_time(). The mixed
+-- version selects the slowest effective player-aware ship as its expedition
+-- timing reference.
+DO $$
+DECLARE
+  v_sql text;
+BEGIN
+  SELECT pg_get_functiondef(p.oid)
+  INTO v_sql
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public'
+    AND p.proname = 'start_fleet'
+    AND pg_get_function_identity_arguments(p.oid) =
+      'p_player_id uuid, p_origin_planet_id uuid, p_destination_planet_id uuid, p_ship_id text, p_quantity bigint, p_mission_type text';
+
+  v_sql := replace(
+    v_sql,
+    'if v_mission_type=''EXPEDITION'' then v_travel_time:=((35000/100)*sqrt(v_distance*10/v_ship_speed)+10)/(coalesce((select expedition_speed from public.universes where id=v_universe_id),1)*power(v_evolution,1.0/3.0)*v_bonus); else v_travel_time:=public.calculate_fleet_travel_time(v_distance,v_ship_speed,v_fleet_rate,100); end if;',
+    'if v_mission_type=''EXPEDITION'' then v_travel_time:=public.calculate_expedition_time(p_origin_planet_id,p_ship_id,p_quantity); else v_travel_time:=public.calculate_fleet_travel_time(v_distance,v_ship_speed,v_fleet_rate,100); end if;'
+  );
+
+  EXECUTE v_sql;
+
+  SELECT pg_get_functiondef(p.oid)
+  INTO v_sql
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public'
+    AND p.proname = 'start_fleet_mixed'
+    AND pg_get_function_identity_arguments(p.oid) =
+      'p_player_id uuid, p_origin_planet_id uuid, p_destination_planet_id uuid, p_ships jsonb, p_mission_type text';
+
+  v_sql := replace(
+    v_sql,
+    'if v_mission_type=''EXPEDITION'' then v_travel_time:=((35000/100)*sqrt(v_distance*10/v_min_ship_speed)+10)/(coalesce((select expedition_speed from public.universes where id=v_universe_id),1)*power(v_evolution,1.0/3.0)*v_bonus); else v_travel_time:=public.calculate_fleet_travel_time(v_distance,v_min_ship_speed,v_fleet_rate,100); end if;',
+    'if v_mission_type=''EXPEDITION'' then v_travel_time:=public.calculate_expedition_time(p_origin_planet_id,(select key from jsonb_each_text(p_ships) order by public.calculate_player_ship_speed(p_player_id,key) asc, key limit 1),1); else v_travel_time:=public.calculate_fleet_travel_time(v_distance,v_min_ship_speed,v_fleet_rate,100); end if;'
+  );
+
+  EXECUTE v_sql;
+END
+$$;
