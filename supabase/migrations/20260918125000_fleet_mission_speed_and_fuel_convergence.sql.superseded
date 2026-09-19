@@ -1,0 +1,65 @@
+-- SUPERSEDED 2026-09-19
+-- This origin/main migration version was not present in the certified LIVE ledger.
+-- Its logical change is already represented by LIVE ledger migrations and/or the
+-- forward provenance migration 20260919042952_reconcile_fleet_mission_and_monitor_provenance.
+-- Preserved for historical traceability; not a Supabase migration file anymore.
+
+-- Fleet mission-speed + propulsion/fuel convergence
+-- Reference pattern: OGame/OGameX separates peaceful, war and holding fleet speeds.
+-- L.G.I. keeps its own evolution layer and applies it AFTER mission speed selection.
+ALTER TABLE public.universes
+  ADD COLUMN IF NOT EXISTS peaceful_fleet_speed numeric NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS war_fleet_speed numeric NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS holding_fleet_speed numeric NOT NULL DEFAULT 1;
+
+UPDATE public.universes
+SET peaceful_fleet_speed=COALESCE(NULLIF(peaceful_fleet_speed,1),fleet_speed),
+    war_fleet_speed=COALESCE(NULLIF(war_fleet_speed,1),fleet_speed),
+    holding_fleet_speed=COALESCE(NULLIF(holding_fleet_speed,1),fleet_speed);
+
+-- Mission classes:
+-- peaceful: TRANSPORT, DEPLOY, COLONIZE, EXPEDITION
+-- war: ATTACK, ESPIONAGE, RECYCLE/HARVEST
+-- holding: ACS_HOLD/HOLDING/DEFEND
+CREATE OR REPLACE FUNCTION public.calculate_mission_fleet_speed_multiplier(
+ p_universe_id uuid,p_mission_type text
+) RETURNS numeric LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path='public','pg_temp' AS $$
+DECLARE v_mission text:=upper(coalesce(p_mission_type,'TRANSPORT')); v_speed numeric;
+BEGIN
+ SELECT CASE
+   WHEN v_mission IN ('TRANSPORT','DEPLOY','COLONIZE','EXPEDITION') THEN peaceful_fleet_speed
+   WHEN v_mission IN ('ATTACK','ESPIONAGE','RECYCLE','RECYCLE_ATTACK','HARVEST') THEN war_fleet_speed
+   WHEN v_mission IN ('ACS_HOLD','HOLDING','DEFEND') THEN holding_fleet_speed
+   ELSE fleet_speed
+ END INTO v_speed FROM public.universes WHERE id=p_universe_id;
+ IF v_speed IS NULL OR v_speed<=0 THEN RAISE EXCEPTION 'Invalid fleet speed for mission %',v_mission; END IF;
+ RETURN v_speed;
+END $$;
+
+-- Fuel reduction belongs to the Lifeform effect system, not Hyperspace Technology.
+CREATE OR REPLACE FUNCTION public.calculate_player_fleet_fuel_for_distance(
+ p_distance numeric,p_flight_time_seconds numeric,p_player_id uuid,p_ship_id text,
+ p_quantity bigint,p_speed_percent numeric DEFAULT 100
+) RETURNS numeric
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path='public','pg_temp' AS $$
+DECLARE v_ship_speed numeric; v_base_consumption numeric; v_fuel_reduction numeric:=0;
+ v_spd numeric; v_consumption numeric;
+BEGIN
+ IF p_distance<0 OR p_flight_time_seconds<=0 OR p_quantity<=0 OR p_speed_percent<=0
+ THEN RAISE EXCEPTION 'Invalid fleet fuel parameters'; END IF;
+ v_base_consumption:=public.calculate_player_ship_fuel_consumption(p_player_id,p_ship_id);
+ v_ship_speed:=public.calculate_player_ship_speed(p_player_id,p_ship_id);
+ v_spd:=35000/greatest(p_flight_time_seconds*p_speed_percent*10-10,1)*sqrt(p_distance*10/greatest(v_ship_speed,1));
+ v_consumption:=p_quantity*v_base_consumption*p_distance/35000*power((v_spd/10)+1,2);
+ v_fuel_reduction:=least(greatest(coalesce(public.get_player_lifeform_effect(p_player_id,'fuel_reduction_percent'),0),0),30);
+ v_consumption:=v_consumption*greatest(0,1-v_fuel_reduction/100);
+ RETURN greatest(1,ceil(v_consumption));
+END $$;
+
+-- start_fleet, start_fleet_mixed and start_colonize_fleet are converged
+-- in LIVE to calculate_mission_fleet_speed_multiplier(), then universe
+-- evolution scaling, then player/item/lifeform modifiers.
+-- This file records the schema/function contract; function bodies are kept
+-- in the canonical migration history generated from the live database.
