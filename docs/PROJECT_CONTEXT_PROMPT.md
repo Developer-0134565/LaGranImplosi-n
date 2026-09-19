@@ -361,3 +361,6 @@ The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supe
 - Participant settlement must return each surviving support fleet to its own `fleet_id` / `origin_planet_id`; loot remains attacker-only, defence repair remains planet-only, debris remains battle-scoped.
 - No combat schema/function changes were made in this audit. Durable detail: `systems/README_COMBAT_ENGINE.md`.
 - Next implementation boundary: participant migration + regression fixtures; only after that `start_acs_hold` / `start_defend`.
+- Participant schema migration is now LIVE and documented as 20260919070000_add_combat_battle_participants. It adds combat_battle_participants plus nullable participant foreign keys through units/snapshots/shots/damage, but deliberately leaves existing combat writers and uniqueness constraints unchanged. LIVE participant row count is 0; no historical combat rows were rewritten.
+- Next precise implementation boundary: backfill/create participants for the current single-attacker path, propagate participant_id through combat writers, then replace uniqueness constraints with participant-aware keys. Only after regression verification should ACS multi-defender dispatch be enabled.
+
