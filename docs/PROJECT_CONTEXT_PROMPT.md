@@ -364,3 +364,15 @@ The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supe
 - Participant schema migration is now LIVE and documented as 20260919070000_add_combat_battle_participants. It adds combat_battle_participants plus nullable participant foreign keys through units/snapshots/shots/damage, but deliberately leaves existing combat writers and uniqueness constraints unchanged. LIVE participant row count is 0; no historical combat rows were rewritten.
 - Next precise implementation boundary: backfill/create participants for the current single-attacker path, propagate participant_id through combat writers, then replace uniqueness constraints with participant-aware keys. Only after regression verification should ACS multi-defender dispatch be enabled.
 
+
+
+## 12.5 Combat participant propagation — 2026-09-19
+
+- The first participant-aware combat schema is LIVE: `combat_battle_participants` plus participant FKs on units/snapshots/shots/damage.
+- Forward-only migration `20260919080000_propagate_combat_participants_v2` now uses that identity in the existing V2 single-attacker + stationary-planet path.
+- Updated writers: `resolve_combat`, unit initialization, snapshots, initial/RF shots, damage ledger, damage application, next-round cloning and `resolve_attack_arrival` settlement.
+- Current behavior is intentionally unchanged at the gameplay level: one attacker fleet + one stationary planet, same round/RF/damage/loot/repair/debris/return semantics.
+- Historical combat rows were not rewritten. Old unit/snapshot uniqueness constraints remain in place deliberately; ACS multi-fleet insertion is still blocked until those keys are replaced safely.
+- LIVE smoke verification after deployment: participant table exists, current participant row count remains 0 because no new combat was executed as part of the change; no historical combat data was mutated by the verification.
+- OGameX comparison supports the durable per-fleet attribution pattern (its current battle engine models multiple attacker/defender fleets), but no OGameX combat implementation or gameplay rule was copied.
+- Next exact boundary: create a transactional regression fixture for a fresh single-attacker battle; verify every new combat row has the correct participant chain. Only then replace the old uniqueness constraints with participant-aware keys and introduce multi-defender ACS settlement.
