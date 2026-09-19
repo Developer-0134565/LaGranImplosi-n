@@ -376,3 +376,19 @@ The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supe
 - LIVE smoke verification after deployment: participant table exists, current participant row count remains 0 because no new combat was executed as part of the change; no historical combat data was mutated by the verification.
 - OGameX comparison supports the durable per-fleet attribution pattern (its current battle engine models multiple attacker/defender fleets), but no OGameX combat implementation or gameplay rule was copied.
 - Next exact boundary: create a transactional regression fixture for a fresh single-attacker battle; verify every new combat row has the correct participant chain. Only then replace the old uniqueness constraints with participant-aware keys and introduce multi-defender ACS settlement.
+
+
+## 12. Combat base-engine closure — 2026-09-19
+
+The current V2 single-attacker + stationary-planet combat identity path is now regression-certified.
+
+- Test: `supabase/tests/combat_participant_propagation.sql`
+- LIVE verification: **15/15 PASS**
+- Coverage: participants → individual units → snapshots → initial shots → rapidfire chain → damage ledger → damage application → next-round cloning → attack-arrival settlement.
+- The fixture is transactional and leaves no generated combat/fleet/planet/RF state behind.
+- Historical combat rows remain untouched.
+- Old uniqueness constraints remain intentionally unchanged.
+- ACS/HOLDING/DEFEND remains outside the current base-engine closure.
+- Lifeform-specific combat changes are deferred to the next version; they are not part of this base-engine certification.
+
+This is the current combat-engine closure boundary: **identity propagation is CLOSED; multi-fleet ACS is NOT part of the current version.**
