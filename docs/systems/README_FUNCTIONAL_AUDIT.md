@@ -298,3 +298,32 @@ The final read-only sweep was performed against LIVE Supabase and current GitHub
 
 ### Base-engine boundary
 Lifeform UI/backend remains outside this certification decision. ACS/HOLDING/DEFEND remains a future multi-participant extension and is not being implemented in this sweep.
+
+## Fleet browser integration + live fixture cleanup — 2026-09-19
+
+### Fleet UI
+
+`origin/main` now contains the functional Fleet selection/launch surface in commit `90cbcf8` (`feat: add fleet ship selection and launch UI`). The Fleet view is no longer limited to historical movement records: it is intended to read the authenticated player's available `planet_ships`, expose ship selection, mission/target preparation and launch.
+
+Local browser verification also exposed a worker runtime asset-binding defect; `origin/main` commit `b22b1a9` (`fix: bind worker assets for local runtime`) is the corresponding runtime fix.
+
+### Live data finding and cleanup
+
+The Fleet page initially showed zero available ships while LIVE `planet_ships` contained:
+
+- obsolete `Temporal Test Defender` G1:S2:P3 → 20 `light_fighter`;
+- real `Homeworld` G1:S1:P1 → 1 `light_fighter`.
+
+The obsolete planet belonged to a separate test player and was not part of the authenticated human player's ownership chain. The obsolete test planet and dependent test state were removed from LIVE. Additional legacy test-player planets were also removed so the real human Homeworld is the only human-owned gameplay planet remaining.
+
+The cleanup is data hygiene only; no fleet formula or ownership rule was changed. The real Homeworld and its 1 Light Fighter remain intact.
+
+### Certification consequence
+
+The next Fleet browser certification must verify the complete chain:
+
+`auth.uid() → players.user_id → players.id → owned Homeworld → planet_ships → Fleet selection → launch → fleet_movements`.
+
+A Fleet page must never resolve an arbitrary test/legacy planet by name, coordinates or first-row heuristics. Future fixtures should be transactional and leave no persistent test planets or ships.
+
+
