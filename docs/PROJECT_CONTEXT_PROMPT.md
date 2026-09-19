@@ -278,7 +278,7 @@ At the end of meaningful work:
 | Economy | [`systems/README_ECONOMY.md`](systems/README_ECONOMY.md) | Resources, production, costs, settlement semantics |
 | Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Construction/research/fleet audit, guarantees, next validations |
 | Research | [`systems/README_RESEARCH.md`](systems/README_RESEARCH.md) | Research audit vs Buildings + client availability contract |
-| Fleet engine | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) | Prerequisites, propulsion, mission classes, fuel, lifecycle |
+| Fleet engine | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) | Prerequisites, propulsion, mission classes, fuel, lifecycle |\n| Combat engine | [`systems/README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) | LIVE combat V2 pipeline, participant model and ACS prerequisite |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, expansion and AI |
 | Universe evolution monitor | [`systems/README_UNIVERSE_EVOLUTION_MONITOR.md`](systems/README_UNIVERSE_EVOLUTION_MONITOR.md) | Read-only observability, public RPC contract and deployment evidence |
 | Rate/fleet monitor | [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) | Canonical scaling, travel-time and fleet integration audit |
@@ -295,15 +295,14 @@ maintenance.
 ## 12. Next engineering step
 
 ```text
-0. ACS/HOLDING/DEFEND: audit existing dispatch/ownership contracts + OGameX ACS-defend pattern; define the minimal player-facing dispatch contract before implementing it.
-1. Before any ACS dispatch implementation, verify the LIVE process_fleet_movements() worker against the canonical pre-HOLDING worker body; preserve every existing mission-specific arrival/return branch.
-2. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
-3. Shipyard audit/tests.
-4. Defence audit/tests.
-5. Research UI contract integration: switch the research view to the authoritative can_start_research() contract.
-6. Continue basic-engine order: Transport → Attack → Combat.
-7. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
-8. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
+0. ACS/HOLDING/DEFEND: combat architecture prerequisite is now audited; implement the minimum participant-aware combat model before player-facing ACS dispatch.
+1. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
+2. Shipyard audit/tests.
+3. Defence audit/tests.
+4. Research UI contract integration: switch the research view to the authoritative can_start_research() contract.
+5. Continue basic-engine order: Transport → Attack → Combat.
+6. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
+7. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
 
 The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
@@ -350,3 +349,15 @@ The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supe
 > **Do not delete useful history merely to make the context smaller.**
 >
 > Inspect → compare → decide → implement → test → document → preserve continuity.
+
+
+## 12.4 Combat architecture audit — 2026-09-19
+
+- LIVE combat V2 is confirmed as the active path: `combat_battles → combat_individual_units → snapshots → shots/RF → combat_round_damage → target resolution → apply damage → combat_rounds → next round → finalization → resolve_attack_arrival settlement`.
+- `combat_battles` is structurally single-attacker/single-target-planet. `resolve_combat()` initializes the attack fleet plus stationary planet ships/defences.
+- `combat_individual_units` has no durable fleet/owner participant identity. Its uniqueness model would collide when two support fleets contain the same ship type/unit number.
+- `resolve_attack_arrival()` settles one attacker fleet plus one stationary planet and cannot safely return multiple ACS fleets by inference.
+- Minimum ACS prerequisite is an explicit `combat_battle_participants` layer plus `participant_id` propagation through individual units, snapshots, shots and damage. Preserve aggregate ATTACKER/DEFENDER round semantics, but retain participant-level survivor identity for settlement.
+- Participant settlement must return each surviving support fleet to its own `fleet_id` / `origin_planet_id`; loot remains attacker-only, defence repair remains planet-only, debris remains battle-scoped.
+- No combat schema/function changes were made in this audit. Durable detail: `systems/README_COMBAT_ENGINE.md`.
+- Next implementation boundary: participant migration + regression fixtures; only after that `start_acs_hold` / `start_defend`.
