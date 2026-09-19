@@ -320,6 +320,13 @@ The latest read-only audits supersede stale assumptions:
 - **Universe Evolution:** runtime engine is already active in LIVE. Do not design a second clock, scheduler, worker or catch-up mechanism.
 - **Canonical fleet open work:** browser certification, future ACS/HOLDING/DEFEND design, and bounded hygiene only.
 
+## 12.3 Holding audit correction + ACS design findings — 2026-09-19
+
+- The first HOLDING lifecycle migration preserved the mission-specific worker branches but omitted two pre-existing worker hardening details: outbound/returning partial indexes and the private EXECUTE ACL. This was corrected forward-only in 20260919060000_restore_fleet_worker_hardening; LIVE verification confirms both indexes/ACL and the HOLDING branches.
+- OGameX ACS Defend reference: ACS Defend is a distinct mission with physical arrival separated from the hold window, buddy/alliance eligibility, and multi-defender combat with per-fleet owner/mission attribution. Source reference: OGameX AcsDefendMission, FleetMissionService, DefenderFleet, and FleetDispatchAcsDefendTest.
+- L.G.I. has no LIVE alliance/buddy tables, so the OGameX eligibility rule must not be copied blindly. Support eligibility is a game-design OPEN decision.
+- Before start_acs_hold / start_defend, preserve the current canonical speed/fuel pipeline and require the existing authenticated ownership pattern. Do not route ACS through the legacy start_fleet_mixed security/authority gap.
+
 ## 12.2 ACS / HOLDING / DEFEND lifecycle implementation — 2026-09-19
 
 The HOLDING persistence/lifecycle contract is now implemented in LIVE; this supersedes the older “definition-only/no persistence” wording, while gameplay remains intentionally open:
