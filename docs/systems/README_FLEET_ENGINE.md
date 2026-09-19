@@ -2,9 +2,10 @@
 
 > **Status:** BACKEND CONVERGED / MISSION MODIFIERS CLOSED — `start_fleet`, `start_fleet_mixed` and
 > `start_colonize_fleet` converge in LIVE on the canonical movement pipeline: ship speed, mission class,
-> evolution, modifiers, travel time and fuel. **Browser certification remains OPEN**. ACS/HOLDING/DEFEND is
-> **OPEN — PARTIAL**: persistence and lifecycle infrastructure exist, but gameplay dispatch, support semantics,
-> combat integration, validated support fuel and UI remain open.
+> evolution, modifiers, travel time and fuel. **Browser certification remains OPEN**. ACS_HOLD Fase A is
+> **IMPLEMENTED / NOT BROWSER-CERTIFIED** (§22): single support dispatcher + explicit destination-owner
+> authorization + `OUTBOUND → ARRIVED → HOLDING → RETURNING → COMPLETED` lifecycle. `DEFEND` remains
+> **BLOCKED BY COMBAT ENGINE**, holding fuel and maximum holding duration remain **OPEN**, UI is not built.
 >
 > Canonical durable record for ship prerequisites, propulsion technology, mission speed classes, cargo,
 > fuel, distance, dispatch and the movement lifecycle. OGameX is a reference pattern; L.G.I. keeps its own
@@ -288,41 +289,50 @@ EXPEDITION belongs to PEACEFUL). It now resolves the class with
 `fleet_speed = peaceful_fleet_speed = 1` and the delays were identical before/after
 (4439/6659/11099 and 4438/6658/11096 for three live expedition fleets).
 
-## 13. ACS / HOLDING / DEFEND — state: OPEN — PARTIAL
+## 13. ACS / HOLDING / DEFEND — state: FASE A IMPLEMENTED (see §22)
 
 | Layer | State | Evidence (LIVE) |
 |---|---|---|
-| Speed class | **IMPLEMENTED / PARTIAL** | the classifier maps `ACS_HOLD`/`HOLDING`/`DEFEND` → `holding_fleet_speed` |
+| Speed class | **IMPLEMENTED** | the classifier maps `ACS_HOLD`/`HOLDING`/`DEFEND` → `holding_fleet_speed` |
 | Universe column | **READY** | `universes.holding_fleet_speed` exists, `NOT NULL DEFAULT 1`, independent from the other two |
-| Dispatch RPC | **NOT_IMPLEMENTED** | `start_fleet`, `start_fleet_mixed`, `start_colonize_fleet` reject any mission outside the 7 implemented ones |
-| Persistence | **PARTIAL / IMPLEMENTED** | `fleet_movements` accepts `ACS_HOLD`/`HOLDING`/`DEFEND` and persists `holding_until`; no separate support table is required yet |
-| Lifecycle worker | **PARTIAL / IMPLEMENTED** | due outbound support becomes `HOLDING`; due `holding_until` becomes `RETURNING`, reusing outbound duration for return |
-| Player dispatch | **NOT_IMPLEMENTED** | no player-facing support dispatch RPC exists |
-| Destination semantics | **OPEN** | support target semantics and eligibility rules are not complete |
-| Combat integration | **NOT_IMPLEMENTED** | current combat remains single-attacker/stationary-planet |
-| Fuel validation | **OPEN** | canonical helper is available, but support-specific behavior is not validated |
-| UI | **NOT_IMPLEMENTED** | no player-facing ACS/HOLDING/DEFEND UI exists |
+| Dispatch RPC | **IMPLEMENTED (Fase A)** | single `start_support_fleet(...)`; `ACS_HOLD` accepted, `DEFEND` → `COMBAT_SUPPORT_NOT_READY`, `HOLDING` → `HOLDING_IS_INTERNAL_STATE` |
+| Persistence | **IMPLEMENTED** | `fleet_movements` admits the three mission names, stores `holding_until` and `idempotency_key`; the legacy constraints that blocked them were removed (§22.1) |
+| Lifecycle worker | **IMPLEMENTED** | due support becomes `HOLDING` after validating the holding window; due `holding_until` becomes `RETURNING` reusing the outbound duration |
+| Player dispatch | **IMPLEMENTED (backend only)** | no frontend caller yet; the UI phase is separate |
+| Destination semantics | **IMPLEMENTED (temporary explicit policy)** | `planet_support_authorizations`: the destination owner grants/revokes a planet-scoped authorization; planet existence is never authorization |
+| Combat integration | **NOT_IMPLEMENTED — BLOCKED BY COMBAT ENGINE** | `DEFEND` cannot be created and cannot enter `HOLDING` |
+| Holding fuel | **NOT_IMPLEMENTED (product decision pending)** | no deuterium tick is invented for the hold window |
+| Maximum holding duration | **OPEN (product decision)** | no arbitrary maximum is hardcoded; only `holding_until > arrives_at` and future-ness are enforced |
+| UI | **NOT_IMPLEMENTED** | no ACS selector; the future selector will be `ACS_HOLD` + `DEFEND` (DEFEND stays closed) |
 
-Required pipeline when it is built (do not ship a partial version):
+Actual implemented pipeline (migration `20260919100000_add_acs_hold_support_dispatch`):
 
 ```text
-start_acs_hold/start_defend (SECURITY DEFINER, ownership check)
-   ↓ calculate_player_ship_speed(player, ship)
-   ↓ calculate_mission_fleet_speed_multiplier(universe, 'ACS_HOLD' | 'HOLDING' | 'DEFEND')
-        -> holding_fleet_speed   (never peaceful_*/war_*)
+start_support_fleet (SECURITY DEFINER, ownership check)
+   ↓ calculate_player_ship_speed(player, ship)                     -- slowest effective ship
+   ↓ calculate_mission_fleet_speed_multiplier(universe, 'ACS_HOLD')  -> holding_fleet_speed
    ↓ E^(1/3) + lifeform/item modifiers (same ordering as §5)
-   ↓ calculate_fleet_travel_time(...)  → holding window (arrives_at + hold duration)
-   ↓ fuel: calculate_player_fleet_fuel_for_distance(...) with the outbound flight time
-   ↓ return leg: reuse the duration (worker pattern of §11)
+   ↓ calculate_fleet_travel_time(...)  → arrives_at
+   ↓ holding_until (absolute UTC timestamp) → HOLDING window
+   ↓ fuel: calculate_player_fleet_fuel_for_distance(..., outbound flight time)
+   ↓ return leg: reuse the persisted duration (worker pattern of §11)
 ```
 
-Completed in migration `20260919053220_add_fleet_holding_lifecycle`: `fleet_movements.mission_type` now admits
+`HOLDING` is a lifecycle state, never a player-facing mission. Full technical record, tests, findings and
+remaining blockers: §22.
+
+Completed in migration `20260919053220_add_fleet_holding_lifecycle`: `fleet_movements.mission_type` admits
 `ACS_HOLD`/`HOLDING`/`DEFEND`, `holding_until` is persisted, `HOLDING` is a durable movement state, and the worker
 transitions `OUTBOUND → HOLDING → RETURNING` while reusing the outbound duration. The new mission types require a
-non-null `holding_until`. Still required: destination semantics (support target = foreign planet), player-facing
-support dispatch, fleet-support combat integration and UI. OGameX currently restricts ACS Defend to buddies/alliance
-members and models physical arrival separately from the hold window; L.G.I. has no alliance/buddy tables in LIVE, so
-that eligibility rule is not imported and remains a deliberate game-design decision.
+non-null `holding_until` — but see §22.1: that migration added the broader constraints under new names while the
+original `fleet_movements_mission_type_chk` / `fleet_movements_status_chk` remained in force, so until Fase A no
+support row could actually exist in LIVE.
+
+Remaining after Fase A: ACS combat integration and multi-defender settlement (`DEFEND` stays closed), validated
+holding-fuel semantics, the maximum holding duration product decision, and UI. OGameX restricts ACS Defend to
+buddies/alliance members and models physical arrival separately from the hold window; L.G.I. has no alliance/buddy
+tables in LIVE, so that eligibility rule was not imported — Fase A uses a minimal explicit, revocable,
+planet-scoped owner authorization instead (§22.3).
 
 ## 14. Route classification (map produced by the sweep)
 
@@ -368,7 +378,9 @@ The remaining items above are browser certification or bounded architecture deci
 ## 16. Tests
 
 ```text
-supabase/tests/fleet_speed_classes.sql   transactional (BEGIN … ROLLBACK) · 22/22 PASS live 2026-09-18
+supabase/tests/fleet_speed_classes.sql        transactional (BEGIN … ROLLBACK) · 22/22 PASS live 2026-09-18
+                                              + assertion 10/10c updated for ACS_HOLD Fase A (pending LIVE re-run)
+supabase/tests/fleet_acs_hold_lifecycle.sql   transactional (BEGIN … ROLLBACK) · ACS_HOLD Fase A (pending LIVE run)
 ```
 
 Covers: single class authority · class matrix incl. HOLDING and the legacy fallback · invalid-class exception
@@ -448,3 +460,136 @@ Before implementing player-facing ACS dispatch, combat integration must be treat
 Therefore the next implementation boundary is **not** to make `resolve_attack_arrival()` inspect ACS rows ad hoc. First define a durable battle-participant model that can attribute each defending support fleet to its owner and source movement, preserve per-fleet survival, and settle each surviving fleet back to its own origin. This matches the OGameX reference pattern where ACS defender fleets are explicit battle participants with fleet/owner identity and multi-defender results.
 
 No combat schema or resolver changes were made in this audit.
+
+## 22. ACS_HOLD Fase A — 2026-09-19
+
+Player-facing ACS_HOLD support dispatch, its minimal authorization policy and the complete holding lifecycle.
+Reference for behaviour only: OGameX `AcsDefendMission` / `FleetMissionService` / `DefenderFleet` /
+`FleetDispatchAcsDefendTest`. No OGameX architecture, table or code was copied, and its holding cost was **not**
+imported (see §22.5).
+
+### 22.1 Migration `20260919100000_add_acs_hold_support_dispatch`
+
+**Forward correction (blocker found by provenance inspection).** `20260919053220_add_fleet_holding_lifecycle`
+created the broader `fleet_movements_mission_type_check` / `fleet_movements_status_check` constraints but dropped
+constraint names that never existed; the original table constraints `fleet_movements_mission_type_chk`
+(7 missions) and `fleet_movements_status_chk` (no `HOLDING`) were therefore still enforcing the old sets. Because
+CHECK constraints are ANDed, LIVE could not store `ACS_HOLD`/`HOLDING`/`DEFEND` nor the `HOLDING` status: the
+documented holding lifecycle was unreachable. Fase A removes the two legacy constraints (the `*_check` pair stays
+as the single mission/status authority). No gameplay value changed; the new set is a strict superset.
+
+Other durable schema changes:
+
+- `fleet_movements.holding_until > arrives_at` (`fleet_movements_holding_until_after_arrival_check`);
+- `fleet_movements.idempotency_key uuid` + partial unique index
+  `fleet_movements_player_idempotency_key_uq (player_id, idempotency_key)`;
+- `public.planet_support_authorizations` (RLS enabled, `deny_direct_api_access` policy, unique
+  `(destination_planet_id, guest_player_id)`), managed only through
+  `grant_planet_support_authorization(...)` / `revoke_planet_support_authorization(...)`.
+
+### 22.2 Single dispatcher `start_support_fleet(...)`
+
+```text
+start_support_fleet(p_player_id, p_origin_planet_id, p_destination_planet_id,
+                    p_ships jsonb, p_support_mission text,
+                    p_holding_until timestamptz, p_idempotency_key uuid)
+```
+
+- One dispatcher for support missions. `ACS_HOLD` is accepted; `DEFEND` raises
+  `COMBAT_SUPPORT_NOT_READY`; `HOLDING` raises `HOLDING_IS_INTERNAL_STATE`; any other value raises
+  `Invalid support mission type`. No `start_acs_hold` / `start_defend` / `start_holding` exists.
+- Identity: `auth.uid()` must resolve through `players.user_id` to `p_player_id`; the origin planet must belong to
+  that player. The client-provided `p_player_id` is never trusted alone.
+- Destination: exists, not destroyed, same universe, **foreign** (never the player's own planet) and covered by an
+  active authorization. `planet exists → ACS allowed` is explicitly *not* the rule.
+- Composition: non-empty JSON object, positive integers, known ships, availability checked under `FOR UPDATE`;
+  travel time uses the **slowest effective ship** from `calculate_player_ship_speed` (never
+  `ship_definitions.speed`).
+- Pipeline: `calculate_mission_fleet_speed_multiplier(universe,'ACS_HOLD')` → `holding_fleet_speed` →
+  `E^(1/3)` → item/lifeform `fleet_speed_percent` → `calculate_fleet_travel_time` → fuel through
+  `calculate_player_fleet_fuel_for_distance` with the outbound flight time (applied once, lifeform reduction
+  only). The dispatcher body contains no `35000`, no `.speed` read and no `universes` read (assertion F3).
+- `holding_until` must exist, be in the future and be strictly after the computed `arrives_at`
+  (`HOLDING_UNTIL_REQUIRED` / `HOLDING_UNTIL_NOT_IN_FUTURE` / `HOLDING_UNTIL_BEFORE_ARRIVAL`). **No maximum
+  duration is enforced**: the product limit is still an OPEN decision, so no arbitrary constant was hardcoded.
+- Atomicity: fuel check → fuel deduction → ship deduction → `fleet_movements` → `fleet_movement_ships`, all in the
+  dispatcher's single transaction. There is no code path that can persist a movement without its fuel/ship
+  deduction or a deduction without its movement.
+- Idempotency: `p_idempotency_key` is required. A replay returns the durable movement of the first request
+  (`idempotent_replay = true`) without mutating anything; the partial work of a call that loses the unique-index
+  race is rolled back by its own subtransaction and the winner's movement is returned.
+- ACL: `REVOKE ... FROM PUBLIC, anon` + `GRANT ... TO authenticated` for all three new RPCs.
+
+
+### 22.3 Authorization policy (temporary, explicit)
+
+L.G.I. has no alliance/buddy/consent structure in LIVE. The phase therefore ships one minimal primitive instead of
+inventing a social system: the **destination owner** explicitly authorizes a specific foreign player on a specific
+planet, with optional expiry and revocation. The dispatcher requires an active row
+(`revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`); expired or revoked authorizations are
+rejected exactly like a missing one. This is a deliberate product decision pending the alliance/buddy design.
+
+### 22.4 Worker lifecycle `20260919101000_extend_acs_hold_worker_lifecycle`
+
+`process_fleet_movements()` is extended in place — no second worker:
+
+```text
+OUTBOUND → ARRIVED → HOLDING        only after validating the persisted holding window
+HOLDING  → RETURNING                now() >= holding_until, returns_at = holding_until + outbound duration
+RETURNING → COMPLETED               existing settlement (ships + cargo back to origin)
+```
+
+- Invalid or missing `holding_until` on arrival raises `SUPPORT_HOLDING_WINDOW_*` inside the worker transaction, so
+  a support movement can never remain `ARRIVED` with a half-initialised hold.
+- `DEFEND` never enters `HOLDING`: the worker emits a WARNING and leaves the row in `ARRIVED`. This is a defensive
+  guard for a state that no live path can create (the dispatchers reject `DEFEND`, and `fleet_movements` has no
+  INSERT policy for client roles). Raising there would abort the whole worker batch, so the safe rejection is
+  explicit and non-fatal.
+- The return leg reuses the persisted outbound duration; the worker contains no
+  `calculate_fleet_travel_time` / `calculate_player_ship_speed` / `calculate_player_fleet_fuel_for_distance` /
+  `35000` (assertion F4). The hold is never extended automatically.
+- L.G.I. has no `QUEUED` movement status: an accepted dispatch is created directly as `OUTBOUND`, as every other
+  implemented mission already does. This is an intentional difference from the conceptual `QUEUED → OUTBOUND`
+  sketch.
+
+### 22.5 Fuel semantics in Fase A
+
+Outbound fuel only, through the canonical helper, exactly like the other missions. **Holding fuel is NOT
+IMPLEMENTED**: OGameX charges for the hold window, L.G.I. has no product rule for it, and inventing a deuterium
+tick would contaminate the canonical helper. Pending decision. Return-leg fuel keeps the existing project
+behaviour (no second charge).
+
+### 22.6 OGameX classification
+
+| Item | Classification |
+|---|---|
+| Support target is a foreign planet; own planet is not a valid ACS_HOLD target | OGameX reference → L.G.I. equivalent (`ACS_HOLD_DESTINATION_OWN_PLANET`) |
+| Slowest-ship speed + mission speed class | OGameX reference → L.G.I. equivalent (`holding_fleet_speed`) |
+| Physical arrival distinct from the hold window | OGameX reference → L.G.I. equivalent (`arrives_at` vs `holding_until`) |
+| Return after the hold | OGameX reference → L.G.I. equivalent (`RETURNING` reusing the outbound duration) |
+| Recall during outbound/holding | OGameX reference → **L.G.I. missing** (no recall path exists for any mission; out of Fase A scope) |
+| Normal fleet composition (multi-ship) | OGameX reference → L.G.I. equivalent (`fleet_movement_ships`) |
+| Buddy/alliance dispatch eligibility | OGameX reference → **L.G.I. missing** (no alliance/buddy tables) → replaced by the temporary explicit authorization policy by product decision (§22.3) |
+| Holding deuterium cost | OGameX reference → **L.G.I. intentionally different / not implemented** (product rule pending, §22.5) |
+| Multi-defender ACS combat participation | OGameX reference → **L.G.I. missing** → `DEFEND` and combat integration stay BLOCKED (§21) |
+| `QUEUED` mission status | OGameX reference → **L.G.I. intentionally different** (no `QUEUED`; created as `OUTBOUND`) |
+| Prerequisite re-validation at dispatch | L.G.I. intentionally follows `start_fleet_mixed` (no `check_ship_requirements` at dispatch; ownership and availability only) |
+
+### 22.7 Blockers / findings recorded by this phase
+
+1. **Product blocker — maximum holding duration**: not defined by the product, therefore not enforced.
+2. **Product blocker — holding fuel**: not defined, therefore not implemented (§22.5).
+3. **Structural blocker — combat**: `DEFEND` and multi-defender settlement, unchanged from §21.
+4. **Finding — provenance gap**: `calculate_player_ship_fuel_consumption` is referenced by the canonical fuel
+   helper in `20260919042952_reconcile_fleet_mission_and_monitor_provenance`, but its `CREATE` is absent from every
+   repository migration; it exists in LIVE only. It was **not** recreated here (that would duplicate the single
+   engine-consumption authority), but the migration history cannot reproduce it.
+5. **Finding — dispatcher/classifier claim not reproducible**: no repository migration makes `start_fleet` /
+   `start_fleet_mixed` call `calculate_mission_fleet_speed_multiplier`; the last authored bodies (and the recovered
+   `20260918094440` / `20260918095005` patchers) still read `universes.fleet_speed`. The §10 claim and
+   `fleet_speed_classes.sql` assertion 4 must be re-verified against LIVE before being trusted. Fase A does not
+   depend on it: `start_support_fleet` resolves its own class explicitly.
+6. **Pending verification**: `fleet_acs_hold_lifecycle.sql` and the updated `fleet_speed_classes.sql` must be
+   executed in LIVE (SQL Editor / `execute_sql`). This environment had no database credentials and no local
+   Postgres/Docker, so the SQL was validated structurally (balanced blocks, canonical-helper-only bodies) but not
+   executed here.

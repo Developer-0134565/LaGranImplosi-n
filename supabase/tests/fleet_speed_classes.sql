@@ -8,7 +8,8 @@
 -- Cubre (fleet sweep 2026-09-18):
 --   · autoridad única de clase de misión (PEACEFUL / WAR / HOLDING)
 --   · matriz de clases por misión, incluida HOLDING (ACS_HOLD/HOLDING/DEFEND),
---     aunque su dispatch NO esté implementado (estado documentado como OPEN)
+--     despachable como ACS_HOLD desde la Fase A (holding lifecycle + dispatcher
+--     único start_support_fleet; DEFEND sigue cerrado hasta el Combat Engine)
 --   · wiring del pipeline canónico en los 3 dispatch (clasificador + E^(1/3) + helper)
 --   · ausencia de fórmulas de viaje paralelas
 --   · routing único de tecnología (motores) y orden de combustible
@@ -153,15 +154,28 @@ begin
       ('9. cluster legado sin consumidores vivos [' || v_n || '] (esperado 0)',
        case when v_n = 0 then 'PASS' else 'FAIL: ' || v_n || ' consumidor(es)' end);
 
-    /* 10) HOLDING: preparado (clase + columna) pero NO despachable.
-           Estado documentado OPEN: fleet_movements sólo admite 7 misiones (sin ACS_HOLD/HOLDING/DEFEND). */
+    /* 10) HOLDING Fase A: el CHECK efectivo admite ACS_HOLD/HOLDING/DEFEND y existe
+           UN dispatcher de soporte que usa la clase HOLDING y rechaza DEFEND/HOLDING. */
     select count(*) into v_n
     from pg_constraint con join pg_class c on c.oid = con.conrelid join pg_namespace ns on ns.oid = c.relnamespace
-    where ns.nspname = 'public' and c.relname = 'fleet_movements' and con.conname = 'fleet_movements_mission_type_chk'
-      and pg_get_constraintdef(con.oid) !~ '(ACS_HOLD|HOLDING|DEFEND)';
+    where ns.nspname = 'public' and c.relname = 'fleet_movements'
+      and con.conname = 'fleet_movements_mission_type_check'
+      and pg_get_constraintdef(con.oid) ~ 'ACS_HOLD'
+      and pg_get_constraintdef(con.oid) ~ 'DEFEND';
     insert into t_results(prueba, resultado) values
-      ('10. ACS_HOLD/HOLDING/DEFEND NO despachables (CHECK de 7 misiones) [' || v_n || ']',
-       case when v_n = 1 then 'PASS (estado OPEN documentado)' else 'FAIL: ' || v_n end);
+      ('10. CHECK de misión admite ACS_HOLD/HOLDING/DEFEND [' || v_n || ']',
+       case when v_n = 1 then 'PASS' else 'FAIL: ' || v_n end);
+
+    select count(*) into v_n
+    from t_defs
+    where proname = 'start_support_fleet'
+      and code ~ 'calculate_mission_fleet_speed_multiplier'
+      and code ~ 'ACS_HOLD'
+      and code ~ 'COMBAT_SUPPORT_NOT_READY'
+      and code ~ 'HOLDING_IS_INTERNAL_STATE';
+    insert into t_results(prueba, resultado) values
+      ('10c. dispatcher único de soporte (clase HOLDING · DEFEND/HOLDING rechazados) [' || v_n || ']',
+       case when v_n = 1 then 'PASS' else 'FAIL: ' || v_n end);
 
     select count(*) into v_n
     from information_schema.columns

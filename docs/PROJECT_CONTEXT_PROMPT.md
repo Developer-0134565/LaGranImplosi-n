@@ -86,7 +86,11 @@ The development workflow and tool-selection gate are defined in
   `calculate_player_ship_fuel_consumption` only.
 - Fuel reduction uses Lifeform `fuel_reduction_percent`; Hyperspace Technology is not a generic fuel discount.
 - Fleet return timing reuses the persisted outbound duration; it does not recalculate speed.
-- ACS/HOLDING/DEFEND must not be exposed as partial player gameplay.
+- ACS_HOLD is dispatched by ONE support dispatcher (`start_support_fleet`) through the canonical pipeline with
+  `holding_fleet_speed`; `HOLDING` is a lifecycle state, never a player-facing mission, and `DEFEND` stays closed
+  until the Combat Engine.
+- ACS_HOLD support to a foreign planet requires an explicit, revocable, planet-scoped authorization granted by the
+  destination owner; planet existence is never authorization, and no alliance/buddy system is invented.
 - Documentation detail is segregated; moving it to a specialized README is not deletion.
 
 ## 6. CLOSED
@@ -114,21 +118,27 @@ Evidence and detailed tests remain in
 
 ### OPEN — PARTIAL: ACS / HOLDING / DEFEND
 
-Implemented infrastructure:
+Decision (2026-09-19): **ACS_HOLD Fase A implemented in the backend**; `DEFEND` remains closed.
 
-- `HOLDING` mission classification and `holding_fleet_speed`;
-- `holding_until`;
-- durable `HOLDING` state;
-- lifecycle `OUTBOUND → ARRIVED → HOLDING → RETURNING`.
+Implemented:
 
-Not implemented and must remain open:
+- single support dispatcher `start_support_fleet(...)` (`ACS_HOLD` only) on the canonical fleet pipeline with
+  `holding_fleet_speed`;
+- explicit, revocable destination-owner authorization (`planet_support_authorizations`) — no alliance/buddy system
+  invented and no `planet exists → allowed` bypass;
+- `holding_until` as an absolute UTC window, enforced as future and strictly after `arrives_at`;
+- durable lifecycle `OUTBOUND → ARRIVED → HOLDING → RETURNING → COMPLETED` in the existing worker;
+- per-request idempotency key preventing a duplicated dispatch from double-deducting ships/fuel;
+- forward correction of the legacy constraints that silently blocked every support row (`README_FLEET_ENGINE` §22.1).
 
-- player-facing dispatch;
-- complete support-destination semantics;
-- ACS/alliance/buddy eligibility rules;
-- combat integration and multi-defender settlement;
-- validated support-specific fuel semantics;
-- UI.
+Not implemented and still open:
+
+- `DEFEND` and ACS combat integration / multi-defender settlement → **BLOCKED BY COMBAT ENGINE**;
+- holding fuel → **product decision pending** (not invented);
+- maximum holding duration → **product decision pending** (not hardcoded);
+- support recall during outbound/holding;
+- UI (the future selector is `ACS_HOLD` + `DEFEND`; DEFEND stays closed);
+- browser certification of the ACS_HOLD flow and execution of the new SQL test in LIVE.
 
 ### Other OPEN work
 
@@ -137,7 +147,7 @@ Not implemented and must remain open:
 - Bounded hygiene decisions for `calculate_universe_rates` and unused Lifeform keys.
 - Fleet lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and `player_messages`.
 
-Do not change `OPEN — PARTIAL` to `CLOSED` because persistence or worker infrastructure exists.
+Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or worker infrastructure exists.
 
 ## 8. SUPERSEDED / protected history
 
@@ -175,10 +185,13 @@ Do not change `OPEN — PARTIAL` to `CLOSED` because persistence or worker infra
 ## 11. Next engineering boundary
 
 ```text
-1. Define and implement the minimum participant-aware combat model required by ACS.
-2. Only after that, define player-facing ACS/HOLDING/DEFEND dispatch contracts.
-3. Certify the already-converged seven fleet missions in the browser.
-4. Continue remaining browser and bounded hygiene work without reopening closed fleet rules.
+1. Define and implement the minimum participant-aware combat model required by ACS
+   (DEFEND stays closed until then).
+2. Certify the ACS_HOLD Fase A flow: run the SQL tests in LIVE, then define the
+   player-facing UI contract (selector ACS_HOLD + DEFEND, DEFEND still closed).
+3. Decide the two open product rules: holding fuel and maximum holding duration.
+4. Certify the already-converged seven fleet missions in the browser.
+5. Continue remaining browser and bounded hygiene work without reopening closed fleet rules.
 ```
 
 > **Golden rule:** inspect → compare → decide → implement → test → verify → document.
