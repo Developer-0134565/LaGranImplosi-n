@@ -1,0 +1,1 @@
+ALTER TABLE public.combat_battles ALTER COLUMN defender_planet_id DROP NOT NULL;

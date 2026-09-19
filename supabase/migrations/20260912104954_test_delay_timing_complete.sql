@@ -1,0 +1,1 @@
+UPDATE public.fleet_movements SET returns_at=now()-interval '1 second' WHERE id='66e96366-59c1-47ec-ad48-1c780f3894f2';

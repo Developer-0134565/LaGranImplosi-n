@@ -1,0 +1,1 @@
+UPDATE public.expedition_settings SET weight_ships=0,weight_resources=0,weight_delay=100,weight_speedup=0,weight_nothing=0,weight_black_hole=0,weight_pirates=0,weight_aliens=0,weight_dark_matter=0,weight_merchant=0,weight_items=0 WHERE universe_id='86900cbc-467d-4e23-85fa-7ba6302a57eb';
