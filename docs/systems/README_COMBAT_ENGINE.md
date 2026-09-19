@@ -209,7 +209,7 @@ For ACS, keep this semantic unchanged.
 
 - `combat_unit_state` exists in LIVE but is not part of the audited active V2 pipeline; do not revive it as an ACS shortcut without a separate audit.
 - `finish_combat_round_v1` is still the active round-closing function despite its legacy name. Renaming is hygiene, not a prerequisite for ACS participant identity.
-- The current combat tables have no RLS enabled in the LIVE inspection. Final security/RLS work remains a separate project phase unless a concrete exposed-access defect is encountered.
+- The audited combat tables have RLS enabled in LIVE. Their exact policies were not expanded in this bounded architecture audit; final security/RLS review remains a separate project phase unless a concrete exposed-access defect is encountered.
 - The current individual-unit model is intentionally one row per physical combat unit. The ACS extension should preserve that granularity rather than switching to aggregate quantities.
 
 ## 10. ACS prerequisite decision
