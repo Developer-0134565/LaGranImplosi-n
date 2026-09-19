@@ -173,8 +173,8 @@ The final migration blocker is **CLOSED**.
 ```text
 LIVE ledger before final reconciliation     261 rows
 Forward provenance migration                 20260919042952
-LIVE ledger after reconciliation             261 rows
-Local active migration files                 261
+LIVE ledger after reconciliation             262 rows
+Local active migration files                 262
 Local .superseded history                    4
 LIVE - LOCAL                                 0
 LOCAL - LIVE                                 0
