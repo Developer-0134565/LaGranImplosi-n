@@ -275,7 +275,7 @@ At the end of meaningful work:
 | Identity & access | [`systems/README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md) | Identity chain, RLS model and ownership hardening |
 | Ownership hardening | [`systems/README_OWNERSHIP_HARDENING.md`](systems/README_OWNERSHIP_HARDENING.md) | Owned RPC authorization and hardening evidence |
 | Economy | [`systems/README_ECONOMY.md`](systems/README_ECONOMY.md) | Resources, production, costs, settlement semantics |
-| Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Construction/research/fleet audit, guarantees, next validations |
+| Game engine audit | [`systems/README_GAME_ENGINE_AUDIT.md`](systems/README_GAME_ENGINE_AUDIT.md) | Construction/research/fleet audit, guarantees, next validations |\n| Shipyard + Defence | [`systems/README_SHIPYARD_DEFENSE.md`](systems/README_SHIPYARD_DEFENSE.md) | Production queues, authoritative contracts and lifecycle certification |
 | Research | [`systems/README_RESEARCH.md`](systems/README_RESEARCH.md) | Research audit vs Buildings + client availability contract |
 | Fleet engine | [`systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md) | Prerequisites, propulsion, mission classes, fuel, lifecycle |\n| Combat engine | [`systems/README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) | LIVE combat V2 pipeline, participant model and ACS prerequisite |
 | Universe evolution | [`systems/README_UNIVERSE_EVOLUTION.md`](systems/README_UNIVERSE_EVOLUTION.md) | Evolution formulas, clock, catch-up, expansion and AI |
@@ -395,7 +395,7 @@ This is the current combat-engine closure boundary: **identity propagation is CL
 
 - CLOSED defect fixed: start_ship() had retained an unauthenticated guest fallback inconsistent with the ownership-hardening contract. Migration 20260919090000 is applied LIVE and the foreign-owner / NULL-auth regression was verified transactionally.
 - Research UI stale note corrected: src/App.tsx already consumes can_start_research() for authoritative cost/time/availability.
-- Shipyard and Defence UI now consume can_build_ship()/can_build_defense() for authoritative cost/time/availability; lifecycle tests and browser certification remain OPEN.
+- Shipyard and Defence UI consume can_build_ship()/can_build_defense() for authoritative cost/time/availability. Backend lifecycle certification is now CLOSED with 12/12 PASS; browser certification remains open.
 - Fleet mission modifier/technology/fuel audit remains CLOSED for the seven implemented mission paths.
 - Combat participant propagation remains CLOSED for the current single-attacker + planet model (15/15 fixture).
 - Lifeform-specific combat updates remain deferred to the next version. ACS/HOLDING/DEFEND remains outside the base-engine closure.

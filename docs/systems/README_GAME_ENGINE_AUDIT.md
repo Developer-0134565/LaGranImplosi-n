@@ -231,6 +231,25 @@ The browser flow was subsequently validated by the user: research levels increas
 The UI intentionally reads definition metadata (`id`, name, description, max level) for presentation but obtains actionable cost/time/availability from `can_start_research()`. A bulk availability RPC remains deferred as an optimization; the current one-RPC-per-definition approach is the certified path.
 
 
+## Shipyard / Defence — lifecycle certification — 2026-09-19
+
+The current V1 production queues are now regression-certified at the backend level.
+
+- supabase/tests/shipyard_defense_lifecycle.sql is a transactional fixture (BEGIN … ROLLBACK).
+- LIVE execution: **12/12 PASS**.
+- Coverage: authoritative can_build_* contracts, start + exact resource deduction, queue creation,
+  due-queue processing, inventory persistence, second-pass no-op, NULL-auth rejection and
+  foreign-owner rejection for both Shipyard and Defence.
+- The first execution exposed only a harness measurement issue: start_ship() settles the planet tick
+  internally. The fixture was corrected to synchronize with process_planet_tick() immediately before
+  measuring the exact deduction. No gameplay code change was required.
+- The frontend already consumes can_build_ship() / can_build_defense() for actionable cost, time,
+  availability and reason.
+- Backend lifecycle status: **CLOSED / VERIFIED LIVE**.
+- Browser flow remains a user-side certification gate.
+
+Durable detail: [README_SHIPYARD_DEFENSE.md](README_SHIPYARD_DEFENSE.md).
+
 ## Final base-engine sweep — 2026-09-19
 
 The final read-only sweep was performed against LIVE Supabase and current GitHub code, excluding Lifeforms combat updates and ACS/HOLDING/DEFEND gameplay.

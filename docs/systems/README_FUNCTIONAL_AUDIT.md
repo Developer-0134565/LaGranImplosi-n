@@ -50,8 +50,8 @@ scripts/: verify-identity.mjs · verify-buildings.mjs · backup-supabase.ps1
 | Building queues | YES | YES | YES | YES | YES | YES (0 active / 15 COMPLETED) | YES | YES |
 | Research | YES | YES | YES | YES | YES | YES (16 defs, 14 levels, 10 queue rows) | **YES** (`research_lifecycle.sql` 24/24 PASS) | **AUDITED + LIFECYCLE TESTED** — UI cost/time pending ([`README_RESEARCH.md`](README_RESEARCH.md)) |
 | Research queues | YES | YES | YES | YES | YES | YES (10 COMPLETED) | NO | YES |
-| Shipyard | YES | YES | YES | YES | YES | YES (9 ships, 17 queue rows) | NO | PARTIAL (same UI gap) |
-| Defence | YES | YES | YES | YES | YES | YES (5 defences, queues empty) | NO | PARTIAL (same UI gap) |
+| Shipyard | YES | YES | YES | YES | YES | YES (9 ships, 17 queue rows) | **YES** (shipyard_defense_lifecycle.sql 12/12 PASS) | PARTIAL (browser certification pending) |
+| Defence | YES | YES | YES | YES | YES | YES (5 defences, queues empty) | **YES** (shipyard_defense_lifecycle.sql 12/12 PASS) | PARTIAL (browser certification pending) |
 | Fleet | YES | YES | YES | YES | YES | YES (54 movements) | NO | PARTIAL (no mission view) |
 | Fleet missions | YES | YES | YES | YES | YES | YES (4 mission types used) | NO | PARTIAL |
 | Combat | YES | YES | YES | NO | NO (reports only) | YES (11 battles) | NO | PARTIAL (backend without UI) |
@@ -232,7 +232,7 @@ LOW
 
 | Test | What it checks | Last known state | Runnable now |
 |---|---|---|---|
-| `supabase/tests/buildings_lifecycle.sql` | 13 assertions: cost contract, resources, invalid building, start+deduction, queue, single active queue, processing, persistence, double completion (N→N+2), target-level guard, production after level-up, ownership | **13/13 PASS** (executed live, no residue) | YES (transactional; SQL editor or MCP `execute_sql`) |
+| `supabase/tests/buildings_lifecycle.sql` | 13 assertions: cost contract, resources, invalid building, start+deduction, queue, single active queue, processing, persistence, double completion (N→N+2), target-level guard, production after level-up, ownership | **13/13 PASS** (executed live, no residue) | YES (transactional; SQL editor or MCP `execute_sql`) |\n| `supabase/tests/shipyard_defense_lifecycle.sql` | 12 assertions: authoritative contracts, start+deduction, queue, processing, inventory persistence, second-pass no-op, NULL-auth and foreign-owner rejection | **12/12 PASS** (executed live, no residue) | YES (transactional; SQL editor or MCP `execute_sql`) |
 | `scripts/verify-identity.mjs` | identity chain + data invariants (read-only) | PASS (13 PASS · 1 SKIP · 0 FAIL) | YES |
 | `scripts/verify-buildings.mjs` | definitions, authoritative cost, `can_start_building` contract, queue/level invariants | PASS (7 PASS · 1 SKIP) | YES |
 | `scripts/backup-supabase.ps1` | logical backup (schema/data/roles) | not executed in this phase | YES with supabase CLI + Docker |
