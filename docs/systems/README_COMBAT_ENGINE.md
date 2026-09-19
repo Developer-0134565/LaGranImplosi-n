@@ -315,3 +315,41 @@ This means the participant layer is now genuinely used by the current combat pat
 ### OGameX adaptation note
 
 The reference check against current OGameX confirms the architectural direction: its battle engine tracks defending fleets separately and its Rust engine explicitly supports multiple attacker/defender fleets with per-fleet identity. L.G.I. is not importing OGameX's PHP/Rust implementation or gameplay rules; only the durable participant-attribution pattern is being adapted.
+
+
+## 13. Participant propagation regression fixture — 2026-09-19
+
+Added `supabase/tests/combat_participant_propagation.sql`.
+
+The fixture is fully transactional and rolls back all generated battle/fleet/planet/RF changes. It creates a fresh single-attacker + stationary-planet combat and exercises the real V2 pipeline.
+
+Verified LIVE with **15/15 PASS**:
+
+| Stage | Result |
+|---|---|
+| Exactly two participants | PASS |
+| Unit initialization | PASS — 30/30 units attributed |
+| Unit participant correctness | PASS — 0 mismatches |
+| Snapshots | PASS — 30/30 attributed |
+| Snapshot participant correctness | PASS — 0 mismatches |
+| Initial shots | PASS — 162 attributed shots |
+| Shot NULL participant check | PASS — 0 |
+| Rapidfire chain | PASS — 142 RF shots attributed |
+| Damage ledger | PASS — 162 rows with correct target participant |
+| Damage ledger NULL check | PASS — 0 |
+| Damage application identity preservation | PASS — 0 NULL participant IDs |
+| Next-round cloning | PASS — 20 units retained participant identity |
+| Settlement survivor mapping | PASS |
+| Complete fresh-combat NULL check | PASS — 0 |
+
+The fixture also verifies `resolve_attack_arrival()` against the same participant IDs used by the combat path. No gameplay rule or historical combat row is changed.
+
+### Base-engine boundary
+
+This closes the **participant propagation requirement for the existing V2 single-attacker + planet model**.
+
+It does **not** close ACS/HOLDING/DEFEND. The old uniqueness keys remain deliberately unchanged, and multi-fleet participant insertion is still a separate future step.
+
+### Version boundary
+
+Lifeform-specific combat updates are intentionally **out of scope for this engine version**. They belong to the next version after the base combat engine is certified.
