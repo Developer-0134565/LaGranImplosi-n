@@ -147,10 +147,9 @@ Fleet propulsion / mission-speed / fuel       CLOSED functionally: Hyperspace fu
 Universe Evolution engine + monitor           clock, catch-up, normal/special expansion, galaxy rolls, AI
                                               reconciliation, heartbeat, read-only monitor and Cloudflare
                                               production deployment (Worker lagranimplosion) validated
-Migration-history recovery                     COMPLETE: all 260 LIVE ledger rows now have local SQL provenance;
-                                              260/260 recovered verbatim; 4 known non-LIVE drift files remain for
-                                              explicit reconciliation (docs/MIGRATION_DRIFT_RECONCILIATION.md ·
-                                              docs/MIGRATION_INVERSE_DRIFT_AUDIT.md)
+Migration-history recovery                     CLOSED: LIVE/local migration parity reconciled at 262/262; 4 historical
+                                              non-LIVE origin files are retained only as .superseded provenance artifacts;
+                                              no migration blocker remains
 ```
 
 ### OPEN — CRITICAL
@@ -227,10 +226,9 @@ Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, f
   RPC cluster was retired 2026-09-19.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later
   prompts must be bounded and cost-aware.
-- Migration history: LIVE `supabase_migrations.schema_migrations` is the certified ledger; all 260 LIVE
-  payloads now have local provenance. Four known non-LIVE drift files remain and two monitor ACL changes need
-  explicit forward provenance. `supabase db push` / `db reset` / `migration repair` remain PROHIBITED until
-  those final reconciliation items are closed.
+- Migration history: LIVE `supabase_migrations.schema_migrations` remains the certified ledger; local active migrations
+  are aligned with LIVE at 262/262. Four historical origin files are preserved as `.superseded` provenance artifacts;
+  no migration repair/reset/replay was used.
 
 Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
@@ -297,16 +295,13 @@ maintenance.
 ## 12. Next engineering step
 
 ```text
-1. Final migration reconciliation: resolve the 4 non-LIVE version-drift files and create explicit forward
-   provenance for the 2 out-of-band monitor ACL changes. Keep LIVE untouched.
-2. Re-run the migration parity audit: local LIVE-version set must be exact, with no unintended extra versions,
-   and every retained file must be attributable to a LIVE ledger row or an explicit forward migration.
-3. Only after parity is closed, reconsider `supabase db push` as a no-op verification — never as a recovery tool.
-4. Resume the basic-engine order: Fleet browser certification → Shipyard/Defence audits → Research UI contract
-   integration → Transport → Attack → Combat.
-5. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (`calculate_universe_rates`, unused lifeform
-   keys) when the surrounding engine audit reaches it.
-6. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
+1. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
+2. Shipyard audit/tests.
+3. Defence audit/tests.
+4. Research UI contract integration: switch the research view to the authoritative can_start_research() contract.
+5. Continue basic-engine order: Transport → Attack → Combat.
+6. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
+7. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
 
 The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
@@ -315,14 +310,13 @@ active, and is **not** the next implementation target.
 
 ## 12.1 Operational correction — 2026-09-19
 
-The latest read-only audits supersede stale migration/fleet/Universe assumptions in older context:
+The latest read-only audits supersede stale assumptions:
 
 - **Fleet mission audit:** seven implemented mission paths are functionally converged in LIVE; no live double modifier, fuel-order defect or legacy bypass was found. ACS/HOLDING/DEFEND remains definition-only. Detailed evidence: systems/README_FLEET_ENGINE.md.
-- **Universe Evolution:** the runtime engine is already active in LIVE. Do not design a new clock, scheduler, worker or catch-up mechanism. Detailed evidence and current LIVE snapshot: systems/README_UNIVERSE_EVOLUTION.md.
-- **Migration reproducibility has passed the recovery phase:** LIVE has 260 ledger rows and all 260 now have local SQL provenance. Four remote-origin migration files remain outside the LIVE ledger, and two monitor ACL changes require explicit forward provenance. Do not run db push/reset/repair/pull/dump until the final reconciliation is complete.
-- **Canonical fleet open work:** browser certification, ACS/HOLDING design, and bounded hygiene decisions only. Mission Modifiers is CLOSED; the dead legacy fleet calculation cluster was retired in LIVE migration `20260919042419_retire_legacy_fleet_calculation_rpc_cluster`. Do not restart a generic Fleet Speed audit.
-- **Canonical UE open work:** provenance/parity recovery or a concrete bounded engine change only. Do not build a second UE runtime.
-
+- **Fleet legacy cleanup:** CLOSED. The dead legacy fleet calculation RPC cluster was retired in LIVE migration `20260919042419_retire_legacy_fleet_calculation_rpc_cluster`. Do not restart a generic Fleet Speed audit.
+- **Migration reconciliation:** CLOSED. LIVE ledger and local active migrations are aligned at 262/262; four historical non-LIVE files are preserved as `.superseded` provenance artifacts. Do not use migration repair/reset/replay as a recovery mechanism.
+- **Universe Evolution:** runtime engine is already active in LIVE. Do not design a second clock, scheduler, worker or catch-up mechanism.
+- **Canonical fleet open work:** browser certification, future ACS/HOLDING/DEFEND design, and bounded hygiene only.
 
 ---
 
