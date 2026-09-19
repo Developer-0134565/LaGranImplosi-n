@@ -149,3 +149,18 @@ finding: the fleet migrations were never in any local copy or commit — they ex
 output : 10 recovered files + this document; LIVE untouched (no push, no repair, no DDL).
 ```
 
+
+
+## 8. Recovery completed — 2026-09-19
+
+The remaining **221 LIVE ledger versions** have now been recovered verbatim from `supabase_migrations.schema_migrations.statements` and committed to `main`, preserving the original SQL payloads.
+
+```text
+LIVE ledger versions             260
+LOCAL files representing LIVE    260
+LIVE versions missing locally      0  ✅
+additional non-LIVE local files    4  ⚠️  (known mission-layer drift files)
+LIVE database modified             NO
+```
+
+The four non-LIVE files remain untouched because they are the previously classified version-drift cases. The repository now has complete SQL provenance for every LIVE ledger version. `supabase db push` remains prohibited until those four drift files and the two out-of-band ACL changes are handled by the dedicated reconciliation decision.
