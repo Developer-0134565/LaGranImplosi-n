@@ -295,13 +295,15 @@ maintenance.
 ## 12. Next engineering step
 
 ```text
-1. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
-2. Shipyard audit/tests.
-3. Defence audit/tests.
-4. Research UI contract integration: switch the research view to the authoritative can_start_research() contract.
-5. Continue basic-engine order: Transport → Attack → Combat.
-6. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
-7. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
+0. ACS/HOLDING/DEFEND: audit existing dispatch/ownership contracts + OGameX ACS-defend pattern; define the minimal player-facing dispatch contract before implementing it.
+1. Before any ACS dispatch implementation, verify the LIVE process_fleet_movements() worker against the canonical pre-HOLDING worker body; preserve every existing mission-specific arrival/return branch.
+2. Fleet browser certification: verify the already-converged seven implemented mission paths through the user's web client.
+3. Shipyard audit/tests.
+4. Defence audit/tests.
+5. Research UI contract integration: switch the research view to the authoritative can_start_research() contract.
+6. Continue basic-engine order: Transport → Attack → Combat.
+7. Keep fleet legacy cleanup CLOSED; only revisit bounded hygiene (calculate_universe_rates, unused lifeform keys) when the surrounding engine audit reaches it.
+8. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
 
 The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
