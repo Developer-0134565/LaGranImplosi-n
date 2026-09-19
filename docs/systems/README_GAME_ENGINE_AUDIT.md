@@ -229,3 +229,26 @@ The regression contract battery passed **12/12** assertions, including ownership
 The browser flow was subsequently validated by the user: research levels increased correctly and resources were deducted correctly. No further Research backend changes are required for the current contract.
 
 The UI intentionally reads definition metadata (`id`, name, description, max level) for presentation but obtains actionable cost/time/availability from `can_start_research()`. A bulk availability RPC remains deferred as an optimization; the current one-RPC-per-definition approach is the certified path.
+
+
+## Final base-engine sweep — 2026-09-19
+
+The final read-only sweep was performed against LIVE Supabase and current GitHub code, excluding Lifeforms combat updates and ACS/HOLDING/DEFEND gameplay.
+
+### Confirmed CLOSED / no new gameplay divergence
+- Buildings: authoritative backend contract and lifecycle test remain valid; browser certification remains a user-side gate.
+- Research: LIVE `can_start_research()` is already wired into the current `src/App.tsx`; the older audit statement that Research UI still shows only base cost/time was stale and is superseded.
+- Fleet: the seven implemented mission paths remain functionally converged; the canonical mission-class, propulsion, fuel, modifier and return pipeline is unchanged.
+- Combat: participant propagation fixture remains 15/15 PASS for the current single-attacker + planet model.
+
+### Real defect found and fixed
+- `start_ship()` still contained the old anonymous/guest fallback: when `auth.uid()` was NULL it accepted any supplied `p_player_id` belonging to a guest. This contradicted the CLOSED ownership contract.
+- Fixed LIVE with forward-only migration `20260919090000_harden_start_ship_auth.sql`: NULL auth now rejects with `Authentication required`, and authenticated calls require `players.user_id = auth.uid()`. The transactional foreign-owner and NULL-auth regression was verified after deployment.
+
+### Shipyard / Defence remaining certification
+- Both authoritative entrypoints exist and use the same resource-lock / queue / completion architecture, but there is still no dedicated transactional regression suite equivalent to Buildings.
+- The frontend now consumes `can_build_ship()` and `can_build_defense()` for authoritative cost, time and availability, rather than displaying definition-only base values.
+- This is an integration improvement, not yet a browser certification. Shipyard and Defence remain OPEN until their transactional lifecycle tests and user browser flow are validated.
+
+### Base-engine boundary
+Lifeform UI/backend remains outside this certification decision. ACS/HOLDING/DEFEND remains a future multi-participant extension and is not being implemented in this sweep.
