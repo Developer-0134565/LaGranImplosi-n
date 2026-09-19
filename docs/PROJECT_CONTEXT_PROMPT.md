@@ -146,9 +146,9 @@ Fleet propulsion / mission-speed / fuel       Hyperspace fuel reduction removed 
 Universe Evolution engine + monitor           clock, catch-up, normal/special expansion, galaxy rolls, AI
                                               reconciliation, heartbeat, read-only monitor and Cloudflare
                                               production deployment (Worker lagranimplosion) validated
-Migration-history reconciliation              forward gap: 10 migrations recovered verbatim; inverse drift:
-                                              39 local files, 0 REAL_DIVERGENCE, 0 AMBIGUOUS, LOCAL − LIVE = ∅
-                                              (docs/MIGRATION_DRIFT_RECONCILIATION.md ·
+Migration-history recovery                     COMPLETE: all 260 LIVE ledger rows now have local SQL provenance;
+                                              260/260 recovered verbatim; 4 known non-LIVE drift files remain for
+                                              explicit reconciliation (docs/MIGRATION_DRIFT_RECONCILIATION.md ·
                                               docs/MIGRATION_INVERSE_DRIFT_AUDIT.md)
 ```
 
@@ -173,9 +173,9 @@ Defence audit/tests
 Fleet browser certification + technology/mission-specific deep audits (systems/README_FLEET_ENGINE.md §15)
 Research UI cost/time: the research view must consume the authoritative contract (can_start_research) instead
   of base cost/time columns; pending frontend switch
-Migration-history completion: 221 ledger rows still have no local file, and two out-of-band monitor ACL
-  changes (private + public monitor) need a FORWARD migration for reproducibility — no `supabase db push`
-  or `migration repair` from this copy until then
+Migration-history final reconciliation: all 260 LIVE ledger rows are recovered locally; remaining blocker is
+  the 4 non-LIVE drift files plus 2 out-of-band monitor ACL changes. No `supabase db push`, `migration repair`,
+  reset, pull or dump until the final reconciliation decision is closed
 Browser certification of Buildings (user-run functional test)
 ```
 
@@ -228,9 +228,10 @@ Placeholder chrome modules (Wiki, tools, population, food, dark matter, polls, f
   backend-verified.
 - The first DeepSeek/Cline recognition audit is an initial map, not a template for future broad scans: later
   prompts must be bounded and cost-aware.
-- Migration history: LIVE `supabase_migrations.schema_migrations` is the certified ledger; the local history
-  was reconciled deliberately (verbatim recovery + version re-labels). `supabase db push` / `db reset` /
-  `migration repair` are PROHIBITED from this copy until the remaining ledger recovery is complete.
+- Migration history: LIVE `supabase_migrations.schema_migrations` is the certified ledger; all 260 LIVE
+  payloads now have local provenance. Four known non-LIVE drift files remain and two monitor ACL changes need
+  explicit forward provenance. `supabase db push` / `db reset` / `migration repair` remain PROHIBITED until
+  those final reconciliation items are closed.
 
 Detailed architectural history: [`architecture/README_ARCHITECTURE.md`](architecture/README_ARCHITECTURE.md)
 
@@ -297,13 +298,14 @@ maintenance.
 ## 12. Next engineering step
 
 ```text
-1. Fleet browser certification (selection, dispatch, persisted countdown, arrival, resolution, return) plus
-   the remaining technology/mission-specific fleet comparisons (systems/README_FLEET_ENGINE.md §15).
-2. Shipyard and Defence audits (same chain shape already certified for Buildings and Research).
-3. Research UI: consume the authoritative can_start_research contract instead of base cost/time columns.
-4. Migration-history completion: recover the 221 ledger rows verbatim and add the two FORWARD migrations for
-   the out-of-band monitor ACLs (docs/MIGRATION_INVERSE_DRIFT_AUDIT.md §9). No push from this copy until then.
-5. Then: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
+1. Final migration reconciliation: resolve the 4 non-LIVE version-drift files and create explicit forward
+   provenance for the 2 out-of-band monitor ACL changes. Keep LIVE untouched.
+2. Re-run the migration parity audit: local LIVE-version set must be exact, with no unintended extra versions,
+   and every retained file must be attributable to a LIVE ledger row or an explicit forward migration.
+3. Only after parity is closed, reconsider `supabase db push` as a no-op verification — never as a recovery tool.
+4. Then resume the basic-engine order: Fleet browser certification → Shipyard/Defence audits → Research UI
+   contract integration → Transport → Attack → Combat.
+5. Later: fleet mission lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and player_messages.
 ```
 
 The transversal security block (ownership hardening) is closed; Universe Evolution is implemented, deployed and
@@ -316,7 +318,7 @@ The latest read-only audits supersede stale migration/fleet/Universe assumptions
 
 - **Fleet mission audit:** seven implemented mission paths are functionally converged in LIVE; no live double modifier, fuel-order defect or legacy bypass was found. ACS/HOLDING/DEFEND remains definition-only. Detailed evidence: systems/README_FLEET_ENGINE.md.
 - **Universe Evolution:** the runtime engine is already active in LIVE. Do not design a new clock, scheduler, worker or catch-up mechanism. Detailed evidence and current LIVE snapshot: systems/README_UNIVERSE_EVOLUTION.md.
-- **Migration reproducibility is now the primary repository blocker:** LIVE has 260 ledger rows; 221 still lack local files. Four remote-origin migration files have version drift/absent ledger IDs, and the mission-speed-class layer plus two monitor ACL changes require explicit provenance. Do not run db push/reset/repair/pull/dump until reconciliation is complete.
+- **Migration reproducibility has passed the recovery phase:** LIVE has 260 ledger rows and all 260 now have local SQL provenance. Four remote-origin migration files remain outside the LIVE ledger, and two monitor ACL changes require explicit forward provenance. Do not run db push/reset/repair/pull/dump until the final reconciliation is complete.
 - **Canonical fleet open work:** browser certification, ACS/HOLDING design, and bounded hygiene decisions only. Do not restart a generic Fleet Speed audit.
 - **Canonical UE open work:** provenance/parity recovery or a concrete bounded engine change only. Do not build a second UE runtime.
 
