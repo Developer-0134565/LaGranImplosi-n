@@ -94,12 +94,12 @@ Do not create a second population state if existing universe population state ca
 
 ## Open implementation concerns
 
-The following remain useful future hardening/audit topics, but they are **not blockers for the currently validated engine surface**:
+The current clock/catch-up, expansion, galaxy-roll, AI reconciliation, heartbeat and monitor surface is validated and closed. Remaining concerns are repository reproducibility and bounded hardening only:
 
-- refine long-downtime batching beyond the tested limits;
-- deepen idempotency and event-ordering coverage for extreme overdue workloads;
-- expand AI placement/collision audit coverage;
-- continue monitoring/observability improvements as new evolution features are added.
+- recover the missing LIVE migration provenance into the repository;
+- continue bounded AI placement/collision audits if new expansion rules are introduced;
+- refine extreme overdue-workload coverage only when the engine's workload limits change.
+
 
 The current clock/catch-up, expansion, galaxy-roll, AI reconciliation, heartbeat and monitor surface is validated and closed.
 
@@ -167,7 +167,7 @@ Controlled live tests completed the current evolution-engine validation surface:
 - special galaxy expansion using the separate 1.05 growth factor;
 - overdue galaxy-roll processing with bounded roll catch-up.
 
-The engine returned to a healthy live state after testing. Active Universe 1 was observed with 101 galaxies (100 normal + 1 special), 207 systems, 3105 positions and 226 AI planets at 7.28% density against a 7.50% target with ±0.25% tolerance.
+The engine returned to a healthy live state after testing. A later read-only LIVE audit observed Universe 1 with 101 galaxies, 235 unlocked systems, 3525 positions and 256 AI planets at 7.26% density against a 7.50% target with ±0.25% tolerance.
 
 Detailed observability is maintained separately in [README_UNIVERSE_EVOLUTION_MONITOR.md](README_UNIVERSE_EVOLUTION_MONITOR.md). The monitor is read-only and distinguishes schedule backlog from actual work backlog.
 
@@ -197,10 +197,10 @@ The production UI observed Universe 1 at:
 Galaxies       101
 Normal         100
 Special        1
-Systems        207
-Positions      3105
-AI planets     226
-AI density     7.28%
+Systems        235 unlocked
+Positions      3525
+AI planets     256
+AI density     7.26%
 Target         7.50%
 Tolerance      ±0.25%
 Clock interval 60s
@@ -211,3 +211,18 @@ This closes the current Universe Evolution implementation/observability/deployme
 ### Migration state caveat
 
 The monitor SQL is versioned in GitHub migrations 20260918020000–20260918020300. Live SQL objects and privileges were verified. Supabase migration-history synchronization previously showed these versions absent from the queried history table, so migration state must be reconciled carefully before any future CLI migration replay.
+
+
+## 2026-09-18 — Repository parity is now the main UE risk
+
+The directed LIVE audit changed the implementation premise: there is no missing Universe Evolution runtime subsystem to build. The persistent clock, scheduler, catch-up, full planet tick routing, normal/special expansion, AI reconciliation and health state are already operational.
+
+The repository parity gap is therefore the actionable UE problem:
+
+- LIVE ledger: 46 Universe-Evolution-related rows by name.
+- Repository: 9 domain UE migration files (+ obsolete artifacts).
+- Approximate missing UE provenance: 37 migration payloads, including the migrations that created/hardened the live engine.
+- The broader migration inverse audit separately identified four remote-origin fleet/research migration files absent by version ID and two out-of-band monitor ACL changes.
+
+This documentation records the architecture and current state; the migration files themselves must be recovered from the LIVE ledger before any rebuild/replay workflow is considered safe.
+
