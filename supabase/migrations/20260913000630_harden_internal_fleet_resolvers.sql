@@ -1,0 +1,14 @@
+REVOKE ALL ON FUNCTION public.resolve_deploy_arrival(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_espionage_arrival(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_colonize_arrival(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_transport_arrival(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_attack_arrival(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_expedition_arrival(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_expedition_return(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_deploy_arrival(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_espionage_arrival(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_colonize_arrival(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_transport_arrival(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_attack_arrival(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_expedition_arrival(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_expedition_return(uuid) TO service_role;

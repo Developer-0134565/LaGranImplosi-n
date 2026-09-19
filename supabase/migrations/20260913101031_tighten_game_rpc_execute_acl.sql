@@ -1,0 +1,14 @@
+REVOKE EXECUTE ON FUNCTION public.start_building(uuid, uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_building(uuid, uuid, text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_colonize_fleet(uuid, uuid, integer, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_colonize_fleet(uuid, uuid, integer, integer, integer) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_fleet(uuid, uuid, uuid, text, bigint, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_fleet(uuid, uuid, uuid, text, bigint, text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_lifeform_building(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_lifeform_building(uuid, text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_lifeform_research(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_lifeform_research(uuid, text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_research(uuid, uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_research(uuid, uuid, text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_ship(uuid, uuid, text, bigint) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_ship(uuid, uuid, text, bigint) TO authenticated;

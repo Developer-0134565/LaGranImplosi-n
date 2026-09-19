@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.resolve_combat_rapidfire(uuid, integer, integer); DROP FUNCTION IF EXISTS public.resolve_rapidfire_v2(numeric); DROP FUNCTION IF EXISTS public.roll_combat_rapidfire(numeric); DROP TABLE IF EXISTS public.combat_round_units;
