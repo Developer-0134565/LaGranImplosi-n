@@ -271,3 +271,47 @@ The next migration must, in one controlled step:
 5. only then enable multiple defending fleet participants.
 
 LIVE verification after application: combat_battle_participants exists and currently contains 0 rows; no historical combat data was rewritten by this migration.
+
+
+## 12. Participant propagation — 2026-09-19
+
+The next forward-only step is now implemented in LIVE and checked into
+`supabase/migrations/20260919080000_propagate_combat_participants_v2.sql`.
+
+The existing V2 single-attacker + stationary-planet behavior remains the combat model. The change is identity propagation only:
+
+```
+resolve_combat()
+  -> ATTACKER/FLEET participant
+  -> DEFENDER/PLANET participant
+  -> combat_individual_units.participant_id
+  -> combat_round_snapshot_units.participant_id
+  -> combat_shots.attacker_participant_id / target_participant_id
+  -> combat_round_damage.target_participant_id
+  -> participant-aware damage application
+  -> participant-aware final attacker/planet settlement
+```
+
+Updated LIVE writers:
+
+- `resolve_combat()`
+- `initialize_individual_combat_units()`
+- `create_combat_round_snapshot()`
+- `generate_combat_round_v2()`
+- `expand_rapidfire_chain_v2()`
+- `calculate_combat_round_pending_damage()`
+- `apply_combat_round_damage()`
+- `create_combat_next_round()`
+- `resolve_attack_arrival()`
+
+The settlement path now explicitly resolves the attacker fleet participant and stationary planet participant before applying survivors. The existing loot, defence repair, debris and return semantics are unchanged.
+
+### Deliberate compatibility boundary
+
+The old unit/snapshot uniqueness constraints are still present. They have **not** been replaced yet. Historical combat rows remain untouched and may still have NULL participant IDs.
+
+This means the participant layer is now genuinely used by the current combat path, but multi-fleet ACS is still not enabled. The next safe step is regression coverage for a fresh single-attacker battle, followed by a controlled replacement of the old uniqueness keys with participant-aware keys.
+
+### OGameX adaptation note
+
+The reference check against current OGameX confirms the architectural direction: its battle engine tracks defending fleets separately and its Rust engine explicitly supports multiple attacker/defender fleets with per-fleet identity. L.G.I. is not importing OGameX's PHP/Rust implementation or gameplay rules; only the durable participant-attribution pattern is being adapted.
