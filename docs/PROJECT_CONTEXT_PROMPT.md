@@ -326,6 +326,7 @@ The latest read-only audits supersede stale assumptions:
 - OGameX ACS Defend reference: ACS Defend is a distinct mission with physical arrival separated from the hold window, buddy/alliance eligibility, and multi-defender combat with per-fleet owner/mission attribution. Source reference: OGameX AcsDefendMission, FleetMissionService, DefenderFleet, and FleetDispatchAcsDefendTest.
 - L.G.I. has no LIVE alliance/buddy tables, so the OGameX eligibility rule must not be copied blindly. Support eligibility is a game-design OPEN decision.
 - Before start_acs_hold / start_defend, preserve the current canonical speed/fuel pipeline and require the existing authenticated ownership pattern. Do not route ACS through the legacy start_fleet_mixed security/authority gap.
+- LIVE combat audit: `combat_battles` currently models one attacking fleet against one target planet, and `resolve_combat()` snapshots only stationary ships/defenses on that planet. ACS cannot be safely integrated by patching `resolve_attack_arrival()` around this model; a durable multi-defender participant/ownership model is required first so each support fleet can be resolved and returned to its own origin.
 
 ## 12.2 ACS / HOLDING / DEFEND lifecycle implementation — 2026-09-19
 
