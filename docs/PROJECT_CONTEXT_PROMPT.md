@@ -399,3 +399,14 @@ This is the current combat-engine closure boundary: **identity propagation is CL
 - Fleet mission modifier/technology/fuel audit remains CLOSED for the seven implemented mission paths.
 - Combat participant propagation remains CLOSED for the current single-attacker + planet model (15/15 fixture).
 - Lifeform-specific combat updates remain deferred to the next version. ACS/HOLDING/DEFEND remains outside the base-engine closure.
+
+## 12.6 Fleet browser integration + live test-data cleanup — 2026-09-19
+
+- Frontend Fleet selection/launch UI is now on `origin/main` in commit `90cbcf8` (`feat: add fleet ship selection and launch UI`). It is intentionally a functional dispatch surface, not merely a movement-history list: it reads available ships from `planet_ships`, lets the player select composition, choose mission/target data and launch the fleet.
+- Local runtime worker asset binding was corrected on `origin/main` by `b22b1a9` (`fix: bind worker assets for local runtime`), addressing the Vite/Cloudflare local-runtime `undefined.fetch` overlay encountered during browser verification.
+- LIVE data inspection showed the previous Fleet `0 DISPONIBLES` symptom was partly caused by stale test data: 20 `light_fighter` units belonged to obsolete `Temporal Test Defender` at G1:S2:P3, player `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`, while the real Homeworld G1:S1:P1 retained 1 `light_fighter`.
+- The obsolete test planet and its dependent test state were removed from LIVE; the additional legacy test-player planets were also removed so they no longer compete with the real human Homeworld. The real human Homeworld `f35bd4b9-f78f-4be0-968e-09acf4ffaeed` remains intact with its own inventory.
+- This was a **data cleanup**, not a gameplay-rule change. Do not recreate the deleted test planets or use them as Fleet fixtures. Future Fleet tests must use transactional fixtures or the real player's authorized Homeworld without polluting persistent game state.
+- Browser certification remains the next gate: after syncing `origin/main`, verify Fleet resolves the authenticated player's active Homeworld, displays its `planet_ships`, permits Light Fighter selection, and launches/persists a movement. The Fleet page must not fall back to an unrelated/test planet.
+- The immediate debugging lesson is canonical identity: the Fleet view must follow `auth.uid() → players.user_id → players.id → owned Homeworld → planet_ships`; do not infer the active planet from arbitrary coordinate/name rows.
+
