@@ -9,6 +9,108 @@ RPCs, `SECURITY DEFINER` and `search_path` preserved, ownership check intact, mi
 `supabase_migrations.schema_migrations`). Frontend identity chain **CLOSED / verified**; buildings
 lifecycle test **CLOSED / verified** (13/13 PASS after the hardening, no residue).
 
+## Canonical onboarding (email/password) — 2026-09-20
+
+```text
+CANONICAL
+  email/password (src/LoginPage.tsx, Supabase Auth UI)
+      -> auth.uid()                        (src/lib/identity.ts currentAuthUserId)
+      -> players.user_id = auth.uid()      (resolvePlayer)
+      -> if no player: EXPLICIT onboarding step (never automatic creation)
+      -> public.provision_player(p_username, p_country_code)
+      -> own HUMAN player + Homeworld + planet_resources(500/500/0/0) + player_research
+```
+
+Repository changes applied forward-only (no history rewritten):
+
+| Object | Change |
+|---|---|
+| `public.provision_player(text, text)` | **NEW** — SECURITY DEFINER, `search_path = ''`, requires `auth.uid()` (`AUTHENTICATION_REQUIRED`), reuse-first/idempotent, **never claims or adopts an existing player**; creates player + Homeworld + resources + research in one transaction; does not write `is_guest` |
+| `on_auth_user_created` + `private.handle_new_auth_user()` | **DROPPED** — the claim-the-oldest-unclaimed-player onboarding no longer exists |
+| `public.register_guest_player(text,text,text)` | **DROPPED** — no frontend caller remains |
+| guest authorization branches | removed from `start_fleet_mixed`, `start_colonize_fleet`, `start_lifeform_building`, `start_lifeform_research`, the dead `v_is_guest` residue of `sync_current_planet_resources`, and the NULL-auth fallback of `enforce_player_write_access` |
+| guest RLS | 12 `*_select_guest` policies dropped; `players_select_access`, `planet_resources_select_access`, `building_queue_select_access`, `player_research_select_access`, `research_queue_select_access` recreated without the guest branch; `defense_queue_owner_read` rebased on ownership |
+| frontend | `src/main.tsx` no longer bootstraps an anonymous session; `src/lib/identity.ts` no longer creates sessions/players; explicit onboarding panel `src/OnboardingPanel.tsx` (username → `provision_player`) |
+| test fixtures | `supabase/tests/buildings_lifecycle.sql` / `research_lifecycle.sql` select a HUMAN player with `user_id` (no guest predicate, no DevPlayer fixture) |
+
+Migrations (forward-only): `20260920120000_create_explicit_player_provisioning`,
+`20260920120100_retire_auth_player_claim_trigger`, `20260920120200_retire_register_guest_player`,
+`20260920120300_remove_guest_authorization_branches` (**SUPERSEDED** — see below),
+`20260920120400_remove_guest_rls_surface`,
+`20260920120500_harden_ui_defense_queue_ownership`,
+`20260920120600_harden_building_analysis_function_acl`,
+`20260920120700_enable_rls_on_internal_engine_tables`,
+`20260920120800_remove_guest_ownership_bypasses`.
+
+### Superseded patcher — 2026-09-20
+
+`20260920120300_remove_guest_authorization_branches.sql` **cannot execute against LIVE** and is preserved as
+`20260920120300_remove_guest_authorization_branches.sql.superseded` (provenance, never deleted).
+
+Its patch 1 (`start_fleet_mixed`) and patch 2 (`start_colonize_fleet`) require the literal fragment
+`v_auth_user IS NULL AND NOT EXISTS`, but the real LIVE shape is
+`IF v_auth_user IS NOT NULL THEN … ELSIF NOT EXISTS(…)`. The precondition never matches, so the `DO` block
+raises `PRECONDITION_FAILED` and the whole migration rolls back. Patches 3, 4 and 5 matched LIVE verbatim and
+are carried over unchanged into `20260920120800_remove_guest_ownership_bypasses.sql`, which additionally
+covers `start_fleet` (a guest fallback no prepared migration addressed).
+
+Still **LIVE-pending** (not decidable from the repository alone, all verified read-only against LIVE on
+2026-09-20 — see `docs/audits/LIVE_INTEGRITY_RECONCILIATION_2026-09-20.md`):
+
+- `players.is_guest` column removal — kept until every LIVE consumer is verified; `reconcile_universe_ai_population`
+  (`md5 5c821afdcd884670eb8a75eecb0d307d`) **still writes** the column, so the drop is blocked by a write
+  dependency, not by a read;
+- `public.initialize_player_research(uuid)` — **VERIFIED LIVE / REUSABLE** (this closes the former
+  `LIVE-ONLY / VERIFY REQUIRED` item): `SECURITY INVOKER`, `search_path = 'public, pg_temp'`, ACL
+  `{postgres, service_role}`, body is an idempotent `INSERT … WHERE NOT EXISTS` over `research_definitions`.
+  It is callable from `provision_player` because that function is `SECURITY DEFINER` owned by `postgres`;
+- `early_tester_registrations` and `player_achievements` — both **0 rows**; their only writer was the retired
+  guest RPC, `early_tester_registrations` has 0 policies and 0 grants (inert) and `player_achievements` has one
+  owner-read policy. Retention or retirement is a product decision (tables intentionally kept);
+- `src/lib/database.types.ts` regeneration — only after LIVE reconciliation. Measured drift: 31 LIVE functions
+  are undeclared and 6 declared functions (`calculate_fleet_fuel`, `calculate_fleet_time`,
+  `calculate_fleet_fuel_mixed`, `calculate_fleet_fuel_for_distance`, `calculate_expedition_time`,
+  `get_player_fleet_speed_multiplier`) no longer exist in LIVE — they are the legacy fleet cluster retired by
+  `20260919042419`;
+- guest history (`20260913012900`, `20260913014116`, `20260915210651`, the trigger migration, etc.) remains as
+  **provenance only**.
+
+
+
+## Historical — Guest residue inventory (2026-09-20, superseded by the canonical section above)
+
+```text
+PRODUCT DECISION : Guest is NOT a product feature; the intended entry is registration / login (email).
+DOC STATE        : Guest onboarding is SUPERSEDED as product behaviour but is still WIRED in code.
+LIVE             : UNKNOWN from the repository. This section records LOCAL evidence only.
+```
+
+Local residue inventory (read-only audit, 2026-09-20):
+
+| Piece | Where | Classification |
+|---|---|---|
+| anonymous session bootstrap | `src/main.tsx` (`ensureSession()`; `LoginPage` only if it fails) | LEGACY GUEST — **ACTIVE** (blocks removal) |
+| `signInAnonymously()` | `src/lib/identity.ts` `ensureSession()` | LEGACY GUEST — **ACTIVE** |
+| `register_guest_player` fallback | `src/lib/identity.ts` `resolveIdentity()`; RPC `20260915210651` | LEGACY GUEST — **ACTIVE** |
+| `visitorId()` / `guestUsername()` | `src/lib/identity.ts` | LEGACY GUEST — ACTIVE (used only by the guest path) |
+| `players.is_guest` column | consumed by `enforce_player_write_access`, the guest RLS read policies, `register_guest_player`, `reconcile_universe_ai_population` | LEGACY BUT REQUIRED (schema-side; needs a forward LIVE migration) |
+| guest fallback inside authorisation guards | `start_fleet_mixed`, `start_colonize_fleet`, `start_lifeform_building`, `start_lifeform_research` (NULL `auth.uid()` + `coalesce(is_guest,false)`) and `enforce_player_write_access` | **OPEN FINDING** — legacy authorisation branch still present in current bodies (report-only) |
+| guest RLS read policies | `*_select_guest` (12) plus `*_select_access` variants that mention `is_guest` | LEGACY GUEST — ACTIVE (LIVE-side) |
+| `auth.users` onboarding trigger | `private.handle_new_auth_user` (`20260913012344`; reassigns the oldest unclaimed player) | LEGACY ONBOARDING (confirmed in LIVE by a separate audit) |
+| guest-coupled test fixtures | `supabase/tests/buildings_lifecycle.sql:36`, `supabase/tests/research_lifecycle.sql:85` | TEST-ONLY (fixture) — NEEDS REPLACEMENT |
+| email/password login | `src/LoginPage.tsx` (Supabase Auth UI, `providers={[]}`) | CANONICAL CURRENT — preserve |
+| modern ownership chain | `resolvePlayer()` → `players.user_id = auth.uid()` | CANONICAL CURRENT — preserve |
+
+Removed locally on 2026-09-20 (no runtime/ownership/RLS/migration change): the unused `is_guest` field in
+the frontend data contracts (`App.tsx`, `GalaxyView.tsx`, `identity.ts` selects/types) and the
+guest-locking assertion in `scripts/verify-identity.mjs` (now an informational note).
+
+LIVE cleanup (onboarding trigger, guest RLS policies, guest branches inside the guards) remains
+**PENDING** and requires a separate forward migration plus live reconciliation.
+
+Note: the historical row further below recording "Migration state via `pg_get_functiondef` … NOT applied"
+is a 2026-09-18 snapshot; the guest branches it mentions are still present in the audited local chain.
+
 ## Canonical chain
 
 ```text

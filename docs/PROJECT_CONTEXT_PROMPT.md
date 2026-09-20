@@ -91,12 +91,20 @@ The development workflow and tool-selection gate are defined in
   until the Combat Engine.
 - ACS_HOLD support to a foreign planet requires an explicit, revocable, planet-scoped authorization granted by the
   destination owner; planet existence is never authorization, and no alliance/buddy system is invented.
+- Identity onboarding is **email/password only**: no anonymous session bootstrap, no `register_guest_player`,
+  no guest authorization branch and no claiming of existing (`user_id IS NULL`/AI/DevPlayer) players. An
+  authenticated user without a player performs the explicit `provision_player(...)` step
+  (detail: [`README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md)).
 - Documentation detail is segregated; moving it to a specialized README is not deletion.
 - Migration provenance is governed by the [Migration Provenance Gate](MIGRATION_PROVENANCE_GATE.md):
   `20260919180000_fix_planet_support_authorization_ambiguity.sql` is **LOCAL_ONLY / NOT_DEPLOYED /
   BLOCKED**, while LIVE-only versions `20260919055336`, `20260919061454`, `20260919062509` and
   `20260919070020` are **NOT_RECOVERABLE**. Missing provenance blocks deployment; never reconstruct
   lost SQL, create same-version placeholders, mark migrations reverted, or edit the migration ledger.
+- Fleet Engine remains **OPEN — HISTORICAL GAP**. Local controlled convergence now has a bounded artifact
+  for canonical mission-class routing in `start_fleet`/`start_fleet_mixed` and player-aware ship speed plus
+  mission class in `start_colonize_fleet`; this is not LIVE parity. The fuel helper body,
+  LIVE-only migrations, exact LIVE dispatcher payloads and expedition convergence remain blocked.
 
 ## 6. CLOSED
 
@@ -147,6 +155,20 @@ Not implemented and still open:
 
 ### Other OPEN work
 
+- Guest decommission: **LOCAL COMPLETE / LIVE PENDING** — nine forward-only migrations are prepared but NOT
+  applied; LIVE reconciliation, `players.is_guest` removal after consumer verification,
+  `initialize_player_research` verification (**now CLOSED — verified read-only against LIVE**) and the
+  `early_tester_registrations`/`player_achievements` product decision remain open.
+- LIVE integrity reconciliation (2026-09-20): executed read-only and recorded in
+  [`docs/audits/LIVE_INTEGRITY_RECONCILIATION_2026-09-20.md`](audits/LIVE_INTEGRITY_RECONCILIATION_2026-09-20.md).
+  Confirmed LIVE: `on_auth_user_created` still ENABLED and it has **already reassigned 12 AI empires**
+  (`player_type='AI'` with `user_id` set); `register_guest_player` still reachable by `authenticated`;
+  6 `*_select_guest` policies live; 9 functions still carry `is_guest` logic; 2 cron jobs active.
+  Deployment is **BLOCKED** by `docs/MIGRATION_PROVENANCE_GATE.md` (4 LIVE-only versions unrecoverable).
+- Security findings prepared forward-only and NOT applied: `20260920120500` (public cross-player
+  `ui_defense_queue` read), `20260920120600` (unauthenticated unbounded `generate_building_sequences`),
+  `20260920120700` (RLS disabled on `universe_process_health` / `combat_battle_participants`),
+  `20260920120800` (guest ownership bypasses, replaces the unexecutable `20260920120300`, now `.superseded`).
 - Browser certification of the seven implemented fleet missions.
 - Shipyard/defence and buildings browser certification where still pending.
 - Bounded hygiene decisions for `calculate_universe_rates` and unused Lifeform keys.
