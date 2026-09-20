@@ -1,0 +1,172 @@
+﻿-- ============================================================================
+-- SUPERSEDED — 2026-09-20 — provenance artifact, DO NOT APPLY.
+-- ----------------------------------------------------------------------------
+-- Reason: this patcher CANNOT execute against LIVE and was therefore replaced by
+--         the active forward-only migration
+--         20260920120800_remove_guest_ownership_bypasses.sql.
+--
+-- Defect (proven against LIVE with pg_get_functiondef on 2026-09-20):
+--   patch 1 (start_fleet_mixed) and patch 2 (start_colonize_fleet) require the
+--   literal fragment `v_auth_user IS NULL AND NOT EXISTS`, but the real LIVE
+--   shape is:
+--       IF v_auth_user IS NOT NULL THEN
+--         IF NOT EXISTS(... pl.user_id = v_auth_user) THEN raise ...; END IF;
+--       ELSIF NOT EXISTS(... coalesce(pl.is_guest,false))
+--       THEN raise exception ''Authentication required''; END IF;
+--   The precondition `v_auth_user IS NULL AND NOT EXISTS` never matches, so the
+--   DO block raises PRECONDITION_FAILED and the whole migration rolls back.
+--   Patches 3, 4 and 5 of this file matched LIVE verbatim and were correct;
+--   they are carried over verbatim in the replacement migration.
+--
+-- This artifact is preserved (never deleted) because it documents the exact
+-- defect and the intended patch order. Renaming a broken artifact to
+-- `.superseded` with a provenance header is the established convention of this
+-- repository (see docs/MIGRATION_DRIFT_RECONCILIATION.md, section 9).
+-- ============================================================================
+-- ============================================================================
+-- REMOVE GUEST AUTHORIZATION BRANCHES  (forward-only, guarded patcher)
+-- ----------------------------------------------------------------------------
+-- Removes ONLY the unauthenticated + is_guest fallback from the current bodies:
+--
+--   start_fleet_mixed          (20260914205923)
+--   start_colonize_fleet       (20260914205923)
+--   start_lifeform_building    (20260913044032)
+--   start_lifeform_research    (20260913044032)
+--   sync_current_planet_resources (20260918030000)  â† dead v_is_guest residue
+--   enforce_player_write_access   (20260913043318)  â† NULL-auth guest write guard
+--
+-- Each block: precondition (target present) â†’ regexp_replace â†’ postcondition
+-- (no guest fragment left) â†’ EXECUTE. Any unmet condition RAISEs, so the whole
+-- migration rolls back instead of silently leaving a guest bypass alive.
+--
+-- Authorization stays: auth.uid() IS NOT NULL + players.user_id ownership.
+-- No other validation, formula or economic logic is touched.
+-- ============================================================================
+
+BEGIN;
+
+-- 1) start_fleet_mixed -----------------------------------------------------
+DO $patch$
+DECLARE v_sql text;
+BEGIN
+  v_sql := pg_get_functiondef('public.start_fleet_mixed(uuid,uuid,uuid,jsonb,text)'::regprocedure);
+  IF v_sql !~* 'v_auth_user\s+IS\s+NULL\s+AND\s+NOT\s+EXISTS' THEN
+    RAISE EXCEPTION 'PRECONDITION_FAILED: start_fleet_mixed guest guard not found';
+  END IF;
+  v_sql := regexp_replace(
+    v_sql,
+    'IF\s+v_auth_user\s+IS\s+NULL\s+AND\s+NOT\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+public\.players\s+pl\s+WHERE\s+pl\.id\s*=\s*p_player_id\s+AND\s+coalesce\(pl\.is_guest\s*,\s*false\)\s*\)\s*THEN\s+RAISE\s+EXCEPTION\s+''Authentication required'';\s*END\s+IF;',
+    'IF v_auth_user IS NULL THEN RAISE EXCEPTION ''Authentication required''; END IF;',
+    'i'
+  );
+  IF v_sql ~* 'is_guest' THEN
+    RAISE EXCEPTION 'POSTCONDITION_FAILED: start_fleet_mixed still references is_guest';
+  END IF;
+  EXECUTE v_sql;
+END
+$patch$;
+
+-- 2) start_colonize_fleet --------------------------------------------------
+DO $patch$
+DECLARE v_sql text;
+BEGIN
+  v_sql := pg_get_functiondef('public.start_colonize_fleet(uuid,uuid,integer,integer,integer)'::regprocedure);
+  IF v_sql !~* 'v_auth_user\s+IS\s+NULL\s+AND\s+NOT\s+EXISTS' THEN
+    RAISE EXCEPTION 'PRECONDITION_FAILED: start_colonize_fleet guest guard not found';
+  END IF;
+  v_sql := regexp_replace(
+    v_sql,
+    'IF\s+v_auth_user\s+IS\s+NULL\s+AND\s+NOT\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+public\.players\s+pl\s+WHERE\s+pl\.id\s*=\s*p_player_id\s+AND\s+coalesce\(pl\.is_guest\s*,\s*false\)\s*\)\s*THEN\s+RAISE\s+EXCEPTION\s+''Authentication required'';\s*END\s+IF;',
+    'IF v_auth_user IS NULL THEN RAISE EXCEPTION ''Authentication required''; END IF;',
+    'i'
+  );
+  IF v_sql ~* 'is_guest' THEN
+    RAISE EXCEPTION 'POSTCONDITION_FAILED: start_colonize_fleet still references is_guest';
+  END IF;
+  EXECUTE v_sql;
+END
+$patch$;
+
+-- 3) start_lifeform_building / start_lifeform_research ---------------------
+DO $patch$
+DECLARE
+  v_fn text;
+  v_sql text;
+BEGIN
+  FOREACH v_fn IN ARRAY ARRAY['start_lifeform_building','start_lifeform_research'] LOOP
+    v_sql := pg_get_functiondef(('public.' || v_fn || '(uuid,text)')::regprocedure);
+    IF v_sql !~* 'v_auth_user\s+IS\s+NULL\s+AND\s+NOT\s+EXISTS' THEN
+      RAISE EXCEPTION 'PRECONDITION_FAILED: % guest guard not found', v_fn;
+    END IF;
+    v_sql := regexp_replace(
+      v_sql,
+      'IF\s+v_auth_user\s+IS\s+NULL\s+AND\s+NOT\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+public\.players\s+WHERE\s+id\s*=\s*v_player\s+AND\s+coalesce\(is_guest\s*,\s*false\)\s*=\s*true\s*\)\s*THEN\s+RAISE\s+EXCEPTION\s+''Authentication required'';\s*END\s+IF;',
+      'IF v_auth_user IS NULL THEN RAISE EXCEPTION ''Authentication required''; END IF;',
+      'i'
+    );
+    IF v_sql ~* 'is_guest' THEN
+      RAISE EXCEPTION 'POSTCONDITION_FAILED: % still references is_guest', v_fn;
+    END IF;
+    EXECUTE v_sql;
+  END LOOP;
+END
+$patch$;
+
+-- 4) sync_current_planet_resources â€” dead guest residue ---------------------
+-- The guest branch itself was already removed by the ownership hardening; only
+-- the declaration and the read remain. PLAYER_NOT_FOUND stays guaranteed by the
+-- subsequent PLAYER_ACCESS_DENIED check (player_id + user_id = auth.uid()).
+DO $patch$
+DECLARE v_sql text;
+BEGIN
+  v_sql := pg_get_functiondef('public.sync_current_planet_resources(uuid,uuid,timestamptz)'::regprocedure);
+  IF v_sql !~* 'v_is_guest' THEN
+    RAISE EXCEPTION 'PRECONDITION_FAILED: sync_current_planet_resources residue not found';
+  END IF;
+  v_sql := regexp_replace(v_sql, 'v_is_guest\s+boolean;\s*', '', 'gi');
+  v_sql := regexp_replace(
+    v_sql,
+    'select\s+coalesce\(pl\.is_guest\s*,\s*false\)\s+into\s+v_is_guest\s+from\s+public\.players\s+pl\s+where\s+pl\.id\s*=\s*p_player_id;\s*if\s+not\s+found\s+then\s+raise\s+exception\s+''PLAYER_NOT_FOUND'';\s*end\s+if;\s*',
+    '',
+    'i'
+  );
+  IF v_sql ~* 'is_guest' THEN
+    RAISE EXCEPTION 'POSTCONDITION_FAILED: sync_current_planet_resources still references is_guest';
+  END IF;
+  EXECUTE v_sql;
+END
+$patch$;
+
+-- 5) enforce_player_write_access â€” remove the NULL-auth guest fallback ------
+-- After this, every protected write requires auth.uid(); the ownership
+-- comparison against players.user_id is preserved unchanged.
+DO $patch$
+DECLARE v_sql text;
+BEGIN
+  v_sql := pg_get_functiondef('public.enforce_player_write_access()'::regprocedure);
+  IF v_sql !~* 'v_is_guest' THEN
+    RAISE EXCEPTION 'PRECONDITION_FAILED: enforce_player_write_access guest branch not found';
+  END IF;
+  v_sql := regexp_replace(
+    v_sql,
+    'select\s+pl\.is_guest\s*,\s*pl\.user_id\s+into\s+v_is_guest\s*,\s*v_user_id\s+from\s+public\.players\s+pl\s+where\s+pl\.id\s*=\s*v_player_id;',
+    'select pl.user_id into v_user_id from public.players pl where pl.id=v_player_id;',
+    'i'
+  );
+  v_sql := regexp_replace(
+    v_sql,
+    'if\s+v_user_id\s+is\s+null\s+then\s+if\s+coalesce\(v_is_guest\s*,\s*false\)\s+is\s+not\s+true\s+then\s+raise\s+exception\s+''AUTHENTICATION_REQUIRED'';\s*end\s+if;\s*elsif',
+    'if v_user_id is null then raise exception ''AUTHENTICATION_REQUIRED''; elsif',
+    'i'
+  );
+  v_sql := regexp_replace(v_sql, 'v_is_guest\s+boolean;\s*', '', 'gi');
+  IF v_sql ~* 'is_guest' THEN
+    RAISE EXCEPTION 'POSTCONDITION_FAILED: enforce_player_write_access still references is_guest';
+  END IF;
+  EXECUTE v_sql;
+END
+$patch$;
+
+COMMIT;
+
+
