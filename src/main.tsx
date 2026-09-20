@@ -26,29 +26,25 @@ import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 import LoginPage from './LoginPage'
 import { supabase } from './lib/supabase'
-import { ensureSession } from './lib/identity'
 
 function Root() {
   const [session, setSession] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
-  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
 
-    // Modo invitado: si no hay sesión persistida se crea una sesión ANÓNIMA.
-    // Solo si eso falla se muestra la pantalla de login.
-    ensureSession()
-      .then(async () => {
-        const { data } = await supabase.auth.getSession()
+    // Autenticación canónica (email/password): no se crean sesiones anónimas.
+    // Sin sesión, la aplicación muestra LoginPage.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
         if (!active) return
         setSession(data.session)
         setLoading(false)
       })
-      .catch((error: unknown) => {
-        if (!active) return
-        setAuthError(error instanceof Error ? error.message : 'No se pudo iniciar la sesión')
-        setLoading(false)
+      .catch(() => {
+        if (active) setLoading(false)
       })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
@@ -70,16 +66,7 @@ function Root() {
   }
 
   if (!session) {
-    return (
-      <>
-        {authError && (
-          <div style={{ color: '#f2b8b5', textAlign: 'center', marginTop: '40px' }}>
-            No se pudo iniciar el modo invitado ({authError}). Inicia sesión para continuar.
-          </div>
-        )}
-        <LoginPage />
-      </>
-    )
+    return <LoginPage />
   }
 
   return (

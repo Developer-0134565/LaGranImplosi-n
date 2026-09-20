@@ -4,54 +4,14 @@ import type { Database } from './database.types'
 /** Jugador resuelto para la sesión actual (players.user_id = auth.uid()). */
 export type PlayerIdentity = Pick<
   Database['public']['Tables']['players']['Row'],
-  'id' | 'username' | 'is_guest' | 'universe_id' | 'user_id'
+  'id' | 'username' | 'universe_id' | 'user_id'
 >
 
-const VISITOR_STORAGE_KEY = 'lagranimplosion-visitor-id'
-const FALLBACK_VISITOR_ID = '00000000000000000000000000000000'
-
-/** Identificador estable del visitante (>=32 chars, exigido por register_guest_player). */
-function visitorId(): string {
-  try {
-    const saved = localStorage.getItem(VISITOR_STORAGE_KEY)
-    if (saved && saved.length >= 32) return saved
-    const raw =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID().replace(/-/g, '')
-        : `${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`.replace(/[^0-9a-f]/g, '')
-    const value = raw.padEnd(32, '0').slice(0, 32)
-    localStorage.setItem(VISITOR_STORAGE_KEY, value)
-    return value
-  } catch {
-    return FALLBACK_VISITOR_ID
-  }
-}
-
-/** Nombre de invitado válido para register_guest_player (3-24 chars, [alnum _ . -]). */
-function guestUsername(): string {
-  return `Invitado-${visitorId().slice(0, 8)}`
-}
-
-let sessionBootstrap: Promise<void> | null = null
-
 /**
- * Garantiza que existe sesión: reutiliza la persistida o crea una ANÓNIMA
- * (modo invitado). Nunca crea una segunda sesión si ya hay una.
+ * Identidad canónica: Supabase Auth (email/password) → auth.uid() → players.user_id.
+ * El modo invitado (sesión anónima + register_guest_player) fue retirado:
+ * no existe ninguna ruta de creación automática de jugadores aquí.
  */
-export function ensureSession(): Promise<void> {
-  if (!sessionBootstrap) {
-    sessionBootstrap = (async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session) return
-      const { error } = await supabase.auth.signInAnonymously()
-      if (error) throw new Error(error.message)
-    })().catch((error: unknown) => {
-      sessionBootstrap = null
-      throw error
-    })
-  }
-  return sessionBootstrap
-}
 
 /** auth.uid() efectivo, validado contra el servidor. */
 export async function currentAuthUserId(): Promise<string> {
@@ -68,31 +28,56 @@ export async function resolvePlayer(): Promise<PlayerIdentity | null> {
   const userId = await currentAuthUserId()
   const { data, error } = await supabase
     .from('players')
-    .select('id,username,is_guest,universe_id,user_id')
+    .select('id,username,universe_id,user_id')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) throw new Error(error.message)
   return data ?? null
 }
 
+/** Imperio provisionado por el onboarding explícito. */
+export type ProvisionedEmpire = {
+  playerId: string
+  planetId: string | null
+  username: string
+  galaxy: number | null
+  system: number | null
+  position: number | null
+}
+
 /**
- * Cadena de identidad completa:
- *   sesión (anónima si hace falta) → auth.uid() → players.user_id → players.id
- * Si el usuario autenticado aún no tiene jugador, se registra como invitado.
+ * Estado de identidad de la sesión autenticada:
+ *   auth.uid() → players.user_id → players.id
+ * No crea jugadores: cuando no existe, lo señala para que la UI ejecute el
+ * onboarding explícito (`provisionPlayer`).
  */
-export async function resolveIdentity(): Promise<{ player: PlayerIdentity; registered: boolean }> {
-  await ensureSession()
-  const existing = await resolvePlayer()
-  if (existing) return { player: existing, registered: false }
-
-  const { error } = await supabase.rpc('register_guest_player', {
-    p_username: guestUsername(),
-    p_country_code: 'XX',
-    p_ip_hash: visitorId(),
-  })
-  if (error) throw new Error(error.message)
-
+export async function resolveIdentity(): Promise<{ player: PlayerIdentity | null; needsOnboarding: boolean }> {
   const player = await resolvePlayer()
-  if (!player) throw new Error('El jugador invitado no se pudo resolver tras el registro')
-  return { player, registered: true }
+  return { player, needsOnboarding: player === null }
+}
+
+/**
+ * Onboarding canónico (email/password): crea el imperio del usuario autenticado
+ * —player + Homeworld + resources + research— en una única transacción.
+ * Es idempotente (reuse-first): si la sesión ya tiene jugador, devuelve el suyo
+ * y nunca reclama un jugador existente.
+ */
+export async function provisionPlayer(p_username: string, p_country_code = 'XX'): Promise<ProvisionedEmpire> {
+  // `provision_player` se tipará al regenerar database.types.ts tras la reconciliación LIVE.
+  const rpc = supabase.rpc as unknown as (
+    fn: string,
+    args?: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data, error } = await rpc('provision_player', { p_username, p_country_code })
+  if (error) throw new Error(error.message)
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined
+  if (!row) throw new Error('PROVISION_FAILED')
+  return {
+    playerId: String(row.player_id),
+    planetId: (row.planet_id as string | null) ?? null,
+    username: String(row.username),
+    galaxy: (row.galaxy as number | null) ?? null,
+    system: (row.system as number | null) ?? null,
+    position: (row.planet_position as number | null) ?? null,
+  }
 }
