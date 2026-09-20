@@ -41,15 +41,17 @@ const idSrc = readFileSync(IDENTITY_PATH, 'utf8')
 
 check('App.tsx filtra los planetas por player_id', appSrc.includes(".eq('player_id'"))
 check(
-  'App.tsx ya no usa heuristicas globales de planeta',
-  !appSrc.includes('p.is_homeworld&&p.players?.is_guest'),
+  'App.tsx ya no usa contratos Guest (is_guest)',
+  !appSrc.includes('is_guest'),
   appSrc.includes('activePlanet=planets.find(p=>p.is_homeworld)??planets[0]') ? 'seleccion dentro de los planetas del jugador' : 'revisar'
 )
 check('App.tsx resuelve la identidad antes de cargar planetas', appSrc.includes('resolveIdentity()'))
-check('main.tsx garantiza sesion (anonima si no hay)', mainSrc.includes('ensureSession()'))
-check('identity.ts crea sesion anonima cuando no hay sesion', idSrc.includes('signInAnonymously'))
+check('App.tsx exige onboarding explicito cuando no hay jugador', appSrc.includes('needsOnboarding') && appSrc.includes('provisionPlayer'))
+check('main.tsx NO crea sesiones (sin bootstrap anonimo)', !mainSrc.includes('signInAnonymously') && mainSrc.includes('getSession()'))
+check('identity.ts NO crea sesion anonima ni onboarding guest', !idSrc.includes('signInAnonymously') && !idSrc.includes('register_guest_player'))
+check('identity.ts provisiona el imperio con provision_player', idSrc.includes('provision_player'))
 check('identity.ts resuelve el player por user_id', idSrc.includes(".eq('user_id', userId)"))
-check('identity.ts no resuelve identidad por username/is_guest', !/\.eq\('(username|is_guest)'/.test(idSrc))
+check('identity.ts no resuelve identidad por username', !/\.eq\('username'/.test(idSrc))
 
 // ---------------------------------------------------------------- 2) sesion
 const { data: sessionData } = await sb.auth.getSession()
@@ -57,14 +59,14 @@ const sessionUser = sessionData?.session?.user ?? null
 if (!sessionUser) {
   skip('cadena de identidad de la sesion actual', 'no hay sesion activa (el script no crea sesiones)')
 } else {
-  console.log(`SESION  uid=${id(sessionUser.id)} anonima=${Boolean(sessionUser.is_anonymous)}`)
+  console.log(`SESION  uid=${id(sessionUser.id)}`)
   const { data: player, error: pe } = await sb
     .from('players')
-    .select('id,username,is_guest,universe_id,user_id')
+    .select('id,username,universe_id,user_id')
     .eq('user_id', sessionUser.id)
     .maybeSingle()
   if (pe) fail('players.user_id = auth.uid()', pe.message)
-  else check('players.user_id = auth.uid()', Boolean(player), player ? `${player.username} (${id(player.id)})` : 'la sesion no tiene player')
+  else check('players.user_id = auth.uid()', Boolean(player), player ? `${player.username} (${id(player.id)})` : 'la sesion no tiene player (onboarding pendiente: provision_player)')
 
   if (player) {
     const { data: planets, error: pne } = await sb
@@ -88,11 +90,11 @@ if (!sessionUser) {
 }
 
 // ---------------------------------------------------------------- 3) aislamiento
-const { data: visiblePlayers } = await sb.from('players').select('id,username,is_guest,user_id').limit(200)
-const devPlayer = (visiblePlayers ?? []).find((p) => p.username === 'DevPlayer')
-if (devPlayer) {
-  const { data: own } = await sb.from('planets').select('id,player_id,name').eq('player_id', devPlayer.id).eq('is_destroyed', false)
-  const foreign = (own ?? []).filter((p) => p.player_id !== devPlayer.id)
+const { data: visiblePlayers } = await sb.from('players').select('id,username,user_id').limit(200)
+const reference = (visiblePlayers ?? [])[0]
+if (reference) {
+  const { data: own } = await sb.from('planets').select('id,player_id,name').eq('player_id', reference.id).eq('is_destroyed', false)
+  const foreign = (own ?? []).filter((p) => p.player_id !== reference.id)
   check('consulta scoped (.eq player_id) devuelve solo planetas de ese player', (own ?? []).length > 0 && foreign.length === 0, `${(own ?? []).length} planetas`)
   const all = await sb.from('planets').select('id', { count: 'exact', head: true }).eq('is_destroyed', false)
   console.log(`      contexto: la lectura global expone ${all.count} planetas (mapa galactico); la identidad ya NO depende de esa lista`)
@@ -104,7 +106,7 @@ const spoof = await sb.from('players').select('id,username,user_id').eq('user_id
 check('players no se puede consultar por un user_id ajeno (RLS)', (spoof.data ?? []).length === 0, `filas=${(spoof.data ?? []).length}`)
 
 // ---------------------------------------------------------------- 4) invariantes
-const { data: allPlayers } = await sb.from('players').select('id,username,is_guest,player_type,user_id').limit(500)
+const { data: allPlayers } = await sb.from('players').select('id,username,player_type,user_id').limit(500)
 const { data: allPlanets } = await sb.from('planets').select('id,player_id,is_homeworld,is_destroyed').limit(1000)
 const humans = (allPlayers ?? []).filter((p) => p.player_type === 'HUMAN')
 const humansWithoutUser = humans.filter((p) => !p.user_id)

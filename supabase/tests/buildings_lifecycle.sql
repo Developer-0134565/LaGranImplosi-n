@@ -33,14 +33,15 @@ begin
     select p.player_id, p.id, pl.user_id into v_player, v_planet, v_user
     from public.planets p
     join public.players pl on pl.id = p.player_id
-    where coalesce(pl.is_guest, false) = true
+    where pl.player_type = 'HUMAN'
       and pl.user_id is not null
+      and pl.username not like 'DevPlayer%'
       and p.is_destroyed = false
     order by (select count(*) from public.planet_buildings pb where pb.planet_id = p.id), p.created_at
     limit 1;
 
     if v_planet is null then
-        raise exception 'TEST_ABORT: no hay planeta de invitado con user_id disponible';
+        raise exception 'TEST_ABORT: no hay un jugador HUMANO (email/password) con planeta propio; provisiona un imperio (provision_player) antes de ejecutar esta suite';
     end if;
     raise notice 'TEST planet=% player=% user=% building=%', v_planet, v_player, v_user, v_building;
 

@@ -76,20 +76,22 @@ begin
     create temp table t_results(orden serial, prueba text, resultado text) on commit drop;
 
     /* ---------------------------------------------------------------- FIXTURE
-       Identificable y reversible: se elige un jugador invitado con user_id y un
-       planeta propio; todo lo que se toca queda dentro de esta transacción. */
+       Identificable y reversible: se elige un jugador HUMANO con auth user
+       (modelo email/password) y un planeta propio; todo lo que se toca queda
+       dentro de esta transacción. */
     select pl.id, pl.user_id, p.id, p.universe_id
       into v_player, v_user, v_planet, v_universe
     from public.planets p
     join public.players pl on pl.id = p.player_id
-    where coalesce(pl.is_guest, false) = true
+    where pl.player_type = 'HUMAN'
       and pl.user_id is not null
+      and pl.username not like 'DevPlayer%'
       and p.is_destroyed = false
     order by p.created_at, p.id
     limit 1;
 
     if v_planet is null then
-        raise exception 'TEST_ABORT: no hay planeta de invitado con user_id';
+        raise exception 'TEST_ABORT: no hay un jugador HUMANO (email/password) con planeta propio; provisiona un imperio (provision_player) antes de ejecutar esta suite';
     end if;
 
     /* investigación sin prerrequisitos (happy path) */
