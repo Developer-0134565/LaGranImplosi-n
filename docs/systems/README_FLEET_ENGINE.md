@@ -1,8 +1,9 @@
 # FLEET ENGINE — LA GRAN IMPLOSIÓN
 
-> **Status:** BACKEND CONVERGED / MISSION MODIFIERS CLOSED — `start_fleet`, `start_fleet_mixed` and
-> `start_colonize_fleet` converge in LIVE on the canonical movement pipeline: ship speed, mission class,
-> evolution, modifiers, travel time and fuel. **Browser certification remains OPEN**. ACS_HOLD Fase A is
+> **Status:** LOCAL CONVERGENCE IN PROGRESS / HISTORICAL GAP — the checked-in local convergence artifact
+> routes `start_fleet`, `start_fleet_mixed` and `start_colonize_fleet` through the demonstrated propulsion
+> and mission-class helpers. LIVE parity and the complete fuel path remain unverified. **Browser certification
+> remains OPEN**. ACS_HOLD Fase A is
 > **IMPLEMENTED / NOT BROWSER-CERTIFIED** (§22): single support dispatcher + explicit destination-owner
 > authorization + `OUTBOUND → ARRIVED → HOLDING → RETURNING → COMPLETED` lifecycle. `DEFEND` remains
 > **BLOCKED BY COMBAT ENGINE**, holding fuel and maximum holding duration remain **OPEN**, UI is not built.
@@ -210,6 +211,22 @@ so the dead parallel path no longer remains deployed.
 
 ## 10. Dispatch entrypoints
 
+### 10.1 Evidence boundary
+
+**LIVE VERIFIED**: the mission classifier, player-aware ship-speed helper, canonical travel-time helper,
+and player-aware fleet-fuel contract are documented as the intended backend authorities. The four
+LIVE-only migrations remain blocked by the Migration Provenance Gate.
+
+**LOCAL REPRODUCIBLE**: migration
+`20260920010000_converge_local_fleet_dispatch_classifiers.sql` removes only the demonstrated
+`universes.fleet_speed` class bypass from `start_fleet` and `start_fleet_mixed`, and routes the
+colonization dispatcher’s ship speed and mission class through the canonical helpers. It does not
+reconstruct the fuel helper, expedition timing, or coordinate-distance payload.
+
+**PROVENANCE GAP**: `calculate_player_ship_fuel_consumption` body is not recoverable and was not recreated,
+wrapped, or replaced. The expedition inline `35000 / 100 * sqrt(...)` branch and colonization distance
+calculation remain unchanged until their exact LIVE provenance is demonstrated.
+
 Known fleet dispatch surface:
 
 - `start_fleet(player, origin, destination, ship, quantity, mission)` — single-ship dispatch
@@ -343,7 +360,7 @@ planet-scoped owner authorization instead (§22.3).
 | `calculate_player_ship_speed` | **CANONICAL** | the only propulsion→speed routing |
 | `calculate_player_ship_fuel_consumption` | **CANONICAL** | the only engine→consumption routing |
 | `calculate_player_fleet_fuel_for_distance` | **CANONICAL** | fuel ordering (lifeform reduction once) |
-| `start_fleet` / `start_fleet_mixed` / `start_colonize_fleet` | **CANONICAL** | 3/3 wired to classifier + `E^(1/3)` + helper |
+| `start_fleet` / `start_fleet_mixed` / `start_colonize_fleet` | **LOCAL REPRODUCIBLE / LIVE OPEN** | Local classifier and colonize-speed convergence is bounded; full LIVE parity remains unverified |
 | `resolve_*_arrival` + `process_fleet_movements` | **CANONICAL** | return leg = outbound duration; no speed math |
 | `calculate_expedition_delay_seconds` | **CANONICAL (was PARALLEL)** | converged 2026-09-18 (§12) |
 | `calculate_universe_rates` | **PARALLEL / DISTINCT PURPOSE** | informational snapshot; still uses `fleet_speed` × `fleet_movement_scale` and ignores the three classes → §15.2 |
@@ -584,11 +601,11 @@ behaviour (no second charge).
    helper in `20260919042952_reconcile_fleet_mission_and_monitor_provenance`, but its `CREATE` is absent from every
    repository migration; it exists in LIVE only. It was **not** recreated here (that would duplicate the single
    engine-consumption authority), but the migration history cannot reproduce it.
-5. **Finding — dispatcher/classifier claim not reproducible**: no repository migration makes `start_fleet` /
-   `start_fleet_mixed` call `calculate_mission_fleet_speed_multiplier`; the last authored bodies (and the recovered
-   `20260918094440` / `20260918095005` patchers) still read `universes.fleet_speed`. The §10 claim and
-   `fleet_speed_classes.sql` assertion 4 must be re-verified against LIVE before being trusted. Fase A does not
-   depend on it: `start_support_fleet` resolves its own class explicitly.
+5. **Finding — local convergence is bounded**: the new local migration removes the demonstrated
+   `universes.fleet_speed` class bypass from the two standard dispatchers and routes colonization ship speed
+   through `calculate_player_ship_speed`; the exact LIVE dispatcher payload remains unverified. The §10
+   claim and `fleet_speed_classes.sql` assertion 4 must still be re-verified against LIVE before parity is
+   trusted. Fase A does not depend on it: `start_support_fleet` resolves its own class explicitly.
 6. **Pending verification**: `fleet_acs_hold_lifecycle.sql` and the updated `fleet_speed_classes.sql` must be
    executed in LIVE (SQL Editor / `execute_sql`). This environment had no database credentials and no local
    Postgres/Docker, so the SQL was validated structurally (balanced blocks, canonical-helper-only bodies) but not
