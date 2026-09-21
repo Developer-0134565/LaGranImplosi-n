@@ -1604,3 +1604,144 @@ MISSION: COMBAT CORE PHASE 3 — CERTIFICATION CANDIDATE (read-only + bounded ha
 
 Do NOT in that mission: implement ACS/DEFEND, change formulas or balance, or start Lifeforms/Items/Officers.
 ```
+
+---
+
+## 17. PHASE 3 — CERTIFICATION AUDIT (2026-09-21)
+
+> Read-only mission. **Zero implementation changes**: no migration, no schema, no code, no test edit,
+> no formula, no balance, no Fleet/Defense/Research/Identity change, no ACS/DEFEND, no historical cleanup.
+> Every claim below is marked PROVEN / INFERRED / NOT TESTED / OUT OF SCOPE, with provenance stated
+> (deployed definition · LIVE observation · existing fixture re-run).
+
+### 17.1 Certification decision
+
+```text
+COMBAT ENGINE — CERTIFIED
+```
+
+Certified scope (exactly what the evidence covers):
+
+```text
+ONE attacking fleet vs ONE planet (ATTACK)                 single-attacker model
+plus the expedition combat branch (pirates / aliens)      same participant + ledger contract
+on the deployed chain:  pg_cron(1s) → run_fleet_worker → process_fleet_movements →
+                        resolve_attack_arrival → resolve_combat → initialize_individual_combat_units →
+                        rounds (≤6) → losses → survivor write-back → loot → defense repair → debris →
+                        RETURNING, with per-fleet isolation and an authenticated report contract
+```
+
+Explicitly **outside** the certified scope (stated, not treated as defects): ACS / DEFEND / multi-fleet
+combat, defender fleets, seeded determinism, the shield-dome rule, the DG-07 historical-residue cleanup,
+legacy-object removal, and the alien-technology balance item.
+
+### 17.2 Evidence matrix
+
+| # | Requirement | Verdict | Provenance |
+|---|---|---|---|
+| A1 | production worker reaches `resolve_attack_arrival` | **PROVEN** | deployed: `pg_cron` job 2 `SELECT public.run_fleet_worker()` (active, 1 s) → `process_fleet_movements` → `perform public.resolve_attack_arrival(v.id)` under `mission_type='ATTACK'` |
+| A2 | ATTACK uses the authoritative chain | **PROVEN** | deployed: `resolve_attack_arrival` has exactly one caller (`process_fleet_movements`); `resolve_combat` has exactly one caller (`resolve_attack_arrival`) |
+| A3 | no competing production combat entry | **PROVEN** | deployed: only three functions insert into `combat_battles` — `resolve_combat` (ATTACK) and the two expedition creators; `resolve_attack_arrival`, `resolve_combat` and `process_fleet_movements` are not executable by `authenticated` (LIVE privilege check) |
+| A4 | legacy residue stays inert | **PROVEN** | all eight legacy objects (`simulate_defender_losses`, `initialize_combat_unit_state`, `snapshot_combat_round`, `apply_combat_hull_damage`, `calculate_combat_damage`, `get_combat_round_snapshot`, `get_combat_unit_snapshot`, `combat_hull_from_integrity`) have **no caller** and `anon` EXECUTE = false |
+| B1 | attacker participant attribution | **PROVEN** | fixture 01/02 and P1 plus deployed `resolve_combat` inserting `ATTACKER/FLEET` with fleet, player and origin planet |
+| B2 | defender participant attribution | **PROVEN** | fixture 02 (planet owner) plus deployed `resolve_combat` inserting `DEFENDER/PLANET` |
+| B3 | expedition ENEMY participant supported | **PROVEN** | deployed: both creators insert `'DEFENDER','ENEMY'`; CHECK constraints allow `ENEMY` with the player-required rule; fixtures P1/A1 |
+| B4 | every authoritative unit carries the correct participant | **PROVEN** | deployed: the unit inserts of `initialize_individual_combat_units`, both expedition creators and `create_combat_next_round` are 3/3, 3/3, 3/3 and 1/1 with `participant_id`; fixtures report 0 NULL participants |
+| B5 | no NULL-participant path remains | **PROVEN** | no other function inserts combat units; runtime fixtures show exact attribution for planet and expedition battles |
+| C1 | canonical ship/defence readers used | **PROVEN** | deployed: the six `get_combat_ship_*` / `get_combat_defense_*` readers apply `*(1 + level*0.10)` via `get_player_research_level`; `initialize_individual_combat_units` references them 12× (ships) + 6× (defences); each expedition creator 18× |
+| C2 | technology routing unchanged | **PROVEN** | readers use `weapons_technology` / `shielding_technology` / `armour_technology`; no raw `x.attack,x.shield` tuple feeds unit rows (the remaining raw `SELECT … INTO x` is dead assignment) |
+| C3 | no statistics drift introduced | **PROVEN** | `universes.fleet_debris_percentage = 30`, `defense_debris_percentage = 0` (unchanged since Phase 0) |
+
+| D1 | maximum six rounds | **PROVEN** | deployed: `run_expedition_combat` `WHILE r<=6`; `process_combat_round_v2` raises for round > 6; `finish_combat_round_v1` forces DRAW at round 6 |
+| D2 | round-start snapshots | **PROVEN** | `create_combat_round_snapshot` writes `shield_start`/`hull_start`/`alive_start`; `resolve_pending_target_damage` resolves from them |
+| D3 | one target per alive unit, simultaneous construction | **PROVEN** | `generate_combat_round_v2` walks `alive_start` units in random order, picks one random opposite-side target per unit and writes the whole shot ledger before any damage (`is_initial_shot = true` tail) |
+| D4 | rapidfire behaviour | **PROVEN** | `1-(1/v_rf)` probability with a random roll in `generate_combat_round_v2` and `expand_rapidfire_chain_v2` (RF shots carry the `false` tail); fixtures show RF-expanded ledgers (20 units → 143 rows) |
+| D5 | shield absorption, hull damage, explosion | **PROVEN** | `resolve_pending_target_damage` → `calculate_shield_bounce` (1 % threshold), shield-first absorption, hull remainder, explosion roll below 70 % |
+| D6 | shield regeneration, persistent partial hull | **PROVEN** | `create_combat_next_round` resets `shield_current := shield_max` and carries `hull_current` for survivors |
+| D7 | winner/draw determination | **PROVEN** | `finish_combat_round_v1` (per round) and `run_expedition_combat` (battle flags); fixtures show exactly one result flag true, with `ATTACKER_WIN` and `DEFENDER_WIN` both observed |
+| E1 | losses derived from the authoritative ledger, symmetric | **PROVEN** | both loss readers read `combat_individual_units` with no side bias; fixture R1b shows the reported payload equals the derived ledger |
+| E2 | no orphan production loss calculator | **PROVEN** | `simulate_defender_losses` has no caller (see A4) |
+| E3 | loot exactly once and replay-safe | **PROVEN** | deployed `loot_applied_at` guard plus fixtures 10 and the replay assertion 12 |
+| E4 | defence repair called once, idempotent, transactional | **PROVEN** | deployed: `resolve_attack_arrival` calls it exactly once; per-defence `CONTINUE` guard + `UNIQUE (battle_id, defense_id)`; fixture 11 |
+| E5 | repair cannot fabricate or cancel debris | **PROVEN** | the defence-loss and debris readers read `combat_individual_units` + definitions and do **not** read `planet_defenses` |
+| E6 | one debris generation per battle, one field credit | **PROVEN** | fixture C1 (field delta == `metal_generated`, one generation row); C2/C3 replay returns `already_generated = true` with zero delta |
+| F1 | replay/idempotency guards exist | **PROVEN** | unique fleet→battle index, arrival status gate, existing-battle return, closed-round exception, `loot_applied_at`, repair/round/shot/damage uniqueness, debris provenance + battle-scoped advisory lock |
+| F2 | no second battle/loot/repair/debris/duplicate survivor write-back on replay | **PROVEN** | fixture 12 asserts exactly one battle, one debris generation, one repair row, unchanged `fleet_movement_ships`, status `RETURNING`, identical battle id |
+| G1 | worker per-fleet isolation (deployed) | **PROVEN (presence, scope, effect)** | deployed `process_fleet_movements` contains exactly three per-fleet `EXCEPTION` handlers (OUTBOUND, HOLDING, RETURNING), each raising `FLEET_RESOLUTION_FAILED …` inside a subtransaction |
+| G2 | worker isolation in production | **PROVEN by fixture, NOT OBSERVED in production** | fixture W1–W8 (bad fleet rolled back to `OUTBOUND`, valid fleet resolved in the same invocation, retry safe); production job 2 ran 1,765 times in 30 minutes with **0 failures** and 0 `FLEET_RESOLUTION_FAILED` log lines (128,546 log rows inspected) — no production fleet was poisoned |
+| H1 | report contract authorization | **PROVEN** | fixtures R1 (attacker), R2 (defender-side owner, `caller_role=DEFENDER`), R3 (unrelated authenticated → 0 rows), R4 (unauthenticated → 0 rows) |
+| H2 | no raw-table exposure | **PROVEN** | fixture R5: under `SET LOCAL ROLE authenticated`, `combat_battles` returns 0 rows while the contract returns the battle; all `deny_direct_api_access` policies intact; `anon` cannot execute the contract |
+| H3 | no client-side combat reconstruction | **PROVEN** | the contract returns persisted counters, per-round summaries and derived per-unit losses; the client only formats them (R1b) |
+| I1 | DG-07 non-blocking | **PROVEN** | see §17.4 |
+
+### 17.3 Regression evidence (re-run in this mission, LIVE)
+
+| Suite | Result |
+|---|---|
+| `supabase/tests/combat_participant_propagation.sql` (attack production path) | **12/12 PASS** |
+| `supabase/tests/combat_expedition_combat.sql` | **10/10 PASS** |
+| `supabase/tests/combat_report_contract.sql` | **7/7 PASS** |
+| `supabase/tests/combat_worker_isolation.sql` | **8/8 PASS** |
+| `supabase/tests/combat_debris_idempotency.sql` | **5/5 PASS** |
+
+Static gates: `npx tsc -b` exit 0 · `npm run build` exit 0 (worker + client) · `git diff --check` clean.
+No assertion was weakened, removed or replaced.
+
+Same-session observations: attack battle 20 attacker / 12 defender units, 32 snapshot rows, 143 ledger rows,
+790 damage, debris 6,000 metal, repair recorded; expedition pirates 113 ledger rows / 4,420 damage with all
+defenders destroyed and survivors written back from the final round; aliens 48 rows / 6,595 damage.
+
+### 17.4 DG-07 — historical residue disposition: NON-BLOCKING (proven)
+
+| Question | Answer | Evidence |
+|---|---|---|
+| 1. unreachable from current production combat? | Yes | the 661 + 681 rows belong to 17 battle ids that no longer exist (`combat_battles` = 0), and every reader of those tables is keyed by a live `battle_id`; nothing enumerates them by any other means |
+| 2. can they affect current combat calculations? | No | the loss readers read `combat_individual_units`, the debris readers read the unit ledger + definitions, repair reads the defence ledger, loot reads resources — none reads the two orphan tables |
+| 3. can they be exposed through the battle-report contract? | No | the contract reads `combat_battles`, `combat_battle_participants`, `combat_rounds`, `combat_debris_generations`, `combat_defense_repairs` and the loss readers only |
+| 4. can they affect replay/idempotency? | No | every guard is keyed on a live battle/fleet (`UNIQUE(fleet_id)`, status gate, per-battle uniqueness, debris provenance) |
+| 5. can they affect losses/debris/repair/loot? | No | same reason as (2) |
+| 6. are the three provenance-less debris fields reachable by combat? | No | they sit in **TEST - Universe 1** at coordinates with **no planet**, while combat credits debris at the defender planet's coordinate; the production universe holds 0 debris fields |
+| 7. is `NOT VALID` acceptable for certification? | Yes | the constraints are enforced for every new row: a rolled-back probe attempting to insert an orphan row into both tables raised `foreign_key_violation` on both, so **new orphans are impossible**; `convalidated = false` only reflects the untouched history |
+
+Disposition: historical residue isolated from the certified production path → **non-blocking**. No rows were
+deleted, no FK was validated, no archaeology was performed.
+
+### 17.5 Remaining items after certification (all non-blocking)
+
+| Item | Classification | Note |
+|---|---|---|
+| Alien research ids `weapons`/`shielding`/`armour` do not exist → `alien_tech` is always 3 | **balance / design decision** (future) | PROVEN isolated: the dead lookup and `alien_tech` exist in exactly one function (`resolve_expedition_aliens`), and the ATTACK path functions contain no `alien_tech` or expedition RNG reference, so ordinary combat is unaffected. Value intentionally unchanged (changing it would rebalance expedition difficulty, explicitly out of scope) |
+| DG-02 seeded determinism | non-blocking design gap | rounds are intentionally stochastic; not a defect |
+| DG-03 defender-fleet identity | non-blocking design gap (ACS prerequisite) | no defender fleets in the certified scope |
+| DG-04 legacy uniqueness keys | non-blocking design gap | only relevant to multi-fleet participants |
+| DG-05 shield-dome rule | non-blocking design gap | uniform unit/repair semantics; a balance decision, not a defect |
+| DG-06 defence stats excluded from round aggregates | non-blocking reporting gap | affects the round report's stat sums, not resolution or losses |
+| DG-07 historical orphans / provenance-less debris | **historical residue** | §17.4 |
+| DG-08 inert legacy table + 8 orphan functions | **historical residue** | A4: no callers, not client-executable |
+| DG-09 report contract is a list projection | non-blocking design gap | a dedicated battle screen is future UI work; the data contract already exposes participants/rounds/losses |
+| ACS / DEFEND / multi-fleet combat | NOT IMPLEMENTED | outside the certified scope by design |
+| Combat items / lifeforms / officers | FUTURE UPDATE | not started |
+| Residual dead `SELECT … INTO x` statements in the expedition creators | cleanliness (non-blocking) | leftover from the Phase 1 canonical-stat convergence; they feed no unit row and can be removed by a future hygiene mission |
+
+No P0/P1/P2 core-engine defect remains open: the two historical bugs (CB-03, CB-04) were closed in Phase 2,
+CB-01/CB-02/CB-05/CB-06 in Phase 1, and this mission found no new defect in the certified path.
+
+### 17.6 Next engineering boundary
+
+```text
+COMBAT BASE ENGINE — CERTIFIED (single attacker fleet vs one planet + expedition branch)
+
+Next work is explicitly OUTSIDE this certification:
+
+  1. ACS / DEFEND / multi-fleet combat — a new engine block: it first requires explicit participant
+     identity for multiple fleets (DG-03) and the participant-aware uniqueness keys (DG-04).
+  2. Battle-report screen — a UI mission on top of the existing `get_player_battle_reports` contract
+     (DG-09), no engine change required.
+  3. DG-07 cleanup/validation decision — a separate, explicitly approved mission if the historical
+     residue is ever to be removed and the two battle FKs VALIDATED.
+  4. Alien-technology balance decision — product/balance work, not engine work.
+  5. The other BLOCK 2 items (Identity/Guest decommission, browser certification) remain as recorded in
+     PROJECT_CONTEXT.
+
+Do not reopen the certified chain without new evidence of a defect.
+```
