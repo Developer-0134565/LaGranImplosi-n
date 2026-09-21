@@ -160,6 +160,22 @@ The development workflow and tool-selection gate are defined in
   `research_action_candidates` view was retired as a client contract by `20260921140925`; the lifecycle
   suite (27 gated + 12 contract assertions) is runnable and its fixture accepts `DevPlayer`.
   Detail: [`README_RESEARCH.md`](systems/README_RESEARCH.md).
+- **Defense certification CLOSED (2026-09-21)** for the CORE mechanic: definitions (8 LIVE rows), count-based cost
+  (`calculate_defense_cost`), build time (base / shipyard level / universe construction rate × √E), prerequisites,
+  availability (`can_build_defense`, now SECURITY DEFINER with an ownership gate), atomic `start_defense` charge on
+  the shared shipyard+defense production line, planet-scoped queue, and completion via
+  `process_defense_queue(planet)` from the planet tick. Two LIVE defects were fixed forward-only:
+  `20260921161247_lock_down_process_defense_queue_until` (an internal SECURITY DEFINER processor was
+  PUBLIC-executable with a caller-supplied time bound, so any client — including `anon` — could force-complete any
+  planet's defense construction, bypassing build time) and `20260921161304_fix_can_build_defense_client_contract`
+  (the availability contract was SECURITY INVOKER over client-unreadable objects and raised for the real client
+  role). `supabase/tests/shipyard_defense_lifecycle.sql` is runnable again (LIVE-resolved fixture) and now carries
+  15 assertions including three client-role ones — 15/15 PASS LIVE. Detail:
+  [`README_DEFENSE_ENGINE.md`](systems/README_DEFENSE_ENGINE.md).
+- **Combat Engine: OPEN — the next CORE block.** Defense already exposes the single source of truth combat must
+  consume (`planet_defenses` + `defense_definitions.attack|shield|hull`, with `repair_defenses_after_combat` and the
+  `get_combat_defense_*` readers). No combat formula exists yet. Lifeforms, Items, Auction, Merchant, Alliance and
+  Officers remain future **UPDATE** features and must not be started.
 
 Evidence and detailed tests remain in
 [`docs/systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md), not in this file.
@@ -295,6 +311,11 @@ Not implemented and still open:
   `service_role`, old `COMPLETED` queue rows are never purged, and there is no research cancellation
   path. (The dead `QUEUED`/`ACTIVE` research status guards were removed by `20260921152702`; the CHECK
   still allows only `RESEARCHING`/`COMPLETED`/`CANCELLED`.)
+- **Defense hygiene (P3 — deferred):** `start_defense` still grants EXECUTE to `anon` (the body rejects it);
+  `calculate_defense_build_time` and `check_defense_requirements` are PUBLIC-executable and fail for clients;
+  `CANCELLED` is admitted by the CHECK but unreachable; `COMPLETED` `defense_queue` rows are never purged.
+  **Shipyard parity (P1, Shipyard-owned):** `can_build_ship` still carries the same client-contract defect class
+  that `can_build_defense` had — reported by the Shipyard audit, to be closed by a Shipyard mission.
 
 Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or worker infrastructure exists.
 

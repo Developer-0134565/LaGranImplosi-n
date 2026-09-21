@@ -8,17 +8,26 @@
 -- queue creation, processing, inventory persistence, second-pass no-op,
 -- NULL-auth rejection and foreign-owner rejection for both entrypoints.
 -- Identity: request.jwt.claims simulates the authenticated frontend session.
+-- 2026-09-21: el fixture se resuelve desde LIVE (los UUIDs fijos ya no existían) y se
+-- añaden las aserciones 13-15, que reproducen el rol CLIENTE real para Defense
+-- (contrato can_build_defense + cierre del processor público).
 -- ============================================================================
 
 begin;
 
 do $test$
 declare
-  v_player uuid := '60f1043a-2fa6-416c-80db-2a83215b5404';
-  v_user uuid := '100f3895-c83b-4bc5-b7b9-5c7268d1aa20';
-  v_planet uuid := 'c0d77158-78ca-4631-98f2-b01d571d627c';
+  v_player uuid;
+  v_user uuid;
+  v_planet uuid;
+  v_other_player uuid;
   v_ship text := 'solar_satellite';
   v_defense text := 'rocket_launcher';
+  v_client_allowed boolean;
+  v_client_reason text;
+  v_client_err text;
+  v_foreign_allowed boolean;
+  v_foreign_reason text;
   v_ship_contract record;
   v_defense_contract record;
   v_result record;
@@ -37,6 +46,27 @@ declare
   v_ok boolean;
 begin
   create temp table t_results(orden serial, prueba text, resultado text) on commit drop;
+
+  /* FIXTURE (2026-09-21): se resuelve el jugador HUMANO REAL de LIVE en lugar de los
+     UUIDs fijos, que dejaron de existir y hacían la suite inejecutable. Mismo selector
+     que la suite de Research: se prefiere cualquier HUMANO distinto de DevPlayer y, si
+     no existe, se acepta DevPlayer (el único HUMANO de LIVE tras 20260921073405). */
+  select pl.id, pl.user_id, p.id
+    into v_player, v_user, v_planet
+  from public.planets p
+  join public.players pl on pl.id = p.player_id
+  where pl.player_type = 'HUMAN'
+    and pl.user_id is not null
+    and p.is_destroyed = false
+  order by (pl.username like 'DevPlayer%'), p.created_at, p.id
+  limit 1;
+
+  if v_planet is null then
+    raise exception 'TEST_ABORT: no hay un jugador HUMANO con planeta propio';
+  end if;
+
+  select p2.id into v_other_player
+  from public.players p2 where p2.id <> v_player limit 1;
 
   perform set_config('request.jwt.claims',
     json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
@@ -185,6 +215,53 @@ begin
   insert into t_results(prueba,resultado) values
   ('12. start_defense con usuario ajeno: ownership rechazado',
    case when v_ok then 'PASS' else 'FAIL' end);
+
+  /* ---------------- 13-15) DEFENSA · CONTRATO CLIENTE REAL (2026-09-21)
+     Los bloques 1-12 se ejecutan como owner; estos tres reproducen el rol CLIENTE real
+     (SET LOCAL ROLE authenticated, que es lo que decide ACL/RLS) para los dos defectos
+     cerrados por 20260921161247 (processor público) y 20260921161304 (contrato
+     availability INVOKER roto). No sustituyen ninguna aserción previa. */
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
+  v_client_allowed := null; v_client_reason := null; v_client_err := '';
+  begin
+    execute 'set local role authenticated';
+    select r.allowed, r.reason into v_client_allowed, v_client_reason
+      from public.can_build_defense(v_player, v_planet, v_defense, 1) r;
+    execute 'reset role';
+  exception when others then
+    v_client_err := sqlerrm;
+    begin execute 'reset role'; exception when others then null; end;
+  end;
+  insert into t_results(prueba,resultado) values
+  ('13. can_build_defense ejecutable por el rol cliente REAL [' || coalesce(v_client_reason,'null') || ']',
+   case when v_client_err = '' and v_client_allowed is true and v_client_reason = 'OK' then 'PASS'
+        else 'FAIL: ' || coalesce(nullif(v_client_err,''), 'allowed=' || coalesce(v_client_allowed::text,'null') || ' motivo=' || coalesce(v_client_reason,'null')) end);
+
+  v_foreign_allowed := null; v_foreign_reason := null; v_client_err := '';
+  begin
+    execute 'set local role authenticated';
+    select r.allowed, r.reason into v_foreign_allowed, v_foreign_reason
+      from public.can_build_defense(v_other_player, v_planet, v_defense, 1) r;
+    execute 'reset role';
+  exception when others then
+    v_client_err := sqlerrm;
+    begin execute 'reset role'; exception when others then null; end;
+  end;
+  insert into t_results(prueba,resultado) values
+  ('14. can_build_defense no es oráculo ajeno [' || coalesce(v_foreign_reason,'null') || ']',
+   case when v_client_err = '' and v_foreign_allowed is false and v_foreign_reason = 'PLAYER_NOT_OWNED' then 'PASS'
+        else 'FAIL: ' || coalesce(nullif(v_client_err,''), coalesce(v_foreign_reason,'(sin motivo)')) end);
+
+  insert into t_results(prueba,resultado) values
+  ('15. process_defense_queue_until cerrado al cliente (postgres/service_role only)',
+   case when not has_function_privilege('authenticated','public.process_defense_queue_until(uuid,timestamp with time zone)','EXECUTE')
+             and not has_function_privilege('anon','public.process_defense_queue_until(uuid,timestamp with time zone)','EXECUTE')
+             and has_function_privilege('service_role','public.process_defense_queue_until(uuid,timestamp with time zone)','EXECUTE')
+        then 'PASS' else 'FAIL' end);
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
 
   if exists(select 1 from t_results where resultado<>'PASS') then
     raise exception 'SHIPYARD_DEFENSE TEST FAILED';
