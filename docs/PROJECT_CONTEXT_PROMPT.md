@@ -183,26 +183,27 @@ The development workflow and tool-selection gate are defined in
   at battle creation); replay safety rests on `combat_battles.ux_combat_battles_one_per_fleet`, the fleet status
   gate and per-battle unique keys for rounds, debris and repairs. Eight legacy combat functions plus the
   `combat_unit_state` table are orphaned but still present in LIVE; they are inert, not a second architecture.
-  **Phase 2 CLOSED (2026-09-21, LIVE-verified):** three migrations
-  (`20260921174955` battle-report contract, `20260921175038` worker per-fleet isolation, `20260921175114`
-  debris provenance). **DG-01 IMPLEMENTED** — `get_player_battle_reports(p_limit)` is a SECURITY DEFINER
-  projection of persisted combat state, `authenticated`-only, authorized through
-  `combat_battle_participants` ownership (no new identity model), exposing battle identity, participants,
-  persisted counters, loot, debris, repairs, rounds and per-unit losses from the certified derived readers;
-  no raw combat table is exposed and the `deny_direct_api_access` model is intact. `src/App.tsx`'s COMBATE
-  feed now consumes it. **CB-04 FIXED** — each due fleet resolves inside its own subtransaction, so a
-  malformed fleet rolls back completely, is warned as `FLEET_RESOLUTION_FAILED` and stays retryable while
-  the rest of the batch continues (function signature unchanged; `run_fleet_worker` and
-  `process_universe_tick` untouched). **CB-03 HARDENED** — `create_combat_debris` takes a battle-scoped
-  advisory lock so replay/retry cannot credit a debris field twice. Tests: three new runnable suites
-  (`combat_report_contract.sql` 7/7, `combat_worker_isolation.sql` 8/8, `combat_debris_idempotency.sql`
-  5/5, all PASS LIVE and rollback-safe) plus the Phase 1 regressions re-verified after the changes
-  (attack 12/12, expedition 10/10). Next mission: **Combat Core Phase 3 — certification candidate**
-  (evidence pack of the five suites, CB-04 warning observed in the real cron path, DG-07 decision).
-  ACS, `DEFEND`, multi-fleet settlement and Lifeforms/Items/Officers remain closed, and the engine stays
-  **OPEN — not certified**.
-  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14 (Phase 0), §15 (Phase 1) and
-  §16 (Phase 2).
+  **Phase 3 CLOSED (2026-09-21) — COMBAT BASE ENGINE CERTIFIED** for the single-attacker model
+  (one attacking fleet vs one planet) plus the expedition combat branch, on the deployed chain
+  `pg_cron(1s) → run_fleet_worker → process_fleet_movements → resolve_attack_arrival → resolve_combat →
+  units → ≤6 rounds → losses → survivors → loot → repair → debris → RETURNING`. Certification is based on
+  a read-only evidence matrix (deployed definitions + LIVE observation + re-run fixtures), **zero
+  implementation changes**: authoritative entry proven (single chain, exactly three battle creators, entry
+  points not client-callable), participant/unit ownership proven (every unit insert carries
+  `participant_id`, `ENEMY` supported), canonical statistics proven (six readers with +10 %/level; no raw
+  stat feeds units), round engine invariants proven (≤6 rounds, snapshots, one target per alive unit,
+  rapidfire, shield bounce/absorption, 70 % explosion, shield regen, persistent hull, winner/draw),
+  losses/loot/repair/debris proven, replay/idempotency proven, worker per-fleet isolation proven by
+  fixture (production shows 1,765 healthy runs/30 min and 0 failures), and the authenticated battle-report
+  contract proven (raw tables still closed). Regression: attack 12/12, expedition 10/10, report 7/7,
+  worker 8/8, debris 5/5 (all LIVE), plus `tsc -b` and `npm run build`. **DG-07 decided: non-blocking** —
+  the 1,342 orphan rows belong to 17 deleted battles, no reader touches those tables (the report contract
+  does not either), and the `NOT VALID` FKs do reject new orphans (probe-proven), so no deletion or
+  validation was performed. Certified scope excludes ACS/DEFEND/multi-fleet, seeded determinism, shield-dome
+  rules and the alien-technology balance item (proven isolated to the expedition branch). No P0/P1/P2
+  defect remains open.
+  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14 (Phase 0), §15 (Phase 1),
+  §16 (Phase 2) and §17 (Phase 3 certification evidence).
 - Lifeforms, Items, Auction, Merchant, Alliance and Officers remain future **UPDATE** features and must not be
   started; lifeform-specific combat effects stay deferred to a later engine version.
 
@@ -237,15 +238,15 @@ Not implemented and still open:
 
 ### Other OPEN work
 
-- **Combat Engine: PHASE 0 + PHASE 1 + PHASE 2 COMPLETE, engine OPEN and not certified.** Phase 0 mapped the
-  authoritative chain, formulas and Fleet → Combat contract; Phase 1 repaired CB-01 (expedition
-  participant/stat contract + CB-06 ambiguity + survivor scope), CB-02 (forward battle-FK integrity) and
-  CB-05 (ACL); Phase 2 implemented DG-01 (authenticated battle-report read contract consumed by the
-  COMBATE feed) and closed CB-03 (debris provenance lock) and CB-04 (per-fleet worker isolation). Five
-  runnable combat suites are LIVE-verified: attack 12/12, expedition 10/10, report 7/7, worker 8/8,
-  debris 5/5.
-  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14/§15/§16; the operational summary
-  is the combat bullet in §5.
+- **Combat Engine: CERTIFIED (2026-09-21) for the base engine** — one attacking fleet vs one planet
+  (ATTACK) plus the expedition combat branch, on the deployed worker chain, with the authenticated
+  battle-report contract. Phases 0 (audit), 1 (CB-01/CB-02/CB-05/CB-06), 2 (DG-01/CB-03/CB-04) and 3
+  (read-only certification evidence) are closed; DG-07 is decided as non-blocking historical residue.
+  Five runnable combat suites are LIVE-verified: attack 12/12, expedition 10/10, report 7/7, worker 8/8,
+  debris 5/5. Not certified (by design): ACS, DEFEND, multi-fleet combat, seeded determinism, shield-dome
+  rules, the alien-technology balance item and legacy-object removal.
+  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14/§15/§16/§17; the operational
+  summary is the combat bullet in §5.
 - Guest decommission: **LIVE, PARTIAL — 2026-09-21**. The identity core is applied
   (`20260921073405_complete_email_identity_migration`): `provision_player` created, `on_auth_user_created`
   and `private.handle_new_auth_user()` dropped, `register_guest_player` dropped. Verified LIVE after the
@@ -406,13 +407,14 @@ BLOCK 2 — Identity / Guest Decommission
 BLOCKED / LATER
 7. AI is final-phase: compare its structure against OGameX/other clones first; implement only if L.G.I. has the
    required authoritative engine/callers, otherwise leave it deferred.
-8. Combat/DEFEND and remaining ACS product decisions stay behind their existing boundaries. Combat Engine
-   Phases 0 (audit), 1 (CB-01/CB-02/CB-05/CB-06) and 2 (DG-01 battle-report contract, CB-04 per-fleet
-   worker isolation, CB-03 debris provenance) are closed; the combat-specific next step is **Combat Core
-   Phase 3 — certification candidate**: one evidence pack re-running all five suites, observing the
-   `FLEET_RESOLUTION_FAILED` warning in the real cron path, and deciding DG-07 (historical orphans /
-   `NOT VALID` FKs), recorded in [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md)
-   §16.8/§16.9. It is not new gameplay and must not create a second combat architecture.
+8. Combat: the **base Combat Engine is CERTIFIED** (single attacking fleet vs one planet + expedition
+   branch, §5). Remaining combat work is explicitly *outside* that certification and each item is its own
+   future mission: **ACS / DEFEND / multi-fleet combat** (needs multiple-fleet participant identity, DG-03,
+   and participant-aware uniqueness keys, DG-04), a **battle-report screen** on top of the existing
+   `get_player_battle_reports` contract (no engine change), a possible **DG-07 cleanup/validation** decision,
+   and the **alien-technology balance decision**. Recorded in
+   [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §17.5/§17.6. Do not reopen the certified
+   chain without new evidence of a defect, and do not create a second combat architecture.
 9. Browser certification remains a separate validation track.
 ```
 
