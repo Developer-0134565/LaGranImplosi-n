@@ -91,16 +91,27 @@ The development workflow and tool-selection gate are defined in
   until the Combat Engine.
 - ACS_HOLD support to a foreign planet requires an explicit, revocable, planet-scoped authorization granted by the
   destination owner; planet existence is never authorization, and no alliance/buddy system is invented.
-- Identity onboarding is **email/password only**: no anonymous session bootstrap, no `register_guest_player`,
-  no guest authorization branch and no claiming of existing (`user_id IS NULL`/AI/DevPlayer) players. An
-  authenticated user without a player performs the explicit `provision_player(...)` step
-  (detail: [`README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md)).
+- Identity onboarding is **email/password only** and is **LIVE** since 2026-09-21 (ledger
+  `20260921073405_complete_email_identity_migration`): `public.provision_player(text,text)` exists
+  (SECURITY DEFINER, `search_path = ''`, reuse-first/idempotent, EXECUTE only for `authenticated`), the
+  `on_auth_user_created` trigger and `private.handle_new_auth_user()` are **dropped**, and
+  `register_guest_player` is **dropped**. The canonical DEV identity is the email account
+  `eab54987-af3a-4dba-bb7a-9530b64798b6` → `players.user_id` → **`DevPlayer`**
+  (`aa1deb2d-3ed6-4350-922a-172d999b2af7`, HUMAN, `is_guest = false`), the only HUMAN player in LIVE.
+  Verified end-to-end with a rolled-back authenticated session: `auth.uid()` resolved to the DEV email and
+  `provision_player('ZZ-ShouldNotCreate')` returned the existing player without creating a second row.
+  No claiming of existing (`user_id IS NULL`/AI/DevPlayer) players remains.
+  Detail: [`README_IDENTITY_AND_ACCESS.md`](systems/README_IDENTITY_AND_ACCESS.md).
 - Documentation detail is segregated; moving it to a specialized README is not deletion.
-- Migration provenance is governed by the [Migration Provenance Gate](MIGRATION_PROVENANCE_GATE.md):
-  `20260919180000_fix_planet_support_authorization_ambiguity.sql` is **LOCAL_ONLY / NOT_DEPLOYED /
-  BLOCKED**, while LIVE-only versions `20260919055336`, `20260919061454`, `20260919062509` and
-  `20260919070020` are **NOT_RECOVERABLE**. Missing provenance blocks deployment; never reconstruct
-  lost SQL, create same-version placeholders, mark migrations reverted, or edit the migration ledger.
+- Migration provenance is governed by the [Migration Provenance Gate](MIGRATION_PROVENANCE_GATE.md).
+  `db push` remains **BLOCKED**, but the gate's stated reason was corrected on 2026-09-21 by direct
+  measurement: the four LIVE-only versions `20260919055336`, `20260919061454`, `20260919062509` and
+  `20260919070020` **do** retain full payloads in `supabase_migrations.schema_migrations.statements`
+  (two of them are already byte-identical to local files: `20260919080000_propagate_combat_participants_v2`
+  and `20260919090000_harden_start_ship_auth`). The surviving blocker is a **version-prefix drift**
+  (`20260919060000/070000/080000/090000` locally vs the four ledger versions) plus the local-only files
+  `20260919180000` and `20260920010000`. Never reconstruct lost SQL, create same-version placeholders,
+  mark migrations reverted, or edit the migration ledger.
 - Fleet Engine remains **OPEN — HISTORICAL GAP**. Local controlled convergence now has a bounded artifact
   for canonical mission-class routing in `start_fleet`/`start_fleet_mixed` and player-aware ship speed plus
   mission class in `start_colonize_fleet`; this is not LIVE parity. The fuel helper body,
@@ -155,20 +166,38 @@ Not implemented and still open:
 
 ### Other OPEN work
 
-- Guest decommission: **LOCAL COMPLETE / LIVE PENDING** — nine forward-only migrations are prepared but NOT
-  applied; LIVE reconciliation, `players.is_guest` removal after consumer verification,
-  `initialize_player_research` verification (**now CLOSED — verified read-only against LIVE**) and the
-  `early_tester_registrations`/`player_achievements` product decision remain open.
+- Guest decommission: **LIVE, PARTIAL — 2026-09-21**. The identity core is applied
+  (`20260921073405_complete_email_identity_migration`): `provision_player` created, `on_auth_user_created`
+  and `private.handle_new_auth_user()` dropped, `register_guest_player` dropped. Verified LIVE after the
+  fact: **1** auth user (the DEV email), **0** anonymous users, **0** `is_guest = true` players, **0** AI
+  players holding a `user_id`. Still OPEN: the six `*_select_guest` policies, the 12 policies still
+  carrying an `is_guest` branch, the `enforce_player_write_access` guest branch, the `players.is_guest`
+  column (0 rows true), and the `early_tester_registrations` / `player_achievements` product decision.
+- **REGRESSION found 2026-09-21 (OPEN, verified LIVE).** `planet_buildings`, `planet_defenses`,
+  `planet_ships`, `shipyard_queue`, `fleet_movements` and `fleet_movement_ships` each carry **only** a
+  `*_select_guest` policy (`pl.is_guest = true`). Now that the DEV player is `is_guest = false`, its owner
+  session reads **0 rows** from `planet_buildings` (2 exist), `planet_ships` (1 exists) and
+  `shipyard_queue` (1 exists) — all three are read by `src/App.tsx`. `planets`, `planet_resources`,
+  `player_research`, `building_queue` and `research_queue` remain readable. Note
+  `20260920120400_remove_guest_rls_surface.sql` **drops** those six policies and creates **no**
+  owner-based replacement, so applying it as-is would leave them deny-all. Fix belongs to the guest-RLS
+  phase; it must not be improvised directly in LIVE.
+- `players_select_access` still hardcodes the DevPlayer UUID `aa1deb2d-3ed6-4350-922a-172d999b2af7` and
+  the guest branch. Verified 2026-09-21: a **stranger session can read the DevPlayer row** (its
+  `planet_resources` stay protected). Follow-up: rebase the policy on `players.user_id = auth.uid()`.
+- Anonymous sign-in was still **ENABLED** in the Auth configuration on 2026-09-21
+  (`GET /auth/v1/settings` → `external.anonymous_users = true`), with 13 anonymous users then; all 13 are
+  now deleted. Disabling it is still a pending Auth-configuration decision.
 - LIVE integrity reconciliation (2026-09-20): executed read-only and recorded in
   [`docs/audits/LIVE_INTEGRITY_RECONCILIATION_2026-09-20.md`](audits/LIVE_INTEGRITY_RECONCILIATION_2026-09-20.md).
-  Confirmed LIVE: `on_auth_user_created` still ENABLED and it has **already reassigned 12 AI empires**
-  (`player_type='AI'` with `user_id` set); `register_guest_player` still reachable by `authenticated`;
-  6 `*_select_guest` policies live; 9 functions still carry `is_guest` logic; 2 cron jobs active.
-  Deployment is **BLOCKED** by `docs/MIGRATION_PROVENANCE_GATE.md` (4 LIVE-only versions unrecoverable).
-- Security findings prepared forward-only and NOT applied: `20260920120500` (public cross-player
-  `ui_defense_queue` read), `20260920120600` (unauthenticated unbounded `generate_building_sequences`),
-  `20260920120700` (RLS disabled on `universe_process_health` / `combat_battle_participants`),
-  `20260920120800` (guest ownership bypasses, replaces the unexecutable `20260920120300`, now `.superseded`).
+  Its findings were **superseded by the 2026-09-21 application**: `on_auth_user_created` is now dropped
+  (it had claimed 13 AI empires, all since released), `register_guest_player` is dropped, and the
+  remaining `is_guest` surface is the RLS/branch residue listed above.
+- Security findings **APPLIED** (re-versioned, 2026-09-21): `20260921044623` (was `20260920120500` —
+  public cross-player `ui_defense_queue` read), `20260921044643` (was `20260920120600` — unauthenticated
+  unbounded `generate_building_sequences`), `20260921044659` (was `20260920120700` — RLS disabled on
+  `universe_process_health` / `combat_battle_participants`). Still **NOT** applied: `20260920120800`
+  (guest ownership bypasses; replaces the unexecutable `20260920120300`, now `.superseded`).
 - Browser certification of the seven implemented fleet missions.
 - Shipyard/defence and buildings browser certification where still pending.
 - Bounded hygiene decisions for `calculate_universe_rates` and unused Lifeform keys.

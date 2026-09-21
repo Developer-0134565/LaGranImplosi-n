@@ -1,3 +1,12 @@
+-- SUPERSEDED 2026-09-21
+-- This local forward-only migration version was never recorded in the certified LIVE ledger.
+-- Its end state is already LIVE: it was folded into the applied ledger version
+-- 20260921073405_complete_email_identity_migration, recovered verbatim in this repository.
+-- Preserved for historical traceability; no longer a Supabase migration file.
+-- NOTE: register_guest_player was dropped by 20260921073405. Re-applying this file would FAIL because
+-- its REVOKE EXECUTE ON FUNCTION targets a function that no longer exists.
+
+
 -- ============================================================================
 -- RETIRE public.register_guest_player  (forward-only)
 -- ----------------------------------------------------------------------------

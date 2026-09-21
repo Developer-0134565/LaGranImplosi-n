@@ -9,6 +9,66 @@ RPCs, `SECURITY DEFINER` and `search_path` preserved, ownership check intact, mi
 `supabase_migrations.schema_migrations`). Frontend identity chain **CLOSED / verified**; buildings
 lifecycle test **CLOSED / verified** (13/13 PASS after the hardening, no residue).
 
+Status (2026-09-21) — **the DEV identity is now the email account; LIVE, verified read-only after the
+fact.** The migration was applied in LIVE as ledger version
+`20260921073405_complete_email_identity_migration` (recovered verbatim in this repository as
+`supabase/migrations/20260921073405_complete_email_identity_migration.sql`). It created
+`public.provision_player(text,text)`, dropped the `on_auth_user_created` trigger with
+`private.handle_new_auth_user()`, and dropped `public.register_guest_player`. The three local files that
+carried those same end states under their own versions (`20260920120000`, `20260920120100`,
+`20260920120200`) are preserved as `*.sql.superseded` (byte-identical bodies, never deleted).
+
+## LIVE identity state — 2026-09-21 (measured)
+
+```text
+auth.users                      1    (the DEV email only; 0 anonymous)
+players                         371  (370 AI with user_id NULL, 1 HUMAN)
+DEV auth user                   eab54987-af3a-4dba-bb7a-9530b64798b6   cruz1993gonzalez@outlook.com
+DEV player                      aa1deb2d-3ed6-4350-922a-172d999b2af7   DevPlayer
+                                player_type HUMAN · is_guest FALSE · user_id = the DEV email
+DEV homeworld                   f35bd4b9-f78f-4be0-968e-09acf4ffaeed   G1-S1-P1 · fields_total 163
+players owned by the DEV        1    (no second player, no duplicate ownership)
+old anonymous owner             154df03b-c7db-46b2-9c49-2f33df5b5236   DELETED
+former AI claim (AI-G1-S1-P2)   released to user_id NULL (row preserved, not deleted)
+```
+
+Gameplay data preserved (measured): planet 1 · planet_resources 1 · player_research 3 · building_queue 3 ·
+research_queue 5 · shipyard_queue 1 · planet_buildings 2 · planet_ships 1. Resources are live-simulated.
+
+**Authenticated test (rolled back, no residue).** With `role authenticated` and
+`request.jwt.claims = {"sub":"eab54987-af3a-4dba-bb7a-9530b64798b6","role":"authenticated"}`:
+`auth.uid()` resolved to the DEV email; `players where user_id = auth.uid()` → `DevPlayer`;
+1 planet / 1 resource row / 3 research rows readable; `provision_player('ZZ-ShouldNotCreate','XX')`
+returned the existing player and the player count stayed **371 → 371** (no second empire created).
+
+### OPEN regression — the owner cannot read three of its own tables
+
+Six tables carry **only** a `*_select_guest` policy (`pl.is_guest = true`): `planet_buildings`,
+`planet_defenses`, `planet_ships`, `shipyard_queue`, `fleet_movements`, `fleet_movement_ships`. With the
+DEV player now `is_guest = false`, the owner session reads:
+
+| table | rows in DB | visible to owner |
+|---|---|---|
+| `planets` | 1 | 1 |
+| `planet_resources` | 1 | 1 |
+| `player_research` | 3 | 3 |
+| `building_queue` | 3 | 3 |
+| `research_queue` | 5 | 5 |
+| `planet_buildings` | 2 | **0** |
+| `planet_ships` | 1 | **0** |
+| `shipyard_queue` | 1 | **0** |
+
+`src/App.tsx` reads all three affected tables. `20260920120400_remove_guest_rls_surface.sql` drops the six
+guest policies **without** creating owner-based replacements, so applying it as-is would leave them
+deny-all. The fix belongs to the guest-RLS phase and must not be improvised directly in LIVE.
+
+### OPEN — `players_select_access` still hardcodes the DEV UUID
+
+The policy keeps `id = 'aa1deb2d-3ed6-4350-922a-172d999b2af7'` plus the `is_guest` branch. Verified with a
+stranger session (`sub = 00000000-0000-4000-8000-000000000000`): the DevPlayer row **is** readable
+(1 row), while its `planet_resources` are not (0 rows). Rebase on `players.user_id = auth.uid()` as a
+follow-up.
+
 ## Canonical onboarding (email/password) — 2026-09-20
 
 ```text
