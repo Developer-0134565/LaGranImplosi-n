@@ -69,12 +69,37 @@ six tables (and 0 on `planet_resources` / `building_queue`). RLS stays enabled o
 `20260920120400_remove_guest_rls_surface.sql` still drops those six policies without creating
 replacements, so it must not be applied alongside this fix.
 
-### OPEN — `players_select_access` still hardcodes the DEV UUID
+### `players_select_access` — HARDENED in LIVE 2026-09-21 (was: hardcoded DEV identity)
 
-The policy keeps `id = 'aa1deb2d-3ed6-4350-922a-172d999b2af7'` plus the `is_guest` branch. Verified with a
-stranger session (`sub = 00000000-0000-4000-8000-000000000000`): the DevPlayer row **is** readable
-(1 row), while its `planet_resources` are not (0 rows). Rebase on `players.user_id = auth.uid()` as a
-follow-up.
+The policy previously had four branches, two of them keyed on hardcoded data: the DEV player UUID
+`aa1deb2d-3ed6-4350-922a-172d999b2af7`, and
+`(is_guest = true) AND (username <> 'DevPlayer') AND (user_id IS NOT NULL)`. Because of the hardcoded UUID
+branch, **`anon` and any stranger session could read the DevPlayer row** (`devplayer_row_visible = 1`),
+while `planet_resources` stayed protected.
+
+Fixed by ledger version `20260921125336` (`harden_players_select_access_ownership`, recovered verbatim in
+this repository as `supabase/migrations/20260921125336_harden_players_select_access_ownership.sql`). The
+policy is now:
+
+```text
+(player_type = 'AI') OR (user_id = (select auth.uid()))
+```
+
+Ownership derives exclusively from `auth.uid() -> players.user_id`; the intentional AI-gallery read (owner
+names on the galaxy map) is preserved. No hardcoded player UUID, no hardcoded username, no `is_guest`
+branch; RLS stays enabled. The `is_guest` half was removed on evidence: 0 rows have `is_guest = true` and
+no surviving function can write `true` (`register_guest_player` is dropped;
+`reconcile_universe_ai_population` only writes `false`).
+
+| actor | DEV player row visible (before) | DEV player row visible (now) |
+|---|---|---|
+| DEV (email session) | 1 | **1** |
+| stranger authenticated | **1** | **0** |
+| `anon` | **1** | **0** |
+
+Owned/HUMAN rows visible to a stranger and to `anon`: **0** (was 1). No AI gained ownership
+(`AI with user_id = 0`). Consequence: `scripts/verify-identity.mjs` uses the anon key, so its HUMAN-player
+assertions now read `0 humanos` (vacuously passing) instead of 1.
 
 ## Canonical onboarding (email/password) — 2026-09-20
 
@@ -162,11 +187,18 @@ Local residue inventory (read-only audit, 2026-09-20):
 | `visitorId()` / `guestUsername()` | `src/lib/identity.ts` | LEGACY GUEST — ACTIVE (used only by the guest path) |
 | `players.is_guest` column | consumed by `enforce_player_write_access`, the guest RLS read policies, `register_guest_player`, `reconcile_universe_ai_population` | LEGACY BUT REQUIRED (schema-side; needs a forward LIVE migration) |
 | guest fallback inside authorisation guards | `start_fleet_mixed`, `start_colonize_fleet`, `start_lifeform_building`, `start_lifeform_research` (NULL `auth.uid()` + `coalesce(is_guest,false)`) and `enforce_player_write_access` | **OPEN FINDING** — legacy authorisation branch still present in current bodies (report-only) |
-| guest RLS read policies | `*_select_guest` (12) plus `*_select_access` variants that mention `is_guest` | LEGACY GUEST — ACTIVE (LIVE-side) |
+| guest RLS read policies | `*_select_guest`: **0 remaining** (was 12); **5** `*_select_access` variants still mention `is_guest` (`building_queue`, `planet_resources`, `player_research`, `research_queue`, `defense_queue`) | **RESOLVED for `*_select_guest`** (2026-09-21, `20260921114105` replaced the last six); the 5 survivors match **0 rows** |
 | `auth.users` onboarding trigger | `private.handle_new_auth_user` (`20260913012344`; reassigns the oldest unclaimed player) | LEGACY ONBOARDING (confirmed in LIVE by a separate audit) |
 | guest-coupled test fixtures | `supabase/tests/buildings_lifecycle.sql:36`, `supabase/tests/research_lifecycle.sql:85` | TEST-ONLY (fixture) — NEEDS REPLACEMENT |
 | email/password login | `src/LoginPage.tsx` (Supabase Auth UI, `providers={[]}`) | CANONICAL CURRENT — preserve |
 | modern ownership chain | `resolvePlayer()` → `players.user_id = auth.uid()` | CANONICAL CURRENT — preserve |
+
+Note (2026-09-21): several rows of this dated inventory are superseded. The frontend no longer bootstraps
+anonymous sessions or calls `register_guest_player`, the `auth.users` onboarding trigger and
+`private.handle_new_auth_user` are dropped, `*_select_guest` policies number **0**, and
+`players_select_access` no longer carries a DevPlayer or `is_guest` branch. Still accurate: the
+`players.is_guest` column, the guest fallback inside the authorisation guards, and the guest-coupled test
+fixtures. Current state lives in [`../PROJECT_CONTEXT_PROMPT.md`](../PROJECT_CONTEXT_PROMPT.md).
 
 Removed locally on 2026-09-20 (no runtime/ownership/RLS/migration change): the unused `is_guest` field in
 the frontend data contracts (`App.tsx`, `GalaxyView.tsx`, `identity.ts` selects/types) and the
@@ -256,9 +288,9 @@ Identity script      → PASS (13 PASS · 1 SKIP session-dependent · 0 FAIL)
 
 | Table | Policies | Grants | Notes |
 |---|---|---|---|
-| `players` | SELECT only: own `user_id = auth.uid()`, `player_type = 'AI'`, DevPlayer, or guest-with-`user_id` | SELECT to `anon`/`authenticated` | Needed by the galaxy map (owner names) |
+| `players` | SELECT only: `(player_type = 'AI') OR (user_id = (select auth.uid()))` — owner read plus the intentional AI gallery. **No** DevPlayer branch and **no** `is_guest` branch since `20260921125336` | SELECT to `anon`/`authenticated` | Needed by the galaxy map (owner names); `anon` and strangers can no longer read the DEV row |
 | `planets` | SELECT only: `is_destroyed = false` | SELECT to `anon`/`authenticated` | **Intentionally public**: the galaxy view must show foreign planets in a system; identity no longer depends on this list |
-| `planet_resources` | SELECT only: own planets (`players.user_id = auth.uid()`) or DevPlayer | SELECT to `anon`/`authenticated` | Foreign resources are not readable (AI planets return `null`) |
+| `planet_resources` | SELECT only: own planets (`players.user_id = auth.uid()`); the policy still carries an inert `pl.is_guest = true` OR-branch (0 matching rows). **No DevPlayer branch exists** | SELECT to `anon`/`authenticated` | Foreign resources are not readable (AI planets return `null`) |
 
 No RLS change was made: the identity fix belongs to the frontend selection and the RPC ownership
 checks, and tightening `planets` would break the galaxy map. Table-level insertion by clients is

@@ -187,12 +187,13 @@ Not implemented and still open:
   (`20260921073405_complete_email_identity_migration`): `provision_player` created, `on_auth_user_created`
   and `private.handle_new_auth_user()` dropped, `register_guest_player` dropped. Verified LIVE after the
   fact: **1** auth user (the DEV email), **0** anonymous users, **0** `is_guest = true` players, **0** AI
-  players holding a `user_id`. Still OPEN: the **6** policies that still carry an `is_guest` branch
+  players holding a `user_id`. Still OPEN: the **5** policies that still carry an `is_guest` branch
   (`building_queue_select_access`, `defense_queue_owner_read`, `planet_resources_select_access`,
-  `player_research_select_access`, `players_select_access`, `research_queue_select_access`), the
-  `enforce_player_write_access` guest branch, the `players.is_guest` column (0 rows true), and the
+  `player_research_select_access`, `research_queue_select_access`), the `enforce_player_write_access`
+  guest branch, the `players.is_guest` column (0 rows true), and the
   `early_tester_registrations` / `player_achievements` product decision. The guest policy surface itself is
-  **gone**: `*_select_guest` policies remaining in LIVE = **0**.
+  **gone**: `*_select_guest` policies remaining in LIVE = **0**, and **no policy anywhere carries a
+  hardcoded DEV UUID or the literal `DevPlayer`**.
   Guest-specific registration, authorization branches, guest RLS policies and `players.is_guest` remain
   candidates for removal or controlled reimplementation only where required by the final login/password
   architecture: do not delete guest infrastructure blindly — map all LIVE consumers and dependencies first,
@@ -227,9 +228,30 @@ Not implemented and still open:
   authenticated sessions: the DEV owner reads **2 / 1 / 1** (was 0 / 0 / 0); a stranger authenticated
   session and `anon` both read **0 rows** on all six. Caveat: `20260920120400_remove_guest_rls_surface.sql`
   still **drops** those policies without creating replacements and must not be applied alongside this fix.
-- `players_select_access` still hardcodes the DevPlayer UUID `aa1deb2d-3ed6-4350-922a-172d999b2af7` and
-  the guest branch. Verified 2026-09-21: a **stranger session can read the DevPlayer row** (its
-  `planet_resources` stay protected). Follow-up: rebase the policy on `players.user_id = auth.uid()`.
+- **`players_select_access` — HARDENED IN LIVE 2026-09-21.** It previously used four branches, two of them
+  keyed on hardcoded data: `id = 'aa1deb2d-3ed6-4350-922a-172d999b2af7'::uuid` and
+  `(is_guest = true) AND (username <> 'DevPlayer') AND (user_id IS NOT NULL)`. Measured before: `anon` and
+  a stranger authenticated session both read the DevPlayer row (`devplayer_row_visible = 1`). Applied as
+  ledger version `20260921125336` (`harden_players_select_access_ownership`, recovered verbatim as
+  `supabase/migrations/20260921125336_harden_players_select_access_ownership.sql`): the policy is now
+  `(player_type = 'AI') OR (user_id = (select auth.uid()))` — ownership purely from
+  `auth.uid() → players.user_id`, the intentional AI-gallery read kept, no hardcoded UUID, no hardcoded
+  username, no `is_guest` branch, RLS still enabled. The `is_guest` half was removed on evidence: 0 rows
+  have `is_guest = true` and no surviving function can write `true` (`register_guest_player` is dropped;
+  `reconcile_universe_ai_population` only writes `false`). Verified after: the DEV still reads its own
+  player (`own_rows_visible = 1`, username `DevPlayer`); stranger and `anon` see **0** owned/HUMAN rows and
+  can no longer read the DevPlayer row; no AI gained ownership (`AI with user_id = 0`). Consequence:
+  `scripts/verify-identity.mjs` runs on the anon key, so its HUMAN-player assertions now report
+  `0 humanos` (vacuously passing) while the planet-based assertions still cover 378 planets.
+- **Audit result — remaining `is_guest` residue is dead, not live (measured 2026-09-21).** All five
+  remaining policies with an `is_guest` OR-branch (`building_queue_select_access`,
+  `planet_resources_select_access`, `player_research_select_access`, `research_queue_select_access` and
+  `defense_queue_owner_read`) match **0 rows**, because `players.is_guest = true` has 0 rows and no writer
+  can produce one. In the first four the `pl.user_id = auth.uid()` half is the branch that actually
+  authorises, and it is required by `src/App.tsx`. `defense_queue_owner_read` is different in kind: it is
+  **guest-only with no ownership branch**, so the owner cannot read its own defence queue — the same defect
+  class as the P0, currently unobservable because `defense_queue` has 0 rows. It is the next demonstrated
+  fix, deliberately not applied in this pass.
 - Anonymous sign-in was still **ENABLED** in the Auth configuration on 2026-09-21
   (`GET /auth/v1/settings` → `external.anonymous_users = true`), with 13 anonymous users then; all 13 are
   now deleted. Disabling it is still a pending Auth-configuration decision.
