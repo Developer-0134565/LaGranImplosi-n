@@ -1140,3 +1140,258 @@ new Combat implementation can extend the existing chain without creating a secon
 - Protected material (`docs/systems/README_FLEET_ENGINE.md`, the three `20260921044623…044659` migrations, the
   four 0-byte artefacts, both stashes) was preserved untouched and was **not** committed.
 - Commit scope: this file plus `docs/PROJECT_CONTEXT_PROMPT.md`. No push.
+
+---
+
+## 15. PHASE 1 — INVARIANT, FIXTURE AND PRODUCTION-CONTRACT REPAIR (2026-09-21)
+
+> Scope executed: runnable combat fixture, CB-01 forward-only repair, CB-02 forward-only repair,
+> CB-05 combat-scoped ACL review, production-path assertions, documentation of the resulting contract.
+> No formula, balance, Fleet, Defense, Research, Identity, ACS or DEFEND change.
+
+### 15.1 Status
+
+| Finding | Before Phase 1 | After Phase 1 |
+|---|---|---|
+| **CB-01** expedition combat | HIGH — units without `participant_id`, raw statistics **and** an aborting ambiguity error | **FIXED — verified LIVE** |
+| **CB-02** battle foreign keys | MEDIUM — two history tables without a battle FK, 1,342 orphan rows | **FIXED (forward integrity); orphans deliberately preserved** |
+| **CB-05** EXECUTE surface | LOW — 12 combat helpers executable by PUBLIC/anon/authenticated | **FIXED — 12/12 narrowed, `service_role` intact** |
+| **CB-03** debris double-credit window | LOW, unreachable | **OPEN (unchanged, still unreachable)** |
+| **CB-04** one poisoned fleet blocks the batch | MEDIUM robustness | **OPEN** |
+| Test coverage | the only combat suite was stale/blocked | **2 runnable production-path fixtures** |
+| **CB-06** (new, found in Phase 1) | — | **FIXED** (see §15.3) |
+
+Combat Engine overall status: **OPEN — not certified** (Phase 1 removed the known blockers; the engine still
+has no client battle-report contract and no ACS/DEFEND model).
+
+### 15.2 Migrations applied to LIVE during Phase 1
+
+| Version | Name | Purpose |
+|---|---|---|
+| `20260921165815` | `fix_expedition_combat_participant_and_stat_contract` | CB-01: ENEMY participant type + expedition participants + canonical statistics |
+| `20260921165859` | `add_combat_history_battle_fks` | CB-02: battle FKs on the two history tables (`NOT VALID`, `ON DELETE CASCADE`) |
+| `20260921165917` | `harden_combat_internal_execute_surface` | CB-05: narrow 12 combat helpers to `service_role` |
+| `20260921170345` | `fix_expedition_combat_ambiguous_battle_id_reference` | CB-06: remove the aborting ambiguous `battle_id` references |
+| `20260921170435` | `fix_expedition_survivor_round_scope` | CB-01: survivor write-back scoped to the final round |
+| `20260921170453` | `fix_expedition_last_round_lookup_ambiguity` | CB-01: qualify the new last-round lookup |
+
+All six are forward-only and minimal, and each carries either occurrence assertions or explicit
+post-conditions. The local files use the server-assigned ledger versions, following repository convention.
+
+### 15.3 CB-01 / CB-06 — expedition combat
+
+Investigation of the LIVE definitions found **three** defects on the expedition branch, not one:
+
+```text
+1. participants (Phase 0 finding)
+   resolve_expedition_pirates / resolve_expedition_aliens inserted combat_individual_units without
+   participant_id and never created combat_battle_participants rows. The participant-aware ledger joins
+   shots to the round snapshot on participant equality, so NULL = NULL never matched, no
+   combat_round_damage row was produced and apply_combat_round_damage updated nothing → no losses.
+
+2. divergent statistics (Phase 0 finding)
+   the same inserts used RAW ship_definitions.attack|shield|hull: no technology scaling and a hull value
+   ten times the normalized hull used by the ATTACK path (structural_integrity = hull, not hull*10).
+
+3. aborting ambiguity (NEW — CB-06)
+   both creators declare an OUT parameter named `battle_id`, and their counter UPDATE used an unqualified
+   `battle_id` inside subqueries. With plpgsql.variable_conflict = error (the default) that raises
+     ERROR: column reference "battle_id" is ambiguous
+   proven LIVE in this session. Expedition combat therefore did not even reach the DRAW Phase 0 inferred:
+   the function aborted, and because the fleet worker resolves every due fleet in one transaction, the
+   error rolled back the whole tick (the CB-04 poison-pill path).
+```
+
+Repair (forward-only; no formula touched):
+
+- `combat_battle_participants` gained the `ENEMY` participant type (an NPC hostile squadron: no fleet, no
+  planet, no player) with explicit shape/side checks, and `player_id` is nullable **only** for `ENEMY`
+  through a replacement CHECK (`participant_type = 'ENEMY' OR player_id IS NOT NULL`). Every FLEET/PLANET
+  participant still requires a player.
+- both creators insert `ATTACKER/FLEET` (the real expedition movement) and `DEFENDER/ENEMY` participants,
+  and every combat unit row carries the matching `participant_id`.
+- both creators take unit statistics from the certified readers `get_combat_ship_attack|shield|hull`
+  (attacker = the fleet owner's technologies; enemy = canonical base values at research level 0 with the
+  existing alien multiplier preserved verbatim) and set `structural_integrity = hull * 10` like the ATTACK
+  path.
+- the ambiguous counter subqueries are qualified through an alias.
+- the survivor write-back (quantity rewrite **and** cleanup) is scoped to the final round, exactly like
+  `resolve_attack_arrival`.
+
+Numeric consequences (intended convergence, not a balance change):
+
+- expedition **attack/shield values are unchanged** for both sides (base × the same multipliers); the
+  enemy hull is now expressed in the same normalized scale as every other unit, so expedition battles
+  behave like normal battles instead of using units ten times tankier per point of attack.
+- the attacker's own weapons/shielding/armour technologies now apply (canonical contract).
+- **recorded, not changed:** the alien technology lookup in `resolve_expedition_aliens` searches
+  `research_definitions` for the ids `weapons` / `shielding` / `armour`, which **do not exist** (LIVE uses
+  `weapons_technology`, `shielding_technology`, `armour_technology`), so `alien_tech` is always `0 + 3`.
+  Repairing that lookup would change expedition difficulty — balance — so it stays a reported finding.
+
+### 15.4 CB-02 — battle foreign keys
+
+- `combat_round_snapshot_units.battle_id` and `combat_round_damage.battle_id` now reference
+  `combat_battles(id)` with `ON DELETE CASCADE`, matching every other battle child table
+  (`combat_battle_participants`, `combat_rounds`, `combat_shots`, `combat_individual_units`,
+  `combat_debris_generations`, `combat_defense_repairs`).
+- Both constraints are deliberately **`NOT VALID`**: new and updated rows are enforced while the 1,342
+  historical orphan rows (661 + 681, belonging to 17 deleted battles) are **left untouched**. No DELETE,
+  no data archaeology. A future, separately verified cleanup mission may remove them and then
+  `VALIDATE CONSTRAINT`.
+- No index was added: both tables already carry a unique index whose leading column is `battle_id`.
+- Verified LIVE after the migration: both FKs exist, `convalidated = false`, `confdeltype = 'c'`, orphan
+  counts unchanged (661 / 681).
+
+### 15.5 CB-05 — combat-scoped EXECUTE narrowing
+
+Twelve combat helpers were executable by `PUBLIC`/`anon`/`authenticated`
+(`calculate_shield_bounce`, `calculate_combat_damage`, `calculate_combat_ship_losses`,
+`calculate_combat_defense_losses`, `calculate_combat_ship_debris`, `calculate_combat_defense_debris`,
+`calculate_combat_total_debris`, `combat_hull_from_integrity`, `get_combat_round_snapshot`,
+`get_combat_unit_snapshot`, `expand_all_rapidfire_v2`, `finish_combat_round_v1`). Each was checked against
+the five mission conditions before changing anything:
+
+1. **unnecessary** — no client caller exists: the frontend RPC surface is
+   `sync_current_planet_resources`, `can_start_building`, `can_start_research`, `can_build_ship`,
+   `can_build_defense`, `start_fleet_mixed`, `start_fleet`, `get_universe_evolution_monitor_public`
+   (repository search over `src/`, `worker/`, `scripts/`), and the tables they read deny direct API access
+   to client roles, so a client call could not read a single row;
+2. **production callers unaffected** — every internal caller chain runs under `SECURITY DEFINER` functions
+   owned by `postgres`, and all twelve functions are owned by `postgres`;
+3. **no client contract** — none is a documented client entry point;
+4. **combat-scoped** — only combat functions are touched;
+5. **verifiable** — `has_function_privilege` was measured before and after, and both production-path
+   fixtures were re-run afterwards.
+
+Result verified LIVE: all twelve are `anon = false`, `authenticated = false`, `PUBLIC = false`,
+`service_role = true`; every other combat function is unchanged (`get_combat_ship_*`,
+`get_combat_defense_*`, `resolve_attack_arrival`, `resolve_combat`, `process_combat_round_v2`, …).
+
+### 15.6 Test fixtures
+
+| File | Covers | Assertions |
+|---|---|---|
+| `supabase/tests/combat_participant_propagation.sql` | full ATTACK production path: fleet arrival → battle → participants → units → snapshot → shots → damage ledger → losses → loot → repair → debris → RETURNING, plus replay | 12 |
+| `supabase/tests/combat_expedition_combat.sql` | repaired expedition path (pirates + aliens) → participants → units → damage ledger → losses → survivors | 10 |
+
+Fixture strategy (why the old fixture stopped working and how this one is built):
+
+- identifiers are **resolved from LIVE at run time** (a HUMAN player with a real planet, and another real
+  planet in the same universe as the target), following `shipyard_defense_lifecycle.sql`; no historical
+  player/planet/battle UUID is hardcoded. The only fixed UUIDs are two synthetic `fleet_movements.id`
+  values inside the expedition fixture, which exist to make the expedition RNG tiers reproducible.
+- the fleet write trigger `enforce_player_write_access` requires an authenticated identity, so the fixture
+  simulates a real client session with
+  `set_config('request.jwt.claims', json_build_object('sub', <player user_id>, 'role','authenticated'))`
+  — the same convention as the shipyard and research suites — and clears it again before exiting.
+- **rollback safety does not depend on the client**: the whole fixture + battle runs inside a nested
+  PL/pgSQL block that is undone by a sentinel exception before the block exits, so the file is safe even in
+  an auto-committing SQL editor. The file-level `begin;/rollback;` only wraps the report temp table.
+
+### 15.7 Test results (LIVE, 2026-09-21)
+
+ATTACK production path — **12/12 PASS**:
+
+| # | Assertion | Observed |
+|---|---|---|
+| 01 | battle created, `fleet_id`/attacker/defender correct, fleet was ARRIVED | PASS |
+| 02 | exactly two participants with correct ownership | PASS |
+| 03 | units attributed (attacker / defender / null) | PASS — 20 / 12 / 0 |
+| 04 | round snapshot belongs to the battle, no null participants | PASS — 32 rows |
+| 05 | damage ledger resolves real damage | PASS — 92–149 rows, 790 damage |
+| 06 | battle finished, one result flag, attacker win | PASS |
+| 07 | losses derived (defender ships 10/10, defenses 2/2, attacker losses 0) | PASS |
+| 08 | survivors persisted to `fleet_movement_ships` / `planet_ships` | PASS |
+| 09 | debris generated once and consistent with losses (metal 6000 = 30 % of 20000) | PASS |
+| 10 | loot applied exactly once | PASS |
+| 11 | defense repair recorded once and applied to `planet_defenses` | PASS |
+| 12 | replay idempotent: same battle, no second battle/debris/repair, fleet RETURNING | PASS |
+
+Expedition path — **10/10 PASS**, repeated with different (stochastic) outcomes:
+
+| # | Assertion | Observed |
+|---|---|---|
+| P1 | pirate battle has ATTACKER/FLEET + DEFENDER/ENEMY participants | PASS |
+| P2 | pirate units attributed | PASS — 20 attacker / 10–13 enemy / 0 null |
+| P3 | pirate snapshot rows, no null participants | PASS |
+| P4 | pirate damage ledger resolves REAL damage | PASS — 41–46 rows, 4100–4820 damage |
+| P5 | pirate battle finished, one flag, result returned | PASS — ATTACKER_WIN |
+| P6 | pirate defenders destroyed, losses derivable | PASS — 10–13 destroyed |
+| P7 | pirate survivors written back from the final round | PASS — fleet = last-round alive |
+| A1 | alien battle has ATTACKER/FLEET + DEFENDER/ENEMY participants | PASS |
+| A2 | alien units attributed | PASS — 20 / 15 / 0 |
+| A3 | alien damage ledger resolves real damage | PASS — 48–71 rows, 9406–14820 damage |
+| A4 | alien battle finished with consistent survivors | PASS — ATTACKER_WIN and DEFENDER_WIN observed |
+
+Before the repair the expedition call could not even complete (CB-06 ambiguity); for the participant-less
+units the damage ledger stayed empty, so no loss was possible.
+
+Execution note (environment limitation, recorded honestly): this session has no local `psql` and no
+database credentials, and the available database tool executes SQL text but not a local file. The two
+committed fixtures were therefore executed against LIVE through their exact statement sequence inlined in a
+single call each (same fixture, same functions, same assertions, same values). Both files were additionally
+verified mechanically: balanced `$test$` quoting, one `begin;`/`rollback;`, single trailing newline,
+42/42 and 24/24 declared-and-used variables with no undeclared or unused variable.
+
+### 15.8 LIVE verification performed
+
+- **Rollback safety:** after every fixture run the LIVE state was compared against the pre-run baseline —
+  `combat_battles` 0, `combat_battle_participants` 0, `combat_individual_units` 0, `combat_rounds` 0,
+  `combat_shots` 0, `combat_debris_generations` 0, `combat_defense_repairs` 0, `fleet_movements` 0,
+  `expedition_results` 0, `planet_defenses` 0, `planet_ships` quantity 1, `debris_fields` 3 with an
+  identical metal total, orphans 661 / 681. No residue.
+- **Definitions:** expedition creators re-read after each migration (participant inserts present, canonical
+  readers present, no raw-stat tuple left, no ambiguous reference left).
+- **Constraints:** participant type/shape/side/player CHECKs, both new battle FKs (`NOT VALID`, cascade).
+- **ACLs:** before/after `has_function_privilege` for the twelve helpers plus the untouched engine entry
+  points.
+- **Migration ledger:** the six versions in §15.2 are recorded in `supabase_migrations.schema_migrations`.
+
+### 15.9 Remaining open items
+
+```text
+BUG
+  CB-03 create_combat_debris can credit a debris field twice in the race window between its provenance
+        check and the ON CONFLICT insert (unreachable in the current locked path; LOW).
+  CB-04 process_fleet_movements resolves every due fleet in one transaction with no per-fleet error
+        isolation: a single malformed/aborting fleet rolls back the whole tick and repeats every second
+        (MEDIUM). CB-06 was exactly such an aborting fleet before this repair.
+  Alien technology lookup ids (`weapons`/`shielding`/`armour`) do not exist, so alien_tech is always 3.
+        Reported only: fixing it changes difficulty (balance).
+
+DESIGN GAP
+  DG-01 no client battle-report read path: all combat tables deny anon/authenticated and no owner-scoped
+        policy or RPC exists, so the COMBATE feed in src/App.tsx cannot render anything (dead UI path).
+  DG-02 no seeded determinism in rounds (random targeting and rapidfire rolls).
+  DG-03 no defender-fleet identity in the participant model (ACS prerequisite).
+  DG-04 legacy unit/snapshot uniqueness keys still in force.
+  DG-05 shield domes have no distinct rule.
+  DG-06 round report aggregates exclude DEFENDER defenses from the attack/shield/hull sums.
+  DG-07 1,342 historical orphans and 3 provenance-less debris fields remain; the new FKs stay NOT VALID
+        until a separate cleanup mission validates them.
+  DG-08 combat_unit_state + 8 orphan functions remain in LIVE (inert).
+
+NOT IMPLEMENTED
+  multi-attacker / multi-defender fleets, defender reinforcement (DEFEND), ACS combat integration,
+  combat items/lifeforms/officers, battle-report UI.
+
+FUTURE UPDATE
+  lifeform-specific combat effects; any balance change.
+```
+
+### 15.10 Recommended next mission
+
+```text
+MISSION: COMBAT CORE PHASE 2 — CLIENT BATTLE REPORT CONTRACT + ROBUSTNESS (bounded)
+
+  1. DG-01: define the owner-scoped battle-report contract (SECURITY DEFINER reader or owner RLS policy
+     over combat_battles/participants/rounds) so the existing UI feed can read real results, then refresh
+     the generated client types. This is the only combat capability currently invisible to players.
+  2. CB-04: per-fleet error isolation in the fleet worker (bounded savepoint or per-fleet exception) so a
+     malformed fleet can no longer freeze the whole queue.
+  3. CB-03: make create_combat_debris provenance-first (provenance row before crediting the field).
+
+Do NOT in that mission: implement ACS/DEFEND, change formulas or balance, or touch Defense/Fleet/Research.
+The engine is not certified yet; certification should follow these three items.
+```

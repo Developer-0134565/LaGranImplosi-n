@@ -183,14 +183,23 @@ The development workflow and tool-selection gate are defined in
   at battle creation); replay safety rests on `combat_battles.ux_combat_battles_one_per_fleet`, the fleet status
   gate and per-battle unique keys for rounds, debris and repairs. Eight legacy combat functions plus the
   `combat_unit_state` table are orphaned but still present in LIVE; they are inert, not a second architecture.
-  Critical blockers for Phase 1: **CB-01 (HIGH)** expedition pirate/alien combat cannot produce losses because its
-  unit rows carry `participant_id = NULL` while the LIVE damage ledger joins on participant equality (latent: no
-  expedition/combat rows exist in LIVE today); **CB-02** `combat_round_damage` and `combat_round_snapshot_units`
-  lack the FK to `combat_battles` (661 + 681 orphan rows in LIVE); the only combat test
-  (`supabase/tests/combat_participant_propagation.sql`) is **STALE** because it hardcodes players/planets that no
-  longer exist. Next mission: **Combat Core Phase 1 — invariant and coverage repair** (runnable fixture → CB-01 →
-  FKs/ACL), not new gameplay. ACS, `DEFEND`, multi-fleet settlement and battle-report UI remain closed.
-  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14.
+  **Phase 1 CLOSED (2026-09-21, forward-only, LIVE-verified):** six migrations
+  (`20260921165815` expedition participant/stat contract, `20260921165859` battle FKs, `20260921165917`
+  combat EXECUTE narrowing, `20260921170345` expedition ambiguity, `20260921170435` survivor round scope,
+  `20260921170453` last-round lookup). **CB-01 FIXED** (expedition combat now creates
+  `ATTACKER/FLEET` + `DEFENDER/ENEMY` participants, uses the canonical `get_combat_ship_*` statistics, and
+  produces real damage/losses; a previously unknown aborting error — CB-06, ambiguous `battle_id` — was
+  found and fixed), **CB-02 FIXED** for forward integrity (both history tables now have
+  `ON DELETE CASCADE` battle FKs added `NOT VALID`; the 1,342 historical orphans were deliberately left
+  untouched), **CB-05 FIXED** (12 combat helpers narrowed to `service_role`; `service_role` and the engine
+  path unchanged). **Still OPEN:** CB-03 (debris double-credit window, unreachable) and CB-04 (one
+  malformed fleet still rolls back the whole worker tick). Tests: both combat suites are runnable and
+  production-path accurate — `combat_participant_propagation.sql` (12/12 PASS LIVE) and new
+  `combat_expedition_combat.sql` (10/10 PASS LIVE, repeated); fixtures resolve LIVE identifiers, simulate
+  the authenticated session and roll back internally. Next mission: **Combat Core Phase 2 — client
+  battle-report contract (DG-01) + CB-04 error isolation + CB-03 provenance order**, not new gameplay.
+  ACS, `DEFEND`, multi-fleet settlement and Lifeforms/Items/Officers remain closed.
+  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14 (Phase 0) and §15 (Phase 1).
 - Lifeforms, Items, Auction, Merchant, Alliance and Officers remain future **UPDATE** features and must not be
   started; lifeform-specific combat effects stay deferred to a later engine version.
 
@@ -225,11 +234,13 @@ Not implemented and still open:
 
 ### Other OPEN work
 
-- **Combat Engine: PHASE 0 AUDIT COMPLETE, engine OPEN and not certified.** Authoritative chain, canonical
-  formula/stat sources, the exact Fleet → Combat contract, the confirmed bugs (CB-01 HIGH, CB-02, CB-03, CB-04,
-  CB-05), the design gaps, the stale test and the next mission are recorded in
-  [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14; the operational summary is the combat bullet
-  in §5. Nothing was implemented or fixed by that audit.
+- **Combat Engine: PHASE 0 + PHASE 1 COMPLETE, engine OPEN and not certified.** Phase 0 recorded the
+  authoritative chain, the canonical formula/stat sources, the exact Fleet → Combat contract and the
+  findings; Phase 1 repaired CB-01 (expedition participant/stat contract + CB-06 ambiguity + survivor
+  scope), CB-02 (forward battle-FK integrity, history preserved) and CB-05 (combat-scoped ACL), and left
+  CB-03 and CB-04 open. Both combat fixtures are runnable and were executed LIVE (12/12 and 10/10 PASS).
+  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14/§15; the operational summary is
+  the combat bullet in §5.
 - Guest decommission: **LIVE, PARTIAL — 2026-09-21**. The identity core is applied
   (`20260921073405_complete_email_identity_migration`): `provision_player` created, `on_auth_user_created`
   and `private.handle_new_auth_user()` dropped, `register_guest_player` dropped. Verified LIVE after the
@@ -390,11 +401,12 @@ BLOCK 2 — Identity / Guest Decommission
 BLOCKED / LATER
 7. AI is final-phase: compare its structure against OGameX/other clones first; implement only if L.G.I. has the
    required authoritative engine/callers, otherwise leave it deferred.
-8. Combat/DEFEND and remaining ACS product decisions stay behind their existing boundaries. The combat-specific
-   next step is **Combat Core Phase 1 — invariant and coverage repair** (runnable fixture → CB-01 expedition
-   participant/stat contract → CB-02 battle FKs and CB-05 ACL), recorded in
-   [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14.20/§14.23; it is not new gameplay and must not
-   create a second combat architecture.
+8. Combat/DEFEND and remaining ACS product decisions stay behind their existing boundaries. Combat Engine
+   Phase 0 (audit) and Phase 1 (invariant/fixture/contract repair: CB-01, CB-02, CB-05, CB-06) are closed;
+   the combat-specific next step is **Combat Core Phase 2 — client battle-report contract (DG-01) + CB-04
+   per-fleet error isolation + CB-03 provenance order**, recorded in
+   [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §15.9/§15.10. It is not new gameplay and must
+   not create a second combat architecture.
 9. Browser certification remains a separate validation track.
 ```
 
