@@ -187,9 +187,12 @@ Not implemented and still open:
   (`20260921073405_complete_email_identity_migration`): `provision_player` created, `on_auth_user_created`
   and `private.handle_new_auth_user()` dropped, `register_guest_player` dropped. Verified LIVE after the
   fact: **1** auth user (the DEV email), **0** anonymous users, **0** `is_guest = true` players, **0** AI
-  players holding a `user_id`. Still OPEN: the six `*_select_guest` policies, the 12 policies still
-  carrying an `is_guest` branch, the `enforce_player_write_access` guest branch, the `players.is_guest`
-  column (0 rows true), and the `early_tester_registrations` / `player_achievements` product decision.
+  players holding a `user_id`. Still OPEN: the **6** policies that still carry an `is_guest` branch
+  (`building_queue_select_access`, `defense_queue_owner_read`, `planet_resources_select_access`,
+  `player_research_select_access`, `players_select_access`, `research_queue_select_access`), the
+  `enforce_player_write_access` guest branch, the `players.is_guest` column (0 rows true), and the
+  `early_tester_registrations` / `player_achievements` product decision. The guest policy surface itself is
+  **gone**: `*_select_guest` policies remaining in LIVE = **0**.
   Guest-specific registration, authorization branches, guest RLS policies and `players.is_guest` remain
   candidates for removal or controlled reimplementation only where required by the final login/password
   architecture: do not delete guest infrastructure blindly — map all LIVE consumers and dependencies first,
@@ -210,15 +213,20 @@ Not implemented and still open:
   0 ships, 0 queues). **AI owned by the DEV email account: none** — the email account owns only
   `DevPlayer`. **Unowned AI pool:** 370 players. Nothing was deleted by the identity closeout beyond the
   13 anonymous Auth users.
-- **REGRESSION found 2026-09-21 (OPEN, verified LIVE).** `planet_buildings`, `planet_defenses`,
-  `planet_ships`, `shipyard_queue`, `fleet_movements` and `fleet_movement_ships` each carry **only** a
-  `*_select_guest` policy (`pl.is_guest = true`). Now that the DEV player is `is_guest = false`, its owner
-  session reads **0 rows** from `planet_buildings` (2 exist), `planet_ships` (1 exists) and
-  `shipyard_queue` (1 exists) — all three are read by `src/App.tsx`. `planets`, `planet_resources`,
-  `player_research`, `building_queue` and `research_queue` remain readable. Note
-  `20260920120400_remove_guest_rls_surface.sql` **drops** those six policies and creates **no**
-  owner-based replacement, so applying it as-is would leave them deny-all. Fix belongs to the guest-RLS
-  phase; it must not be improvised directly in LIVE.
+- **P0 REGRESSION — FIXED IN LIVE 2026-09-21.** Formerly `planet_buildings`, `planet_defenses`,
+  `planet_ships`, `shipyard_queue`, `fleet_movements` and `fleet_movement_ships` carried **only** a
+  `*_select_guest` policy (`pl.is_guest = true`), so once the DEV player became `is_guest = false` its
+  owner session read **0 rows** of `planet_buildings` (2 exist), `planet_ships` (1 exists) and
+  `shipyard_queue` (1 exists) — all three read by `src/App.tsx`. Applied as ledger version
+  `20260921114105` (`20260921130000_restore_owner_select_policies_after_guest_rls_removal`, recovered
+  verbatim as
+  `supabase/migrations/20260921114105_20260921130000_restore_owner_select_policies_after_guest_rls_removal.sql`):
+  the six guest policies were **replaced** by owner-scoped `<t>_select_access` policies derived from
+  `auth.uid() → players.user_id → players.id → planet / fleet`. No `is_guest` branch, no anonymous
+  access, no hardcoded player UUID, RLS still enabled on all six. Verified post-fix with rolled-back
+  authenticated sessions: the DEV owner reads **2 / 1 / 1** (was 0 / 0 / 0); a stranger authenticated
+  session and `anon` both read **0 rows** on all six. Caveat: `20260920120400_remove_guest_rls_surface.sql`
+  still **drops** those policies without creating replacements and must not be applied alongside this fix.
 - `players_select_access` still hardcodes the DevPlayer UUID `aa1deb2d-3ed6-4350-922a-172d999b2af7` and
   the guest branch. Verified 2026-09-21: a **stranger session can read the DevPlayer row** (its
   `planet_resources` stay protected). Follow-up: rebase the policy on `players.user_id = auth.uid()`.

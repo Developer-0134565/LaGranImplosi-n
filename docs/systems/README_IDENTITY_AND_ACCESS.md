@@ -41,26 +41,33 @@ research_queue 5 · shipyard_queue 1 · planet_buildings 2 · planet_ships 1. Re
 1 planet / 1 resource row / 3 research rows readable; `provision_player('ZZ-ShouldNotCreate','XX')`
 returned the existing player and the player count stayed **371 → 371** (no second empire created).
 
-### OPEN regression — the owner cannot read three of its own tables
+### P0 regression — FIXED in LIVE 2026-09-21 (was: the owner could not read three of its own tables)
 
-Six tables carry **only** a `*_select_guest` policy (`pl.is_guest = true`): `planet_buildings`,
+Six tables carried **only** a `*_select_guest` policy (`pl.is_guest = true`): `planet_buildings`,
 `planet_defenses`, `planet_ships`, `shipyard_queue`, `fleet_movements`, `fleet_movement_ships`. With the
-DEV player now `is_guest = false`, the owner session reads:
+DEV player at `is_guest = false`, the owner session read 0 rows of its own data. Fixed by ledger version
+`20260921114105` (`20260921130000_restore_owner_select_policies_after_guest_rls_removal`, recovered
+verbatim in this repository as
+`supabase/migrations/20260921114105_20260921130000_restore_owner_select_policies_after_guest_rls_removal.sql`),
+which replaced the six guest policies with owner-scoped `<t>_select_access` policies derived from
+`auth.uid() → players.user_id → players.id → planet / fleet`.
 
-| table | rows in DB | visible to owner |
-|---|---|---|
-| `planets` | 1 | 1 |
-| `planet_resources` | 1 | 1 |
-| `player_research` | 3 | 3 |
-| `building_queue` | 3 | 3 |
-| `research_queue` | 5 | 5 |
-| `planet_buildings` | 2 | **0** |
-| `planet_ships` | 1 | **0** |
-| `shipyard_queue` | 1 | **0** |
+| table | rows in DB | visible to owner before | visible to owner now |
+|---|---|---|---|
+| `planets` | 1 | 1 | 1 |
+| `planet_resources` | 1 | 1 | 1 |
+| `player_research` | 3 | 3 | 3 |
+| `building_queue` | 3 | 3 | 3 |
+| `research_queue` | 5 | 5 | 5 |
+| `planet_buildings` | 2 | **0** | **2** |
+| `planet_ships` | 1 | **0** | **1** |
+| `shipyard_queue` | 1 | **0** | **1** |
 
-`src/App.tsx` reads all three affected tables. `20260920120400_remove_guest_rls_surface.sql` drops the six
-guest policies **without** creating owner-based replacements, so applying it as-is would leave them
-deny-all. The fix belongs to the guest-RLS phase and must not be improvised directly in LIVE.
+Denial side unchanged and re-verified: `anon` and a stranger authenticated session read **0 rows** on all
+six tables (and 0 on `planet_resources` / `building_queue`). RLS stays enabled on all six;
+`*_select_guest` policies remaining in LIVE: **0**. Caveat:
+`20260920120400_remove_guest_rls_surface.sql` still drops those six policies without creating
+replacements, so it must not be applied alongside this fix.
 
 ### OPEN — `players_select_access` still hardcodes the DEV UUID
 
