@@ -254,7 +254,7 @@ begin
     /* ------------------------- 9) SIN COBRO PARCIAL NI COLA TRAS EL RECHAZO */
     select count(*) into v_rows
       from public.research_queue
-     where player_id = v_player and upper(status) in ('RESEARCHING', 'QUEUED', 'ACTIVE');
+     where player_id = v_player and upper(status) = 'RESEARCHING';
     select count(*) into v_active
       from public.planet_resources
      where planet_id = v_planet and metal = 0 and crystal = 0 and deuterium = 0;
@@ -314,7 +314,7 @@ begin
             else 'FAIL: ' || coalesce(nullif(v_msg, ''), '(sin error)') end);
     select count(*) into v_active
       from public.research_queue
-     where player_id = v_player and upper(status) in ('RESEARCHING', 'QUEUED', 'ACTIVE');
+     where player_id = v_player and upper(status) = 'RESEARCHING';
     insert into t_results(prueba, resultado) values
       ('14. exclusión: queda exactamente 1 investigación activa por jugador',
        case when v_active = 1 then 'PASS' else 'FAIL: activas=' || v_active end);
@@ -394,7 +394,7 @@ begin
         'level', (select coalesce(max(level), 0) from public.player_research
                    where player_id = v_player and research_id = v_research),
         'active_queue', (select count(*) from public.research_queue
-                          where player_id = v_player and upper(status) in ('RESEARCHING', 'QUEUED', 'ACTIVE')),
+                          where player_id = v_player and upper(status) = 'RESEARCHING'),
         'queue_rows', (select count(*) from public.research_queue where player_id = v_player),
         'level_rows', (select count(*) from public.player_research where player_id = v_player));
 
@@ -423,7 +423,7 @@ begin
         'level', (select coalesce(max(level), 0) from public.player_research
                    where player_id = v_player and research_id = v_research),
         'active_queue', (select count(*) from public.research_queue
-                          where player_id = v_player and upper(status) in ('RESEARCHING', 'QUEUED', 'ACTIVE')),
+                          where player_id = v_player and upper(status) = 'RESEARCHING'),
         'queue_rows', (select count(*) from public.research_queue where player_id = v_player),
         'level_rows', (select count(*) from public.player_research where player_id = v_player));
     insert into t_results(prueba, resultado) values

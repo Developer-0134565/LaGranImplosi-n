@@ -292,9 +292,9 @@ Not implemented and still open:
   `start_research` still grants EXECUTE to `anon` (the body rejects anon with
   `Authentication required`), `ui_research_definitions()` is a redundant SECURITY DEFINER wrapper whose
   `search_path` omits `pg_temp`, `research_action_candidates` keeps ALL-privilege grants for
-  `service_role`, the `QUEUED`/`ACTIVE` status guards in the research checkers are dead (the CHECK
-  constraint allows only `RESEARCHING`/`COMPLETED`/`CANCELLED`), old `COMPLETED` queue rows are never
-  purged, and there is no research cancellation path.
+  `service_role`, old `COMPLETED` queue rows are never purged, and there is no research cancellation
+  path. (The dead `QUEUED`/`ACTIVE` research status guards were removed by `20260921152702`; the CHECK
+  still allows only `RESEARCHING`/`COMPLETED`/`CANCELLED`.)
 
 Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or worker infrastructure exists.
 

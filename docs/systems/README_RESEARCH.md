@@ -24,6 +24,11 @@
 > * **The lifecycle suite exists and is runnable**: `supabase/tests/research_lifecycle.sql` — 27 gated
 >   assertions plus a separate 12-assertion availability/ownership contract suite. §8's
 >   "NOT implemented yet" is obsolete.
+> * **Status vocabulary cleaned (2026-09-21)**: the dead `QUEUED` / `ACTIVE` guards were removed from
+>   `start_research` and `can_start_research` (migration `20260921152702`), from the research guards in
+>   the lifecycle suite and from the frontend research queue filter. `research_queue_status_check` still
+>   allows only `RESEARCHING` / `COMPLETED` / `CANCELLED` — no enum change and no new status was
+>   invented, and the building / shipyard / defense status vocabularies were deliberately left untouched.
 > Related: [`README_GAME_ENGINE_AUDIT.md`](README_GAME_ENGINE_AUDIT.md) (construction) ·
 > [`README_ECONOMY.md`](README_ECONOMY.md) · [`README_FUNCTIONAL_AUDIT.md`](README_FUNCTIONAL_AUDIT.md).
 
@@ -254,7 +259,7 @@ onward. Historical note: before this closeout the UI showed level-1 base values 
 
 ```text
 Start        start_research locks the player row (single research per player) and then the owned planet row.
-Blocking     one active research per player: queue rows in RESEARCHING/QUEUED/ACTIVE block a new one
+Blocking     one active research per player: queue rows with status RESEARCHING block a new one
              (RESEARCH_QUEUE_ALREADY_ACTIVE).
 Planet need  yes: an owned, non-destroyed planet is required (the queue stores planet_id and the resource
              settlement uses it) even though the research itself is player-wide.
@@ -289,7 +294,7 @@ requires `auth.uid()` and `players.user_id = auth.uid()`; the guest bypass is go
 | availability / disabling | **REAL** — `info.allowed` + `info.reason` tooltip (plus `level >= max`) |
 | completion refresh | **REAL** — with an active research the view schedules one bounded refresh at `finishes_at + 1.5 s` (2026-09-21) |
 | action | REAL (`start_research` RPC; the backend rejects invalid requests with explicit errors) |
-| queue display | REAL (`research_queue` RESEARCHING/QUEUED rows for the player) |
+| queue display | REAL (`research_queue` rows with status RESEARCHING for the player) |
 | completion refresh | DERIVED (the view reloads after an action; the heartbeat/catch-up completes due rows) |
 | errors | REAL (raw Postgres error surfaced in the notice/error panel) |
 
