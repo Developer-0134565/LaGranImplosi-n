@@ -408,13 +408,21 @@ BLOCKED / LATER
 7. AI is final-phase: compare its structure against OGameX/other clones first; implement only if L.G.I. has the
    required authoritative engine/callers, otherwise leave it deferred.
 8. Combat: the **base Combat Engine is CERTIFIED** (single attacking fleet vs one planet + expedition
-   branch, §5). Remaining combat work is explicitly *outside* that certification and each item is its own
-   future mission: **ACS / DEFEND / multi-fleet combat** (needs multiple-fleet participant identity, DG-03,
-   and participant-aware uniqueness keys, DG-04), a **battle-report screen** on top of the existing
-   `get_player_battle_reports` contract (no engine change), a possible **DG-07 cleanup/validation** decision,
-   and the **alien-technology balance decision**. Recorded in
-   [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §17.5/§17.6. Do not reopen the certified
-   chain without new evidence of a defect, and do not create a second combat architecture.
+   branch, §5). **Phase 4 (read-only ACS/DEFEND/multi-fleet architecture audit) is CLOSED**: ACS, DEFEND and
+   multi-fleet are still NOT IMPLEMENTED, and their single-fleet blockers are enumerated — the battle header
+   is single-fleet (`combat_battles.fleet_id NOT NULL` + one-battle-per-fleet unique index +
+   single `attacker_player_id`) while the participant layer is already N-fleet, the two legacy
+   unit/snapshot uniqueness keys collide for identical units of different fleets (silently, via
+   `ON CONFLICT DO NOTHING`), the round-engine target identity omits `participant_id`, loss/report payloads
+   have no participant key, loot capacity comes from one fleet, and no `DEFENDER/FLEET` participant is ever
+   created (holdings are invisible to combat). **Phase 4A — Participant / Battle identity foundation** is
+   defined in [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §18.13 as the minimum next
+   architectural step (participant-aware uniqueness keys + target identity + per-participant unit
+   initialisation, no gameplay/formula/UI change) and is **NOT implemented**. Other combat work stays its
+   own future mission: ACS/DEFEND dispatch and grouping, loot/survivor attribution design decisions, a
+   battle-report screen, a DG-07 cleanup/validation decision, and the alien-technology balance decision
+   (§17.5/§17.6, §18.12). Do not reopen the certified chain without new evidence of a defect, and do not
+   create a second combat architecture.
 9. Browser certification remains a separate validation track.
 ```
 
