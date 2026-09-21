@@ -8,16 +8,18 @@
 -- (auth.uid() = players.user_id), el mismo contrato que aplica la migración
 -- 20260918030000_harden_player_ownership_in_owned_rpcs.sql.
 --
--- Cubre 16 bloques: definición válida/inválida · coste · tiempo (+overload) ·
--- prerrequisitos incumplidos/satisfechos · recursos insuficientes · start ·
--- descuento · cola · exclusión de segunda investigación · processing · completion ·
--- persistencia · doble completion (comportamiento REAL, no idempotente) · ownership.
+-- Cubre 27 aserciones gateadas (1..27): definición válida/inválida · coste · tiempo (+overload) ·
+-- prerrequisitos incumplidos/satisfechos · recursos insuficientes · start · descuento exacto (una
+-- sola vez) · cola · exclusión de segunda investigación · procesamiento por el CAMINO DE PRODUCCIÓN
+-- REAL (process_planet_tick) · completion · persistencia · doble completion IDEMPOTENTE (desde
+-- 20260921140916) · ownership ×4 · cadena universal real (process_universe_tick) · cargo exacto ·
+-- segunda pasada de producción sin doble completion.
 --
--- Bloque final BLIND SPOT / CLIENT CONTRACT (solo lectura, sin gate): reproduce el rol cliente REAL
--- (SET LOCAL ROLE authenticated) para medir el camino cliente de can_research /
--- check_research_requirements sobre `research_prerequisites` (tabla interna con RLS RESTRICTIVE).
--- Si el harness no puede impersonar el rol, la prueba se marca PENDIENTE: nunca se falsea el
--- resultado con privilegios de owner. Detalle: docs/systems/README_RESEARCH.md §1b.
+-- Bloque final BLIND SPOT / CLIENT CONTRACT (solo lectura, sin gate): instrumentación histórica del
+-- antiguo defecto de contrato cliente (README_RESEARCH.md §1b). Ese defecto YA NO es alcanzable
+-- desde el cliente: `can_research` es SECURITY DEFINER y los tres helpers tienen EXECUTE restringido
+-- a postgres/service_role. El contrato cliente autoritativo es `can_start_research`, verificado por
+-- la segunda suite de este fichero (aserciones 5-7). Detalle: docs/systems/README_RESEARCH.md §1b.
 --
 -- Ejecutable desde el SQL Editor o mediante execute_sql (MCP). No usa framework externo.
 -- ============================================================================
@@ -72,22 +74,29 @@ declare
     v_client_reqs bigint;
     v_role_switched boolean;
     v_role_msg text;
+    v_queue2 uuid;
+    v_target2 int;
+    v_cost2 record;
+    v_completed boolean;
 begin
     create temp table t_results(orden serial, prueba text, resultado text) on commit drop;
 
     /* ---------------------------------------------------------------- FIXTURE
        Identificable y reversible: se elige un jugador HUMANO con auth user
        (modelo email/password) y un planeta propio; todo lo que se toca queda
-       dentro de esta transacción. */
+       dentro de esta transacción.
+       `DevPlayer` es un fixture VÁLIDO: es el único jugador HUMANO de LIVE desde la
+       migración de identidad 20260921073405. Se prefiere cualquier otro HUMANO si
+       existiera (el booleano `username like 'DevPlayer%'` ordena false antes que true),
+       de modo que la suite es ejecutable sin provisionar ni alterar datos reales. */
     select pl.id, pl.user_id, p.id, p.universe_id
       into v_player, v_user, v_planet, v_universe
     from public.planets p
     join public.players pl on pl.id = p.player_id
     where pl.player_type = 'HUMAN'
       and pl.user_id is not null
-      and pl.username not like 'DevPlayer%'
       and p.is_destroyed = false
-    order by p.created_at, p.id
+    order by (pl.username like 'DevPlayer%'), p.created_at, p.id
     limit 1;
 
     if v_planet is null then
@@ -310,17 +319,22 @@ begin
       ('14. exclusión: queda exactamente 1 investigación activa por jugador',
        case when v_active = 1 then 'PASS' else 'FAIL: activas=' || v_active end);
 
-    /* ------------------------------------------------------------- 15) PROCESSING */
+    /* ------------------------------------------------------------- 15) PROCESSING
+       CAMINO DE PRODUCCIÓN REAL. El job de producción es
+         cron process_universe_heartbeat -> process_universe_clock -> process_universe_tick
+         -> process_planet_tick -> complete_research
+       de modo que esta aserción usa `process_planet_tick` (el completador real), NO el
+       procesador huérfano `process_research_queue_for_player` (que no tiene llamadores). */
     /* Cola adelantada de forma válida: respeta el CHECK (finishes_at >= started_at) y
        mantiene finishes_at >= last_calculated_at (evita INVALID_RESOURCE_TIMESTAMP). */
     update public.research_queue
        set started_at = now() - interval '1 second',
            finishes_at = now()
      where id = v_queue;
-    perform * from public.process_research_queue_for_player(v_player);
+    perform * from public.process_planet_tick(v_planet);
     select status into v_status from public.research_queue where id = v_queue;
     insert into t_results(prueba, resultado) values
-      ('15. processing (process_research_queue_for_player) -> status COMPLETED',
+      ('15. production path (process_planet_tick) -> status COMPLETED',
        case when upper(v_status) = 'COMPLETED' then 'PASS'
             else 'FAIL: status=' || coalesce(v_status, 'null') end);
 
@@ -339,14 +353,22 @@ begin
        case when v_rows = 1 and v_level = v_target then 'PASS'
             else 'FAIL: filas=' || v_rows || ' nivel=' || v_level end);
 
-    /* ------------ 18) DOBLE COMPLETION: comportamiento REAL (NO idempotente como Buildings) */
+    /* ------------ 18) DOBLE COMPLETION — IDEMPOTENTE desde 20260921140916
+       Cambio de contrato DELIBERADO en este closeout: complete_research ya no lanza al
+       repetirse sobre una cola COMPLETED; devuelve false sin volver a liquidar recursos,
+       sin tocar el nivel persistido y sin mutar status/timestamps. Los estados que no
+       son RESEARCHING ni COMPLETED (p. ej. CANCELLED) conservan su error previo, y una
+       cola inexistente sigue siendo un error (aserción 20). */
     v_msg := '';
+    v_completed := null;
     begin
-        perform public.complete_research(v_queue);
+        v_completed := public.complete_research(v_queue);
     exception when others then v_msg := sqlerrm; end;
     insert into t_results(prueba, resultado) values
-      ('18. doble completion -> excepción real: ' || coalesce(nullif(v_msg, ''), '(sin error)'),
-       case when v_msg like 'Research queue is not active%' then 'PASS' else 'FAIL' end);
+      ('18. doble completion -> no-op idempotente (return false, sin excepción)',
+       case when v_msg = '' and v_completed = false then 'PASS'
+            else 'FAIL: retorno=' || coalesce(v_completed::text, 'null') ||
+                 ' error=' || coalesce(nullif(v_msg, ''), '(sin error)') end);
 
     /* 19) el doble completion no altera el nivel */
     select coalesce(max(level), 0) into v_active
@@ -434,6 +456,71 @@ begin
     perform set_config('request.jwt.claims',
         json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
 
+    /* ================= 25-27) CADENA DE PRODUCCIÓN REAL (universe heartbeat) =================
+       Las aserciones 15-17 completan por `process_planet_tick`. Las siguientes prueban el eslabón
+       UNIVERSAL real — `process_universe_tick`, al que llega el cron
+       process_universe_heartbeat -> process_universe_clock -> process_universe_tick — que el
+       coste se cobra EXACTAMENTE UNA VEZ y que una segunda pasada no vuelve a completar. */
+
+    /* red de seguridad: ningún trabajo activo antes de empezar (debe ser no-op) */
+    update public.research_queue
+       set started_at = now() - interval '1 second',
+           finishes_at = now()
+     where player_id = v_player and upper(status) = 'RESEARCHING';
+    perform * from public.process_planet_tick(v_planet);
+
+    update public.planet_resources
+       set metal = 50000000, crystal = 50000000, deuterium = 50000000,
+           last_calculated_at = now(), updated_at = now()
+     where planet_id = v_planet;
+    perform * from public.process_planet_tick(v_planet);
+
+    select coalesce(max(level), 0) into v_level
+      from public.player_research where player_id = v_player and research_id = v_research2;
+    v_target2 := v_level + 1;
+    select * into v_cost2 from public.calculate_research_cost(v_research2, v_target2);
+
+    select metal, crystal, deuterium into v_before_metal, v_before_crystal, v_before_deut
+      from public.planet_resources where planet_id = v_planet;
+    v_queue2 := public.start_research(v_player, v_planet, v_research2);
+    select metal, crystal, deuterium into v_after_metal, v_after_crystal, v_after_deut
+      from public.planet_resources where planet_id = v_planet;
+    insert into t_results(prueba, resultado) values
+      ('25. cargo exacto una sola vez en el start (' || v_cost2.metal || '/' || v_cost2.crystal || '/' ||
+       v_cost2.deuterium || ')',
+       case when v_before_metal - v_after_metal = v_cost2.metal
+                 and v_before_crystal - v_after_crystal = v_cost2.crystal
+                 and v_before_deut - v_after_deut = v_cost2.deuterium
+            then 'PASS'
+            else 'FAIL: descontado ' || (v_before_metal - v_after_metal) || '/' ||
+                 (v_before_crystal - v_after_crystal) || '/' || (v_before_deut - v_after_deut) end);
+
+    update public.research_queue
+       set started_at = now() - interval '1 second',
+           finishes_at = now()
+     where id = v_queue2;
+    perform * from public.process_universe_tick(v_universe);
+
+    select status into v_status from public.research_queue where id = v_queue2;
+    select coalesce(max(level), 0) into v_level
+      from public.player_research where player_id = v_player and research_id = v_research2;
+    insert into t_results(prueba, resultado) values
+      ('26. cadena de producción (process_universe_tick) -> COMPLETED + nivel ' || v_target2,
+       case when upper(v_status) = 'COMPLETED' and v_level = v_target2 then 'PASS'
+            else 'FAIL: status=' || coalesce(v_status, 'null') || ' nivel=' || v_level end);
+
+    perform * from public.process_universe_tick(v_universe);
+    select status into v_status from public.research_queue where id = v_queue2;
+    select coalesce(max(level), 0) into v_active
+      from public.player_research where player_id = v_player and research_id = v_research2;
+    select count(*) into v_rows
+      from public.player_research where player_id = v_player and research_id = v_research2;
+    insert into t_results(prueba, resultado) values
+      ('27. segunda pasada de producción: sin doble completion, nivel y fila intactos (' || v_target2 || ')',
+       case when upper(v_status) = 'COMPLETED' and v_active = v_target2 and v_rows = 1 then 'PASS'
+            else 'FAIL: status=' || coalesce(v_status, 'null') || ' nivel=' || v_active ||
+                 ' filas=' || v_rows end);
+
     /* ============================================ BLIND SPOT · CLIENT CONTRACT (solo lectura)
        Documenta y DETECTA el defecto de contrato cliente de Research (README_RESEARCH.md §1b):
        `research_prerequisites` es una tabla interna/autoritaria con una política RLS RESTRICTIVE
@@ -442,10 +529,14 @@ begin
        GRANT SELECT), mientras que las funciones SECURITY DEFINER (start_research) sí las leen con
        derechos de owner.
 
-       `can_research`, `check_research_requirements` y `get_research_requirements` son SECURITY
-       INVOKER → por el camino CLIENTE la tabla se ve vacía y la respuesta es incorrecta
-       (can_research = true y listas de requisitos = []). NO es un bypass de gameplay: start_research
-       valida los prerrequisitos con derechos de owner antes de cobrar.
+       ESTADO 2026-09-21: el defecto de contrato descrito arriba YA NO es alcanzable desde el
+       cliente. `can_research` es SECURITY DEFINER y los tres helpers (`can_research`,
+       `check_research_requirements`, `get_research_requirements`) tienen EXECUTE restringido a
+       postgres/service_role, de modo que el camino cliente ni siquiera puede invocarlos: la
+       comprobación cliente de este bloque cae en PENDIENTE (42501) en lugar de reproducir el
+       defecto. El contrato cliente autoritativo es `can_start_research`, verificado por la
+       segunda suite de este mismo fichero (aserciones 5-7). Este bloque se conserva como
+       instrumentación histórica de solo lectura y NO gatea.
 
        Este bloque NO falsea el resultado con privilegios de owner: reproduce el rol cliente REAL
        cambiando el rol efectivo (`SET LOCAL ROLE authenticated`, que es lo que decide la RLS; cambiar

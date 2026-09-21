@@ -151,6 +151,15 @@ The development workflow and tool-selection gate are defined in
 - Universe Evolution engine, monitor and production deployment validation are closed for their current scope.
 - Ownership hardening and the current single-attacker combat participant propagation are closed for their
   certified scopes.
+- **Research certification CLOSED (2026-09-21)** for the audited chain: availability (`can_start_research`
+  is the single authoritative client contract), prerequisites (16 LIVE rows; SECDEF `can_research`),
+  cost and time (single-sourced, verified to 4 decimals against LIVE), queue semantics, atomic
+  single charge, ownership, persistent level (`player_research`) and the REAL production completion path
+  (`process_universe_heartbeat → process_universe_clock → process_universe_tick → process_planet_tick →
+  complete_research`). `complete_research` is idempotent since `20260921140916`; the client-facing
+  `research_action_candidates` view was retired as a client contract by `20260921140925`; the lifecycle
+  suite (27 gated + 12 contract assertions) is runnable and its fixture accepts `DevPlayer`.
+  Detail: [`README_RESEARCH.md`](systems/README_RESEARCH.md).
 
 Evidence and detailed tests remain in
 [`docs/systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md), not in this file.
@@ -277,6 +286,15 @@ Not implemented and still open:
 - Shipyard/defence and buildings browser certification where still pending.
 - Bounded hygiene decisions for `calculate_universe_rates` and unused Lifeform keys.
 - Fleet lifecycle UI, Combat UI, Lifeforms UI, expedition result UI and `player_messages`.
+- **Research hygiene (P3 — deferred, do NOT start without an explicit mission):** three orphan
+  processors (`process_research_queue`, `process_research_queue_for_player`, `process_research_queue_for_universe`
+  — 0 callers), two dead helpers (`check_research_requirements`, `get_research_requirements`),
+  `start_research` still grants EXECUTE to `anon` (the body rejects anon with
+  `Authentication required`), `ui_research_definitions()` is a redundant SECURITY DEFINER wrapper whose
+  `search_path` omits `pg_temp`, `research_action_candidates` keeps ALL-privilege grants for
+  `service_role`, the `QUEUED`/`ACTIVE` status guards in the research checkers are dead (the CHECK
+  constraint allows only `RESEARCHING`/`COMPLETED`/`CANCELLED`), old `COMPLETED` queue rows are never
+  purged, and there is no research cancellation path.
 
 Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or worker infrastructure exists.
 

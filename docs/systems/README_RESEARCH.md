@@ -2,6 +2,28 @@
 
 > Audit of the Research domain using **Buildings as the verified internal reference** (2026-09-18).
 > Status: **AUDITED — gaps documented, NOT corrected** (this document records facts, not a redesign).
+>
+> **CLOSEOUT STATUS — 2026-09-21.** The gaps recorded below were closed by the Research closeout
+> mission. The following is the current truth and supersedes the stale claims further down:
+> * **The frontend is authoritative now.** `src/App.tsx` (view `research`) calls `can_start_research`
+>   per technology and renders its cost, `research_seconds`, item bonus, `prerequisites` and the
+>   `allowed` reason; it no longer computes Research cost or time locally. §4 and the §7 table are
+>   therefore obsolete for cost/time/prerequisites/availability.
+> * **Single client availability contract: `can_start_research`.** `research_action_candidates` was
+>   retired AS A CLIENT CONTRACT by migration
+>   `20260921140925_retire_research_action_candidates_client_contract`: no client could use it (it
+>   failed with `42501 permission denied for table universes`), it is prerequisite-blind, and it is
+>   preserved only as an internal dependency of the `action_candidates → executable_*` view family.
+>   No `universes` GRANT was added to rescue it.
+> * **Client-side contract defect (§1b) RESOLVED**: `can_research` is SECURITY DEFINER, and
+>   `can_research` / `check_research_requirements` / `get_research_requirements` carry EXECUTE for
+>   `postgres`/`service_role` only, so the wrong-answer client path is unreachable.
+> * **`complete_research` is idempotent** (migration
+>   `20260921140916_make_complete_research_idempotent`): a second call on a `COMPLETED` row returns
+>   `false` instead of raising; all other status/error semantics are unchanged.
+> * **The lifecycle suite exists and is runnable**: `supabase/tests/research_lifecycle.sql` — 27 gated
+>   assertions plus a separate 12-assertion availability/ownership contract suite. §8's
+>   "NOT implemented yet" is obsolete.
 > Related: [`README_GAME_ENGINE_AUDIT.md`](README_GAME_ENGINE_AUDIT.md) (construction) ·
 > [`README_ECONOMY.md`](README_ECONOMY.md) · [`README_FUNCTIONAL_AUDIT.md`](README_FUNCTIONAL_AUDIT.md).
 
@@ -94,9 +116,13 @@ GET /rest/v1/research_definitions                      → 206 (limit=1) · 16 r
 INSERT into research_prerequisites (probe, rejected)    → 401 42501 permission denied (no write path)
 ```
 
-### Client-side contract defect (confirmed — NOT corrected)
+### Client-side contract defect — **RESOLVED 2026-09-21** (was: confirmed — NOT corrected)
 
-Three **client-facing** helpers read that table and are **SECURITY INVOKER**:
+Historical finding: three client-facing helpers read that table as SECURITY INVOKER and answered
+wrongly through the Data API. That path no longer exists: `can_research` is **SECURITY DEFINER**, and
+`can_research` / `check_research_requirements` / `get_research_requirements` now carry EXECUTE only for
+`postgres`/`service_role`, so clients cannot invoke them at all (`42501`). The table and the three
+helpers are unchanged for owner-privileged callers. The table below is kept as the historical record:
 
 | Function | Through the Data API (role `anon`/`authenticated`) | Authoritative answer |
 |---|---|---|
@@ -212,12 +238,16 @@ AUTHORITATIVE chain (what the game charges and schedules)
         → guarded UPDATE (metal>=cost AND crystal>=cost AND deuterium>=cost)
         → INSERT research_queue(RESEARCHING, finishes_at = now() + time + expedition-item bonus)
 
-DISPLAYED by the frontend today (src/App.tsx)
-  getCost(d,'research')      = { metal: d.base_metal, crystal: d.base_crystal, deuterium: d.base_deuterium }
-  getBuildTime(d,'research') = d.base_research_time_seconds
-  · the definitions select does not even request cost_factor / time_factor
-  · no research_speed, no evolution (√E), no level scaling, no item bonus
-CONCLUSION: the backend is authoritative and correct; the UI figures are wrong from level 2 onward.
+DISPLAYED by the frontend (src/App.tsx) — CORRECTED 2026-09-21
+  cost         = info.cost_metal / cost_crystal / cost_deuterium   <- can_start_research
+  time         = rinfo.research_seconds                            <- can_start_research
+  bonus        = rinfo.item_bonus_percent
+  prerequisites= rinfo.prerequisites (required_level / current_level / satisfied)
+  disabled     = NOT info.allowed, with info.reason as the tooltip
+  · the local base-value fallback (getCost / getBuildTime) still exists in the code but is never
+    reached for Research, because can_start_research returns a row for every definition
+CONCLUSION: the backend and the UI read the SAME authoritative values — no divergence from level 2
+onward. Historical note: before this closeout the UI showed level-1 base values (see git history).
 ```
 
 ## 5. Queue / processing / catch-up / concurrency
@@ -253,16 +283,23 @@ requires `auth.uid()` and `players.user_id = auth.uid()`; the guest bypass is go
 |---|---|
 | research list | REAL (`research_definitions`) |
 | current level | REAL (`player_research` filtered by the identity player) |
-| cost | **CLIENT CALCULATED** (base values; no factor, level, speed or evolution) |
-| time | **CLIENT CALCULATED** (base seconds; no factor, speed or evolution) |
-| prerequisites | **MISSING** (`research_prerequisites` is never queried) |
-| availability / disabling | **MISSING** (only `level >= max_level` and `busyId`) |
+| cost | **REAL** — `info.cost_*` from `can_start_research` (was CLIENT CALCULATED before 2026-09-21) |
+| time | **REAL** — `rinfo.research_seconds` from `can_start_research` (item bonus included) |
+| prerequisites | **REAL** — `rinfo.prerequisites`; the table stays internal, the SECDEF contract exposes it |
+| availability / disabling | **REAL** — `info.allowed` + `info.reason` tooltip (plus `level >= max`) |
+| completion refresh | **REAL** — with an active research the view schedules one bounded refresh at `finishes_at + 1.5 s` (2026-09-21) |
 | action | REAL (`start_research` RPC; the backend rejects invalid requests with explicit errors) |
 | queue display | REAL (`research_queue` RESEARCHING/QUEUED rows for the player) |
 | completion refresh | DERIVED (the view reloads after an action; the heartbeat/catch-up completes due rows) |
 | errors | REAL (raw Postgres error surfaced in the notice/error panel) |
 
-## 8. Test plan (NOT implemented yet)
+## 8. Test plan — **IMPLEMENTED** (2026-09-18, extended 2026-09-21; heading superseded)
+
+> The plan below was implemented by `supabase/tests/research_lifecycle.sql`. See §12 for execution
+> history and §12.1 for the blind-spot instrumentation. The file now carries **27 gated lifecycle
+> assertions** plus a separate **12-assertion availability/ownership contract suite**; its fixture
+> accepts `DevPlayer`, and assertions 15 and 25-27 exercise the REAL production completion path
+> (`process_planet_tick` / `process_universe_tick`) instead of the orphan processors.
 
 ```text
 Proposed file: supabase/tests/research_lifecycle.sql — transactional (BEGIN … ROLLBACK), same shape as
@@ -295,8 +332,8 @@ app/Actions (research upgrade)       → start_research RPC                     
 deferred job / queue                 → research_queue + pg_cron + process_research_queue* → same concept
 event/state processing               → finishes_at + complete_research             → same boundary
 one authoritative entrypoint         → start_research                              → CONVERGED
-read model for the UI                → research_action_candidates view             → CONVERGED (but unused)
-rich availability contract           → can_research is only a boolean subset       → GAP (fragmented)
+read model for the UI                → can_start_research (the view was retired)  → CONVERGED (2026-09-21)
+rich availability contract           → can_start_research returns the full set    → CONVERGED (gap closed)
 NOT to copy: Eloquent models, PHP service/action inheritance, OGameX timings or balance constants.
 ```
 
@@ -325,17 +362,21 @@ Already better in L.G.I.: authoritative SQL engine, populated prerequisites tabl
 ## 11. Next actions (documented — NOT implemented)
 
 ```text
-1. Research lifecycle test (plan in §8) — required before Research can be certified.
-2. Research UI: consume the authoritative contract (can_research + research_action_candidates, or a new
-   consolidated contract) so cost, time, prerequisites and availability are real, as Buildings already does.
-3. complete_research: evaluate SECURITY DEFINER + idempotent early return + `target = current+1` guard to
-   align with complete_building (separate bounded migration).
-4. Decide the fate of the duplicate `calculate_research_time(uuid,text,int)` overload.
-5. Client availability contract: `can_research` / `check_research_requirements` / `get_research_requirements`
-   are SECURITY INVOKER over the RLS-denied `research_prerequisites` → wrong/empty answers through the
-   Data API (§1b). Decide the final architecture (DEFINER helpers vs one consolidated contract vs
-   removing them from the client surface), then align the UI, the availability view and the tests.
-   The test blind spot is already instrumented (§12.1); the decision itself is NOT started.
+1. ~~Research lifecycle test (plan in §8)~~ — **DONE**: `supabase/tests/research_lifecycle.sql`
+   (27 gated assertions + a 12-assertion contract suite). The fixture now accepts `DevPlayer` and
+   assertions 15 / 25-27 exercise the REAL production path (`process_planet_tick`, `process_universe_tick`).
+2. ~~Research UI: consume the authoritative contract~~ — **DONE**: the UI uses `can_start_research`
+   (cost, time, item bonus, prerequisites, availability) and schedules a bounded completion refresh.
+3. ~~complete_research: SECURITY DEFINER + idempotent early return~~ — **DONE (partly)**:
+   migration `20260921140916` adds the idempotent early return. SECURITY DEFINER and a
+   `target = current+1` guard were deliberately NOT adopted: the caller set is trusted
+   (`postgres`/`service_role`) and the absolute UPSERT already makes a duplicate increment impossible.
+4. Duplicate `calculate_research_time(uuid,text,int)` overload — **OPEN, deliberately kept**: the two
+   overloads agree (`(uuid,…)` delegates to the canonical one) and assertion 5 asserts their
+   equivalence, so it is a convenience wrapper rather than a divergence.
+5. ~~Client availability contract~~ — **DONE**: `can_start_research` is the single client contract and
+   `research_action_candidates` was retired as a client contract (migration `20260921140925`); the
+   wrong-answer helper path is closed because the three legacy helpers are internal-only.
 Do not start any of these without an explicit mission.
 
 ## 12. Test results — 2026-09-18 (live execution)
