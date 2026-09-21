@@ -74,6 +74,23 @@ Detailed fleet rules, mission matrix, modifier order, propulsion routing, fuel s
 8. Document durable discoveries in the specialized README first, then update this context only when operational
    state or an active decision changes.
 
+### Mandatory implementation-agent selection
+
+Before **every task I give or propose to you**, I must explicitly decide whether the execution belongs to:
+
+- **Cline + DeepSeek Flash 4.1 (with tokens):** complex/multi-file implementation, repository-wide-but-bounded audits,
+  difficult debugging, Supabase/Git operations, security/ownership work, or tasks where cross-file reasoning materially
+  reduces risk.
+- **Copilot Pro:** small/localized implementation, mechanical refactors, focused TypeScript/CSS/UI changes and other
+  bounded edits that do not require broad repository reasoning.
+
+I must not leave this choice implicit. Every proposed task must state **Executor: Cline or Copilot** and, when Cline is
+selected, also state **Model: DeepSeek Flash 4.1**, **Intelligence: None/Low/Medium/High/Extra**, **Expected cost:
+LOW/MEDIUM/HIGH**, and a short reason. If Copilot is selected, the task must remain appropriately bounded for Copilot Pro.
+
+The user may still use ChatGPT for architecture, interpretation, audit design and final verification; this gate concerns
+which external implementation agent should execute the task.
+
 The development workflow and tool-selection gate are defined in
 [`docs/tools/README_DEVELOPMENT_WORKFLOW.md`](tools/README_DEVELOPMENT_WORKFLOW.md).
 
@@ -173,6 +190,19 @@ Not implemented and still open:
   players holding a `user_id`. Still OPEN: the six `*_select_guest` policies, the 12 policies still
   carrying an `is_guest` branch, the `enforce_player_write_access` guest branch, the `players.is_guest`
   column (0 rows true), and the `early_tester_registrations` / `player_achievements` product decision.
+  Guest-specific registration, authorization branches, guest RLS policies and `players.is_guest` remain
+  candidates for removal or controlled reimplementation only where required by the final login/password
+  architecture: do not delete guest infrastructure blindly — map all LIVE consumers and dependencies first,
+  then remove/reimplement forward-only (`initialize_player_research` verification is CLOSED).
+- **DevPlayer:** exactly **one** DevPlayer/HUMAN test account is intended to remain. `playerA` was selected
+  for removal together with its child/parent ownership graph. Measured 2026-09-21: `DevPlayer`
+  (`aa1deb2d-3ed6-4350-922a-172d999b2af7`) is the only HUMAN player and **`playerA` does not exist**
+  (0 players match that name); the AI/user reassignments observed earlier were reconciled (released to
+  `user_id = NULL`, not destroyed).
+- **AI:** do not implement or redesign AI yet. Before the AI phase, compare the current AI schema/call graph
+  with OGameX and other suitable OGame-like clones to identify the expected structure, schedulers, decision
+  loops and required callers. If L.G.I. lacks the necessary code/callers, leave AI as a final-phase scope
+  rather than inventing infrastructure prematurely.
 - Identity cleanup detail (verified LIVE 2026-09-21). **Anonymous Auth:** 13 users → **0** (all deleted;
   no anonymous owner remains for any player). **Claimed AI empires:** 13 → **0** — the empires
   `AI-G1-S1-P2` … `AI-G1-S1-P14` were **released** (`players.user_id = NULL`), **not destroyed**: each
@@ -200,6 +230,14 @@ Not implemented and still open:
   Its findings were **superseded by the 2026-09-21 application**: `on_auth_user_created` is now dropped
   (it had claimed 13 AI empires, all since released), `register_guest_player` is dropped, and the
   remaining `is_guest` surface is the RLS/branch residue listed above.
+- **Block 1 security fixes CLOSED in LIVE (2026-09-21):** `ui_defense_queue` ownership/auth hardening,
+  analysis-function ACL hardening (including `generate_building_sequences` external execution removal), and RLS
+  enablement on `universe_process_health` / `combat_battle_participants` were applied and verified. The three local
+  migration files were renamed to their server-assigned ledger versions `20260921044623`, `20260921044643` and
+  `20260921044659`, preserving their hashes. No commit/push was performed as part of the audit execution.
+- Block 1 follow-up: the numeric `p_depth` guard for `generate_building_sequences` was **not** invented; the external
+  abuse vector is closed by ACL. A privileged/future re-grant could still pass a large depth and remains a separate
+  bounded hardening decision.
 - Security findings **APPLIED** (re-versioned, 2026-09-21): `20260921044623` (was `20260920120500` —
   public cross-player `ui_defense_queue` read), `20260921044643` (was `20260920120600` — unauthenticated
   unbounded `generate_building_sequences`), `20260921044659` (was `20260920120700` — RLS disabled on
@@ -249,13 +287,20 @@ Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or 
 ## 11. Next engineering boundary
 
 ```text
-1. Define and implement the minimum participant-aware combat model required by ACS
-   (DEFEND stays closed until then).
-2. Certify the ACS_HOLD Fase A flow: run the SQL tests in LIVE, then define the
-   player-facing UI contract (selector ACS_HOLD + DEFEND, DEFEND still closed).
-3. Decide the two open product rules: holding fuel and maximum holding duration.
-4. Certify the already-converged seven fleet missions in the browser.
-5. Continue remaining browser and bounded hygiene work without reopening closed fleet rules.
+BLOCK 2 — Identity / Guest Decommission
+1. Read the current PROJECT_CONTEXT + identity README + LIVE integrity reconciliation.
+2. Map every remaining guest/anonymous consumer in LIVE and repo before deleting anything.
+3. Confirm the single remaining DevPlayer and verify that playerA plus its ownership graph are fully removed.
+4. Reconcile the login/password + provision_player path end-to-end.
+5. Remove or reimplement guest-only triggers, RPCs, policies, columns and guards forward-only, only after each
+   consumer is proven obsolete or replaced.
+6. Verify ownership/auth invariants in LIVE and regenerate database types only after schema convergence.
+
+BLOCKED / LATER
+7. AI is final-phase: compare its structure against OGameX/other clones first; implement only if L.G.I. has the
+   required authoritative engine/callers, otherwise leave it deferred.
+8. Combat/DEFEND and remaining ACS product decisions stay behind their existing boundaries.
+9. Browser certification remains a separate validation track.
 ```
 
 > **Golden rule:** inspect → compare → decide → implement → test → verify → document.
