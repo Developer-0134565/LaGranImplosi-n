@@ -173,6 +173,13 @@ Not implemented and still open:
   players holding a `user_id`. Still OPEN: the six `*_select_guest` policies, the 12 policies still
   carrying an `is_guest` branch, the `enforce_player_write_access` guest branch, the `players.is_guest`
   column (0 rows true), and the `early_tester_registrations` / `player_achievements` product decision.
+- Identity cleanup detail (verified LIVE 2026-09-21). **Anonymous Auth:** 13 users → **0** (all deleted;
+  no anonymous owner remains for any player). **Claimed AI empires:** 13 → **0** — the empires
+  `AI-G1-S1-P2` … `AI-G1-S1-P14` were **released** (`players.user_id = NULL`), **not destroyed**: each
+  still exists as an unowned AI with 1 homeworld and no gameplay investment (0 research, 0 buildings,
+  0 ships, 0 queues). **AI owned by the DEV email account: none** — the email account owns only
+  `DevPlayer`. **Unowned AI pool:** 370 players. Nothing was deleted by the identity closeout beyond the
+  13 anonymous Auth users.
 - **REGRESSION found 2026-09-21 (OPEN, verified LIVE).** `planet_buildings`, `planet_defenses`,
   `planet_ships`, `shipyard_queue`, `fleet_movements` and `fleet_movement_ships` each carry **only** a
   `*_select_guest` policy (`pl.is_guest = true`). Now that the DEV player is `is_guest = false`, its owner
