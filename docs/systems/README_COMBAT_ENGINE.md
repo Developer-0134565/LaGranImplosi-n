@@ -353,3 +353,790 @@ It does **not** close ACS/HOLDING/DEFEND. The old uniqueness keys remain deliber
 ### Version boundary
 
 Lifeform-specific combat updates are intentionally **out of scope for this engine version**. They belong to the next version after the base combat engine is certified.
+
+---
+
+## 14. PHASE 0 AUDIT — COMBAT ENGINE CORE (read-only, LIVE-verified 2026-09-21)
+
+> Scope: architecture, dependency and canonical-formula audit of the Combat Engine **before** any combat
+> implementation. No migration, schema, RLS, ACL, formula, Fleet, Defense or Research change was made.
+> Method: repository code + LIVE Supabase definitions (`pg_proc`, `pg_constraint`, `pg_indexes`, `pg_policies`,
+> `has_function_privilege`, live row counts) + existing project documentation. Names alone were never treated as
+> evidence: every claim below follows a real caller, a LIVE definition or a LIVE row count.
+
+### 14.1 Sync gate at audit time
+
+| Item | Value |
+|---|---|
+| Branch | `main` |
+| HEAD | `234ec4ee8b8098163d2129948051ddd4202fe39e` (`feat(defense): close defense engine lifecycle`) |
+| `origin/main` | `50faddfee713cb1a744e957cc93ae519069fb17b` |
+| Relationship | **AHEAD 8**, not diverged (`origin/main` is an ancestor of `HEAD`; `git fetch --dry-run` clean) |
+| Working tree | `M docs/systems/README_FLEET_ENGINE.md` (protected Fleet work, uncommitted) |
+| Unstaged deletions | the three protected migrations `20260920120500/120600/120700_*` |
+| Untracked | the three re-timestamped protected migrations `20260921044623/044643/044659_*` (byte-identical to the deleted ones — verified with `git hash-object` vs `git rev-parse HEAD:...`) plus four **0-byte** artefacts (`complete_research`, `process_planet_tick`, `process_universe_clock`, `process_universe_tick`) |
+| Staged | none |
+| Stashes | `stash@{0}` "WIP antes de integrar origin/main", `stash@{1}` "WIP Buildings before sync main" |
+
+Every dirty entry was **declared protected material in the mission itself**, so ownership was clear and no stop
+condition applied. Nothing protected was touched, and the 0-byte artefacts were deliberately **not** committed.
+
+### 14.2 Answer to the CORE question
+
+> **Yes.** LGI has **one authoritative, production-reachable Combat Engine chain** for the normal `ATTACK`
+> mission, from Fleet arrival to battle persistence, reachable in production through
+> `pg_cron → run_fleet_worker() → process_fleet_movements() → resolve_attack_arrival()`.
+> There are **residual legacy/orphan objects** (8 functions + 1 legacy table + 2 invariant gaps) but **no
+> competing authoritative combat path**. What must be resolved before a new Combat implementation are
+> invariants and schema defects, not a parallel architecture: expedition combat regression (CB-01), the two
+> missing battle foreign keys (CB-02), and the absence of a runnable combat test (§14.18).
+
+### 14.3 Authoritative pipeline (real LIVE call chain)
+
+LIVE entry point is `pg_cron` job `2`: `SELECT public.run_fleet_worker();` at **1 second** cadence
+(job `4` = `process_universe_heartbeat()` once per minute).
+
+```text
+pg_cron job 2 (every 1s)
+  → run_fleet_worker()                       SECURITY DEFINER
+      → process_fleet_movements()            SECURITY DEFINER (global advisory xact lock)
+          loop: status='OUTBOUND' and arrives_at<=clock_timestamp()
+                order by arrives_at, id   FOR UPDATE SKIP LOCKED
+              UPDATE status='OUTBOUND' → 'ARRIVED'
+              dispatch by mission_type:
+                ATTACK           → resolve_attack_arrival(fleet_id)      ← Fleet → Combat boundary
+                TRANSPORT        → resolve_transport_arrival
+                DEPLOY           → resolve_deploy_arrival
+                COLONIZE         → resolve_colonize_arrival
+                ESPIONAGE        → resolve_espionage_arrival
+                EXPEDITION       → resolve_expedition_arrival (may create a combat battle)
+                RECYCLE          → collect_debris
+                ACS_HOLD/HOLDING → status='HOLDING'
+                DEFEND           → RAISE WARNING, fleet kept in 'ARRIVED' (not implemented)
+                other            → status='RETURNING'
+
+resolve_attack_arrival(p_fleet_id uuid) RETURNS uuid
+  1. lock fleet row FOR UPDATE; require mission_type='ATTACK'
+  2. replay guard: status <> 'ARRIVED' → return the existing battle id (raise if none)
+  3. catch up the target planet at the fleet's own arrival timestamp
+     (update_planet_resources_until / process_shipyard_queue_until / process_defense_queue_until)
+  4. battle_id := resolve_combat(p_fleet_id)
+       → composition snapshot from fleet_movement_ships / planet_ships / planet_defenses
+       → INSERT combat_battles (with loot columns) + the two combat_battle_participants rows
+       → initialize_individual_combat_units(battle_id)   (one row per unit, tech-scaled stats)
+  5. resolve attacker/defender participant ids (raises 'missing settlement participants' if absent)
+  6. if the battle is not finished → run_expedition_combat(battle_id)   ← generic round runner
+       loop rounds 1..6:
+         skip a round already present in combat_rounds
+         process_combat_round_v2(battle_id, round)
+           → create_combat_round_snapshot         (round-start state)
+           → generate_combat_round_v2             (initial shots: one per alive unit)
+           → expand_all_rapidfire_v2              (RF chain per initial shot)
+           → calculate_combat_round_pending_damage(shots → damage ledger)
+           → resolve_pending_target_damage ×N     (per target: bounce, per-shot damage, explosion)
+           → apply_combat_round_damage            (ledger → combat_individual_units)
+           → finish_combat_round_v1               (result + next round)
+           → INSERT combat_rounds aggregate       (round report)
+           → create_combat_next_round + snapshot  (survivors only, shields reset to max)
+       → set combat_battles.finished_at, attacker_win/defender_win/draw and the *_after counts
+  7. sync_combat_battle_final_counts(battle_id)
+  8. rewrite fleet_movement_ships = surviving ATTACKER ships of the last round
+     rewrite planet_ships / planet_defenses = surviving DEFENDER units of the last round
+  9. apply_attack_loot(battle_id)             (attacker_win only; 50 % caps; cargo capacity)
+ 10. repair_defenses_after_combat(battle_id)  (70 % roll per destroyed defense unit)
+ 11. create_combat_debris(battle_id)          (ship + defense debris, at most once per battle)
+ 12. fleet_movements.status='RETURNING', returns_at = arrives_at + (arrives_at - started_at)
+```
+
+Verified caller map (scan of `pg_proc.prosrc` over the whole `public` schema):
+
+| Function | LIVE callers |
+|---|---|
+| `resolve_attack_arrival` | `process_fleet_movements` |
+| `resolve_combat` | `resolve_attack_arrival` |
+| `initialize_individual_combat_units` | `resolve_combat` |
+| `get_combat_ship_*`, `get_combat_defense_*` | `initialize_individual_combat_units` |
+| `run_expedition_combat` | `resolve_attack_arrival`, `resolve_expedition_aliens`, `resolve_expedition_pirates` |
+| `process_combat_round_v2` | `run_expedition_combat` |
+| `create_combat_round_snapshot`, `generate_combat_round_v2`, `expand_all_rapidfire_v2`, `calculate_combat_round_pending_damage`, `apply_combat_round_damage`, `resolve_pending_target_damage`, `finish_combat_round_v1`, `create_combat_next_round` | `process_combat_round_v2` |
+| `expand_rapidfire_chain_v2` | `expand_all_rapidfire_v2` |
+| `apply_attack_loot`, `repair_defenses_after_combat`, `create_combat_debris`, `sync_combat_battle_final_counts` | `resolve_attack_arrival` |
+| `calculate_combat_ship|defense_losses` → `calculate_combat_ship|defense_debris` → `create_combat_total_debris` | `create_combat_debris` |
+
+`resolve_attack_arrival` is **the authoritative arrival boundary** — not a thin dispatcher, not a duplicate and
+not legacy: it owns replay safety, pre-combat economic catch-up, battle creation, the settlement write-back and
+the return transition. Only the name is historical (`run_expedition_combat` plays the rounds for `ATTACK` too).
+
+### 14.4 Function inventory and classification (LIVE)
+
+| Classification | Objects |
+|---|---|
+| **AUTHORITATIVE** | `resolve_attack_arrival`, `resolve_combat`, `initialize_individual_combat_units`, `run_expedition_combat`, `process_combat_round_v2`, `create_combat_round_snapshot`, `generate_combat_round_v2`, `expand_all_rapidfire_v2`, `expand_rapidfire_chain_v2`, `calculate_combat_round_pending_damage`, `resolve_pending_target_damage`, `apply_combat_round_damage`, `finish_combat_round_v1`, `create_combat_next_round`, `sync_combat_battle_final_counts`, `apply_attack_loot`, `repair_defenses_after_combat`, `create_combat_debris`, `add_debris_field` |
+| **DERIVED (read-only projections of live battle state)** | `calculate_combat_ship_losses`, `calculate_combat_defense_losses`, `calculate_combat_ship_debris`, `calculate_combat_defense_debris`, `calculate_combat_total_debris` |
+| **HELPER** | `calculate_shield_bounce` (1 % shield threshold, IMMUTABLE), `combat_hull_from_integrity` (unused trivial `/10`) |
+| **CANONICAL STAT READERS (certified Defense/Fleet interfaces)** | `get_combat_ship_attack|shield|hull`, `get_combat_defense_attack|shield|hull`, `get_player_research_level` |
+| **LEGACY / ORPHAN (0 callers anywhere in LIVE)** | `simulate_defender_losses`, `initialize_combat_unit_state`, `snapshot_combat_round`, `apply_combat_hull_damage`, `calculate_combat_damage`, `get_combat_round_snapshot`, `get_combat_unit_snapshot`, `combat_hull_from_integrity` |
+| **LEGACY TABLE** | `combat_unit_state` (0 rows, written only by the orphan `initialize_combat_unit_state`) |
+
+Orphan detail (all LIVE-verified; no caller in any schema function, no trigger on combat tables, no cron job,
+and no client path because RLS denies the underlying tables):
+
+- `simulate_defender_losses(p_planet_id, p_total_damage)` — aggregate legacy approximation reading
+  `planet_defenses`/`planet_ships` with **raw** `*_definitions` stats. This answers mission §10: it is **not**
+  production combat logic and **not** a simulation helper of the live path; it is retired legacy code.
+- `initialize_combat_unit_state(p_battle_id)` — writes the legacy `combat_unit_state` aggregate table.
+- `snapshot_combat_round(p_battle_id, p_round_number)` — despite its name it only **counts** rows in
+  `combat_individual_units`; it no longer snapshots anything.
+- `apply_combat_hull_damage(...)` — V1 per-unit hull/explosion helper, superseded by
+  `resolve_pending_target_damage` + `apply_combat_round_damage`.
+- `calculate_combat_damage(p_attack, p_shield_current, p_hull_current)` — pure math without shield bounce or
+  explosion, superseded by the ledger path.
+- `get_combat_unit_snapshot(p_battle_id)` — reader that uses **another statistic source**
+  (`ship_definitions.attack/shield/hull` raw, no technology); it would contradict the authoritative path.
+- `get_combat_round_snapshot(...)`, `combat_hull_from_integrity(...)` — unused reader/helper.
+
+Security posture of the LIVE combat surface: every mutating combat function is `service_role`-only
+(`resolve_attack_arrival`, `resolve_combat`, `run_expedition_combat`, `process_combat_round_v2`,
+`create_combat_debris`, `repair_defenses_after_combat`, `apply_attack_loot`, `add_debris_field`,
+`process_fleet_movements`, `run_fleet_worker`, `simulate_defender_losses`, `get_combat_ship_*`), and
+`search_path` is pinned on all of them (`'public','pg_temp'` or `'pg_catalog','public'`), matching the repo
+hardening migrations `20260914223208` / `20260914223220`. The **read-only** calculators keep `EXECUTE` for
+`anon`/`authenticated` (`calculate_combat_*`, `get_combat_round_snapshot`, `get_combat_unit_snapshot`,
+`combat_hull_from_integrity`, `finish_combat_round_v1`, `expand_all_rapidfire_v2`). That is **surface, not
+exploit**: every combat table carries an ALL-command `deny_direct_api_access` policy (`qual = false`,
+`with_check = false`) for `anon`/`authenticated`, and `combat_battle_participants` has RLS enabled with **no**
+policy, so unprivileged reads return zero rows and writes are rejected. `expand_all_rapidfire_v2` is
+nevertheless **not self-idempotent** (it re-walks every RF chain), so it must stay un-callable by clients —
+today only the `combat_rounds`-exists guard inside `process_combat_round_v2` prevents a second expansion.
+
+### 14.5 Combat data model
+
+```text
+combat_battles (PK id)                    ← authoritative battle header
+   fleet_id FK → fleet_movements(id) ON DELETE CASCADE, UNIQUE (ux_combat_battles_one_per_fleet)
+   attacker_player_id FK → players(id) · defender_planet_id FK → planets(id) (nullable: expeditions)
+   finished_at · attacker_win · defender_win · draw (NOT NULL)
+   attacker_ships_before/after · defender_ships_before/after
+   defender_defenses_before/after · defender_combat_units_before/after
+   loot_metal/crystal/deuterium · loot_applied_at
+   ↓
+combat_battle_participants (PK id)        ← explicit participant identity (added 2026-09-19)
+   battle_id FK → combat_battles(id) CASCADE · side ATTACKER|DEFENDER · participant_type FLEET|PLANET
+   fleet_id FK RESTRICT · planet_id/origin_planet_id FK RESTRICT · player_id FK RESTRICT · mission_type
+   UNIQUE (battle_id, fleet_id) · UNIQUE (battle_id, planet_id)   ← NULL-fleet rows are deduplicated
+   ↓
+combat_individual_units (PK id)           ← AUTHORITATIVE per-unit round state
+   battle_id FK CASCADE · participant_id FK → participants CASCADE
+   UNIQUE (battle_id, round_number, side, unit_type, unit_id, unit_number)   ← legacy key, still in force
+   attack · shield_max · shield_current · structural_integrity · hull_max · hull_current · alive
+   ↓
+combat_round_snapshot_units (PK id)       ← round-start snapshot (history)
+   participant_id FK · UNIQUE (battle_id, round_number, side, unit_type, unit_id, unit_number)
+   *** NO FK ON battle_id ***   → orphans possible (CB-02)
+combat_shots (PK id)                      ← shot ledger (history)
+   battle_id FK CASCADE · attacker_participant_id FK · target_participant_id FK
+   UNIQUE (battle_id, round_number, shot_number)
+combat_round_damage (PK id)               ← per-shot damage ledger (history)
+   target_participant_id FK · UNIQUE (battle_id, round_number, source_shot_number)
+   *** NO FK ON battle_id ***   → orphans possible (CB-02)
+combat_rounds (PK id)                     ← per-round aggregate report
+   battle_id FK CASCADE · UNIQUE (battle_id, round_number)
+combat_rapidfire (PK id)                  ← RF matrix: 52 LIVE rows, 14 of them vs DEFENSE, values 2..1250
+   UNIQUE (attacker_unit_type, attacker_unit_id, target_unit_type, target_unit_id)
+combat_defense_repairs (PK id)            ← repair ledger · battle_id FK CASCADE · UNIQUE (battle_id, defense_id)
+combat_debris_generations (PK id)         ← debris provenance · battle_id FK CASCADE · UNIQUE (battle_id)
+combat_unit_state (PK id)                 ← LEGACY aggregate table (0 rows; orphan writer)
+debris_fields (PK id)                     ← live debris at a coordinate
+   UNIQUE (universe_id, galaxy, system, position) · universe_id FK CASCADE
+```
+
+The schema does represent `battle → participants → rounds → result → losses → debris/repairs`, with two
+corrections to the naive reading: **losses are derived** (computed from `combat_individual_units`, never stored),
+and **two round-history tables have no cascade to the battle** (CB-02). Authoritative state =
+`combat_battles` + `combat_individual_units` + `planet_ships`/`planet_defenses`; derived history = snapshots,
+shots, damage ledger, round aggregates, repairs, debris provenance.
+
+LIVE residue checked during this audit (read-only counts):
+
+| Table | Rows | Orphan rows (battle_id not in `combat_battles`) |
+|---|---|---|
+| `combat_battles` | 0 | — |
+| `combat_individual_units` | 0 | 0 |
+| `combat_rounds` | 0 | 0 |
+| `combat_shots` | 0 | 0 |
+| `combat_debris_generations` | 0 | 0 |
+| `combat_defense_repairs` | 0 | 0 |
+| `combat_round_snapshot_units` | **661** (17 battles) | **661** |
+| `combat_round_damage` | **681** (17 battles) | **681** |
+| `debris_fields` | **3** (1:2:1 / 1:2:2 / 1:2:3, universe `86900cbc…`) | no provenance rows |
+
+Written 2026-09-12 → 2026-09-16, i.e. before the participant model of 2026-09-19. The two tables that hold the
+orphans are exactly the two that have no `battle_id` FK, which is what makes CB-02 a real defect rather than a
+cosmetic one; the three debris fields are live, recyclable game state whose generating battles no longer exist.
+
+### 14.6 Ship statistics — canonical contract
+
+Combat consumes `ship_definitions.attack|shield|hull` **through the certified readers**, never directly:
+
+```text
+get_combat_ship_attack (player, ship) = ship_definitions.attack * (1 + weapons_technology  * 0.10)
+get_combat_ship_shield (player, ship) = ship_definitions.shield * (1 + shielding_technology * 0.10)
+get_combat_ship_hull   (player, ship) = (ship_definitions.hull / 10) * (1 + armour_technology * 0.10)
+```
+
+- All three are `STABLE SECURITY DEFINER`, `search_path = 'public','pg_temp'`; their only callers are
+  `initialize_individual_combat_units`. Each side's **own** owner technologies are applied (attacker techs to
+  attacker units, defender techs to defender units).
+- Persisted per unit: `attack` (tech-scaled), `shield_max = shield_current`,
+  `structural_integrity = hull*10` (armour-scaled raw structural value) and `hull_max = hull_current = hull`
+  (the normalized `/10` value that the damage engine actually uses).
+- **Snapshot semantics:** stats are frozen when the battle is created. `create_combat_next_round` clones
+  `attack`, `shield_max`, `structural_integrity` and `hull_max` and carries `hull_current`, so research
+  completed during a battle cannot affect it.
+- `resolve_combat` also aggregates `sum(definitions.stat * quantity)` into local variables, but those are
+  **never persisted**; the battle header stores unit *counts* only. No second stat source is authoritative.
+- Modifiers other than the three combat technologies are **not applied**: there is no evolution, lifeform or
+  item combat-stat modifier in the pipeline today.
+
+### 14.7 Defense statistics — canonical Defense Engine interfaces
+
+```text
+planet_defenses (quantity per defense_definitions.id)          → one unit row per defense
+get_combat_defense_attack (player, defense) = defense_definitions.attack * (1 + weapons_technology  * 0.10)
+get_combat_defense_shield (player, defense) = defense_definitions.shield * (1 + shielding_technology * 0.10)
+get_combat_defense_hull   (player, defense) = (defense_definitions.hull / 10) * (1 + armour_technology * 0.10)
+```
+
+Verified properties:
+
+- **Every** defense type participates (no filter beyond `quantity > 0`); quantity is expanded into individual
+  units with `generate_series(1, quantity)`, attributed to the DEFENDER/PLANET participant.
+- Defenses are ordinary units in the ledger: they fire, take damage, explode and die. There is **no
+  shield-dome-specific branch** anywhere in the damage engine (see the gap in §14.21).
+- Repair stays Defense-owned (`repair_defenses_after_combat`, §14.12); Combat did not modify it and does not
+  reimplement it.
+- `resolve_attack_arrival` writes survivors back into `planet_defenses` and repair then *adds* repaired units;
+  debris is computed from the unit ledger, so repair can never cancel debris (ordering in §14.11/§14.12).
+
+### 14.8 Technology routing — weapons / shielding / armour
+
+| Technology | Status | Where it is applied |
+|---|---|---|
+| `weapons_technology` | **IMPLEMENTED** | `get_combat_ship_attack`, `get_combat_defense_attack` → unit `attack` |
+| `shielding_technology` | **IMPLEMENTED** | `get_combat_ship_shield`, `get_combat_defense_shield` → `shield_max`/`shield_current` |
+| `armour_technology` | **IMPLEMENTED** | `get_combat_ship_hull`, `get_combat_defense_hull` → `hull_max`/`hull_current` (+ `structural_integrity`) |
+
+- Reader: `get_player_research_level(player, research_id)` → `player_research.level`, defaulting to 0
+  (`STABLE SECURITY DEFINER`); all three ids exist in LIVE `research_definitions`.
+- Scaling is **linear, +10 % per level**, read once at battle creation (snapshot semantics, §14.6).
+- Only the three combat technologies participate. The only stat reads that bypass the tech helpers are
+  `resolve_combat`'s count aggregation and the orphan `get_combat_unit_snapshot`, and neither feeds combat state.
+- Do **not** read this as "Research completion routes into combat by itself": the routing exists because
+  `initialize_individual_combat_units` calls these helpers. Classification per mission §8: all three are
+  **IMPLEMENTED**; none is "defined only" or "partially implemented".
+
+### 14.9 Round formula — the existing chain
+
+The battle is **round-based, maximum 6 rounds, simultaneous fire by construction** (all initial shots are
+generated from the round-start snapshot before any damage is applied).
+
+```text
+ROUND START (round r, r in 1..6)
+  create_combat_round_snapshot(r)   copies surviving units into combat_round_snapshot_units
+                                    (attack, shield_max, shield_start, hull_max, hull_start, alive_start)
+INITIAL SHOTS
+  generate_combat_round_v2(r)       for each unit with alive_start = true, in RANDOM order, pick a RANDOM
+                                    target on the opposite side (alive_start): 1 shot per unit → combat_shots
+                                    (is_initial_shot = true)
+RAPIDFIRE
+  expand_all_rapidfire_v2(r)        walk each initial shot's chain:
+    expand_rapidfire_chain_v2(...)    rf := combat_rapidfire(row) ELSE 1
+                                      probability := 1 - (1/rf) ; roll := random() ; triggered := roll < p
+                                      if triggered → insert the next RF shot (same attacker, new random target
+                                      on the opposite side, is_initial_shot = false) and continue, else stop
+DAMAGE LEDGER
+  calculate_combat_round_pending_damage(r)   delete existing round rows, then one ledger row per shot
+                                             (target identity + source_shot_number + attack_value)
+PER-TARGET RESOLUTION               for each distinct target (ordered by side/type/id/number):
+  resolve_pending_target_damage(...)
+     shield := snapshot.shield_start ; hull := snapshot.hull_start
+     for each shot of that target ordered by source_shot_number:
+        if hull > 0:
+           calculate_shield_bounce(attack, shield_max) → threshold := shield_max * 0.01
+              attack < threshold → the shot does NOTHING (bounce: no shield, no hull damage)
+              else shield_damage := least(shield, attack) ; shield -= shield_damage
+                   hull_damage := least(hull, greatest(attack - shield_damage, 0)) ; hull -= hull_damage
+                   if hull > 0 and hull/hull_start < 0.70:
+                        explode := random() < (1 - hull/hull_start)
+                        explode → hull := 0 ; shield := 0
+        persist shield_damage/hull_damage/exploded into combat_round_damage and mirror the resolved values
+        (target_shield_before, raw_damage, effective_damage, shield_damage, hull_damage, target_destroyed)
+        back into combat_shots
+APPLY
+  apply_combat_round_damage(r)       aggregate the ledger per target and write it into combat_individual_units
+                                    (shield_current, hull_current, alive := hull_current > 0); exploded → 0/false
+FINISH
+  finish_combat_round_v1(r)         attacker_alive / defender_alive counted from alive units
+                                    both 0 → DRAW | attacker 0 → DEFENDER_WIN | defender 0 → ATTACKER_WIN
+                                    else CONTINUE ; if CONTINUE at r = 6 → DRAW (next_round := NULL)
+  INSERT combat_rounds(r)           round report: attack/shield/hull sums + before/after unit counts
+                                    (defender attack/shield/hull sums cover DEFENDER *SHIP* units only, while
+                                     defender_units_* count all defender units — a reporting asymmetry)
+NEXT ROUND
+  create_combat_next_round(r)       clone only alive units into r+1 with shield_current := shield_max
+                                    (full shield regeneration) and hull_current carried over
+  create_combat_round_snapshot(r+1)
+```
+
+Documented facts of the current formula contract:
+
+- **Destruction threshold:** a unit dies only when its hull reaches 0 — by per-shot hull subtraction and/or the
+  explosion roll below 70 % structural integrity. There is no instant death by raw damage.
+- **Partial damage persists** across rounds for survivors (`hull_current` is carried); **shields regenerate
+  fully at the start of every round**.
+- **Damage accumulation is per target**, not global: many shots stack onto the same unit.
+- **Composition changes during a battle only through destruction**; retargeting is re-randomised every shot.
+- **It is stochastic, not deterministic**: target selection and rapidfire use `random()` and no seed is
+  persisted (unlike the deterministic expedition event streams of `20260914202536`), so a battle cannot be
+  reproduced bit-for-bit from persisted rows.
+- Round numbers outside 1..6 raise (`process_combat_round_v2`, `create_combat_next_round`).
+- Missing pieces of the contract are listed in §14.21 (no defense-rebuild or shield-dome-specific rule, no
+  explicit extra defender-fleet concept, no seeded determinism).
+
+### 14.10 Losses (attacker and defender)
+
+Losses are **derived, not authoritative**: they are recomputed from `combat_individual_units` (round 1 versus the
+last round) by two symmetric readers.
+
+```text
+calculate_combat_ship_losses(battle)      initial   := count(unit rows, round 1, unit_type 'SHIP')
+                                          surviving := count(alive = true, LAST round)
+                                          destroyed := initial - surviving
+                                          metal/crystal/deuterium_lost := destroyed × ship_definitions.base_*
+calculate_combat_defense_losses(battle)   identical logic with unit_type = 'DEFENSE' and
+                                          defense_definitions.metal_cost/crystal_cost/deuterium_cost
+```
+
+- Both are `LANGUAGE sql` and read-only, and their only callers are the debris chain
+  (`calculate_combat_*_debris` → `calculate_combat_total_debris` → `create_combat_debris`).
+- **Attacker and defender share the same ledger and the same loss semantics**; no asymmetric formula exists.
+  The only asymmetry is representational: attacker survivors are rewritten into `fleet_movement_ships`, defender
+  survivors into `planet_ships`/`planet_defenses`, by `resolve_attack_arrival`.
+- `simulate_defender_losses` is **not** part of this path (orphan, §14.4). Losses are never allocated from a
+  global damage pool. Mission §10 is answered: one path, ledger-based, symmetric.
+- Loss valuation uses **base** `*_definitions` costs (no technology/scaling), which is also the canonical debris
+  valuation.
+
+### 14.11 Debris
+
+```text
+create_combat_debris(battle)                     — idempotent, called once by resolve_attack_arrival
+  1. if combat_debris_generations already has a row for the battle → return it with already_generated = true
+  2. universe/coordinate := defender planet's universe, galaxy, system, position
+  3. totals := calculate_combat_total_debris(battle)
+        ship_debris    = sum(calculate_combat_ship_debris)     = destroyed_ship_value    × universes.fleet_debris_percentage / 100
+        defense_debris = sum(calculate_combat_defense_debris)  = destroyed_defense_value × universes.defense_debris_percentage / 100
+  4. if both debris amounts are 0 → return without touching debris_fields (no generation row is created)
+  5. otherwise add_debris_field(universe, galaxy, system, position, metal, crystal)
+        INSERT ... ON CONFLICT (universe_id, galaxy, system, position) DO UPDATE SET metal = df.metal + EXCLUDED.metal,
+        crystal = df.crystal + EXCLUDED.crystal          ← debris at a coordinate is ACCUMULATED, never overwritten
+  6. INSERT combat_debris_generations(battle_id, debris_field_id, metal_generated, crystal_generated)
+        ON CONFLICT (battle_id) DO NOTHING                ← exactly-once provenance per battle
+```
+
+- Debris therefore has **one canonical calculation** (destroyed units × base cost × universe percentage) and
+  **one persistence path**; there is no recalculation entrypoint, and `add_debris_field` has no other caller.
+- Losses (and thus debris) come from the combat ledger, **not** from `planet_ships`/`planet_defenses`, so the
+  defense-repair step that runs immediately before cannot cancel or duplicate debris.
+- LIVE configuration: `fleet_debris_percentage = 30`, `defense_debris_percentage = 0` for both universes → in the
+  current LIVE configuration **defenses produce no debris at all** (they are still fully repaired/lost normally).
+- Recycler interaction is Fleet-owned and untouched by this audit (`can_recycle_debris`, `collect_debris`, the
+  `RECYCLE` mission branch in `process_fleet_movements`) — debris is created exactly once per battle and then
+  belongs to the coordinate.
+- CB-03 (§14.20) records the one theoretical double-count window inside `create_combat_debris`.
+
+### 14.12 Defense repair
+
+```text
+repair_defenses_after_combat(p_battle_id)   — SECURITY DEFINER, service_role only
+  1. lock combat_battles row FOR UPDATE; if defender_planet_id is NULL → return (expedition battles)
+  2. for each destroyed defense type (calculate_combat_defense_losses, side DEFENDER, destroyed > 0):
+        if a combat_defense_repairs row already exists for (battle_id, defense_id) → CONTINUE   ← per-defense guard
+        repaired := count of generate_series(1, destroyed) where random() < 0.70                  ← 70 % repair roll
+        INSERT combat_defense_repairs(battle_id, planet_id, defense_id, destroyed, repaired)
+        UPDATE planet_defenses SET quantity = quantity + repaired (or INSERT the row if missing)
+```
+
+- **Call boundary:** inside `resolve_attack_arrival`, after the survivor write-back and after loot, immediately
+  before `create_combat_debris`. It is called **once** per battle in the production path.
+- **Normalization is per defense type and combined with the authoritative `planet_defenses` state**, which is
+  why it is safe: `resolve_attack_arrival` has already set the surviving quantities, so the `+=` adds exactly the
+  repaired units of this battle.
+- **Transactionality:** same transaction as the battle (no autonomous transaction, no commit of its own), so
+  repair either exists with the battle or not at all.
+- **Duplicate-repair risk:** guarded twice — the `CONTINUE` on the existing `combat_defense_repairs` row and the
+  `UNIQUE (battle_id, defense_id)` constraint. Independently callable only by `service_role`.
+- **Shield domes:** no special rule. All defense types use the same 70 % repair roll (see §14.21).
+- Repair is Defense-owned; **this audit did not modify it**.
+
+### 14.13 Transaction and atomicity
+
+Verified from LIVE definitions:
+
+- The whole combat settlement is **one implicit transaction**: `run_fleet_worker()` → `process_fleet_movements()`
+  → `resolve_attack_arrival()` → `resolve_combat()` → round pipeline → loot/repair/debris → return transition.
+  No `COMMIT`, no autonomous transaction and no `EXCEPTION` handler exists anywhere on that path.
+- Concurrency is serialised twice over: the global advisory xact lock in `process_fleet_movements`
+  (`pg_advisory_xact_lock(hashtextextended('fleet-processing-global',0))`) plus per-row locks — `FOR UPDATE
+  SKIP LOCKED` on the fleet queue, `FOR UPDATE` on the fleet in `resolve_attack_arrival`/`resolve_combat`,
+  `FOR UPDATE` on `combat_battles` in `apply_attack_loot`/`repair_defenses_after_combat`, and `FOR UPDATE` on the
+  target snapshot/ledger rows in `resolve_pending_target_damage`.
+- Therefore the mission's partial-state scenarios are **structurally impossible inside a normal run**:
+
+| Scenario | Verdict |
+|---|---|
+| battle exists but losses not applied | impossible in one transaction (units are written before settlement; any failure rolls the whole batch back) |
+| losses applied but debris missing | impossible for the same reason; a failure also rolls back the fleet status change |
+| defenses repaired but battle result missing | impossible: `finished_at` and the win flags are written by `run_expedition_combat` in the same transaction |
+| attack fleet consumed but combat not persisted | impossible: `fleet_movement_ships` is rewritten only after the battle is persisted |
+
+- The **real** gap is the opposite direction: `process_fleet_movements` processes **all** due fleets in one
+  transaction and raises hard exceptions for malformed rows (`SUPPORT_HOLDING_WINDOW_MISSING`,
+  `SUPPORT_HOLDING_WINDOW_INVALID`, `Expedition battle % finished without rounds`, and every exception raised
+  inside `resolve_attack_arrival`). `run_fleet_worker` has no per-fleet error isolation, so **one poisoned fleet
+  rolls back the whole batch and the same failure repeats every second** (head-of-line blocking). Evidence: no
+  `BEGIN … EXCEPTION` block in `run_fleet_worker`/`process_fleet_movements` plus the explicit `raise exception`
+  sites above. This is a robustness gap (CB-04), not a data-corruption gap.
+
+### 14.14 Idempotency and replay
+
+Attack arrival is worker-triggered, so replay safety is architectural. LIVE-verified guards:
+
+| Guard | Object | Behaviour on replay |
+|---|---|---|
+| Fleet row lock + status gate | `resolve_attack_arrival` | `status <> 'ARRIVED'` → returns the existing battle id, or raises if none exists |
+| Existing-battle lookup | `resolve_combat` | returns the existing battle instead of creating a second one |
+| `UNIQUE (fleet_id)` | `combat_battles.ux_combat_battles_one_per_fleet` | DB-level guarantee: **one battle per attacking fleet** |
+| Round-closed guard | `process_combat_round_v2` | `combat_rounds` row exists → raises `Combat round % is already closed` |
+| Resumable round loop | `run_expedition_combat` | a round already present in `combat_rounds` is skipped and re-counted, never repeated |
+| `UNIQUE (battle_id, round_number)` | `combat_rounds` | a second aggregate insert for the same round is impossible |
+| Shot guard | `generate_combat_round_v2` | shots already exist for the round → returns existing counts, creates none |
+| Loot timestamp | `combat_battles.loot_applied_at` in `apply_attack_loot` | second call returns the stored loot and mutates nothing |
+| Repair ledger | `combat_defense_repairs` UNIQUE (battle_id, defense_id) + `CONTINUE` | a second repair call adds nothing |
+| Debris provenance | `combat_debris_generations.battle_id` UNIQUE + `ON CONFLICT DO NOTHING` | a second debris call returns `already_generated = true` |
+| Worker serialisation | global advisory xact lock | two worker ticks cannot interleave on the same fleet |
+
+Verdict: **an authoritative replay guard exists**, and the strongest element is the DB-level `UNIQUE (fleet_id)`.
+Repeating the same attack arrival cannot create a second battle, apply losses twice, duplicate debris, repair
+defenses twice or consume the same fleet twice.
+
+Residual weaknesses (all verified, none currently exploitable):
+
+- `combat_battles.fleet_id` uniqueness is an **index**, not a declared constraint, so it is invisible when
+  listing constraints — sound for integrity, weaker as documentation.
+- `expand_all_rapidfire_v2` is **not self-idempotent** (it re-walks chains and would add duplicate RF shots if
+  called twice for the same round); only the round-closed guard inside `process_combat_round_v2` protects it
+  (CB-05).
+- `create_combat_debris` can theoretically credit debris twice in the race window between its provenance check and
+  the `ON CONFLICT` insert, because the field is credited *before* the provenance row is written. The fleet and
+  battle locks make it unreachable in the current production path (CB-03).
+
+### 14.15 Fleet → Combat contract (actual, not desired)
+
+Inputs Combat consumes from Fleet — all read inside `resolve_attack_arrival`/`resolve_combat`, never passed by a
+caller (the only parameter on the boundary is `p_fleet_id`):
+
+| Consumed value | Source |
+|---|---|
+| attacker player | `fleet_movements.player_id` → `combat_battles.attacker_player_id`, participant `player_id` |
+| source planet | `fleet_movements.origin_planet_id` → participant `origin_planet_id` |
+| target planet | `fleet_movements.destination_planet_id` → `combat_battles.defender_planet_id` and the planet participant |
+| defender owner | `planets.player_id` of the destination planet |
+| ship composition | `fleet_movement_ships` (ship_id, quantity) |
+| mission identity | `fleet_movements.mission_type` (must be `ATTACK`) |
+| arrival identity | `fleet_movements.id` (the battle key), `started_at`, `arrives_at` (economic catch-up timestamp and return timing) |
+| technologies | `player_research` per side, read inside the stat helpers |
+
+Outputs Combat returns to Fleet:
+
+| Returned value | Where it lands |
+|---|---|
+| battle identifier | `resolve_attack_arrival` return value / `combat_battles.id` |
+| winner/result | `combat_battles.attacker_win`, `defender_win`, `draw`, `finished_at` |
+| attacker survivors | `fleet_movement_ships`, rewritten from the last round's alive ATTACKER units |
+| defender survivors | `planet_ships` / `planet_defenses`, rewritten from the last round's alive DEFENDER units |
+| loot | `combat_battles.loot_*` plus the attacker's cargo columns, applied by the return path |
+| defense repairs | `combat_defense_repairs` + `planet_defenses` |
+| debris | `debris_fields` + `combat_debris_generations` |
+| fleet completion | `fleet_movements.status = 'RETURNING'`, `returns_at = arrives_at + duration` |
+
+Deviations from the conceptual shape, recorded exactly as found:
+
+- Combat is **not** a pure function of an input payload: it is a stored-procedure chain that reads and writes
+  Fleet tables directly. The contract is therefore a shared-state contract, not a message contract.
+- Combat consumes **no defender fleet identity** and no modifier payload (no items, no lifeform modifiers, no
+  universe scaling).
+- The return leg is Fleet-owned: Combat only flips the fleet to `RETURNING`; the resource settlement and the
+  `COMPLETED` transition happen in the `RETURNING` branch of `process_fleet_movements`.
+
+### 14.16 Special missions — classification only
+
+| Mission | Combat-relevant handling | Classification |
+|---|---|---|
+| `ATTACK` | full pipeline (`resolve_attack_arrival` → `resolve_combat` → rounds → loot/repair/debris → return) | **IMPLEMENTED** |
+| `ESPIONAGE` | `resolve_espionage_arrival` (no combat) | **IMPLEMENTED** (non-combat) |
+| `RECYCLE` | `collect_debris` reads `debris_fields` created by combat | **IMPLEMENTED** (non-combat consumer) |
+| `EXPEDITION` | `resolve_expedition_arrival` may create a battle via `resolve_expedition_pirates`/`resolve_expedition_aliens` → `run_expedition_combat` | **PARTIAL / BROKEN — see CB-01** |
+| `COLONIZE` | `resolve_colonize_arrival` (no combat) | **IMPLEMENTED** (non-combat) |
+| `TRANSPORT` | `resolve_transport_arrival` (no combat) | **IMPLEMENTED** (non-combat) |
+| `DEPLOY` | `resolve_deploy_arrival` (no combat) | **IMPLEMENTED** (non-combat) |
+| `ACS_HOLD` | dispatch-only holding lifecycle; no combat participation | **DEFINITION ONLY for combat** |
+| `HOLDING` | lifecycle state, never player-facing; no combat participation | **DEFINITION ONLY for combat** |
+| `DEFEND` | blocked at dispatch with `COMBAT_SUPPORT_NOT_READY`; if it somehow arrives, the worker only raises a warning and the fleet stays `ARRIVED` | **NOT IMPLEMENTED** |
+| `ACS` (multi-fleet attack) | no mission, no model, no dispatcher | **NOT IMPLEMENTED** |
+
+This audit did not expand into general Fleet auditing; only combat-relevant handling is classified.
+
+### 14.17 ACS / multi-fleet combat — classification only
+
+| Capability | Status | Evidence |
+|---|---|---|
+| explicit participant identity layer | **IMPLEMENTED** (single attacker fleet + one planet) | `combat_battle_participants`, populated by `resolve_combat`, consumed by settlement |
+| multiple attacker fleets | **NOT IMPLEMENTED** | `combat_battles.fleet_id` is UNIQUE; `resolve_combat` creates exactly one ATTACKER/FLEET participant |
+| multiple attacker players | **NOT IMPLEMENTED** | `combat_battles.attacker_player_id` is single-valued |
+| multiple defender fleets | **NOT IMPLEMENTED** | the only defender participant is `DEFENDER`/`PLANET`; `resolve_attack_arrival` refuses to settle if either participant is missing, and has no mapping from a survivor to a supporting fleet's owner/origin |
+| defender reinforcements (`DEFEND`) | **NOT IMPLEMENTED** | blocked at dispatch; worker only warns |
+| ACS holding (`ACS_HOLD`/`HOLDING`) | implemented as a **holding lifecycle without combat participation** | `start_support_fleet`, `planet_support_authorizations`, worker `HOLDING` branch |
+| battle ordering across participants | **NOT IMPLEMENTED** | shot order is random within a round; no participant ordering concept |
+| shared battle result | **IMPLEMENTED only for the single-fleet model** | one result per battle row |
+
+The old uniqueness keys that would collide for multi-fleet participants are still in force
+(`combat_individual_units` and `combat_round_snapshot_units`: `battle_id, round_number, side, unit_type, unit_id,
+unit_number`) — exactly as documented in §3/§12 of this file. ACS must not be bolted onto
+`resolve_attack_arrival` by inspecting mission rows.
+
+### 14.18 Tests — inventory and coverage
+
+| Test | Combat content | Classification |
+|---|---|---|
+| `supabase/tests/combat_participant_propagation.sql` | 15 assertions over the real V2 pipeline (`resolve_combat`, `run_expedition_combat`, `resolve_attack_arrival`) inside a rolled-back transaction | **STALE / BLOCKED** |
+| `supabase/tests/fleet_acs_hold_lifecycle.sql` | asserts `DEFEND → COMBAT_SUPPORT_NOT_READY` (dispatch guard) | **RUNNABLE**, combat-adjacent only |
+| `supabase/tests/fleet_speed_classes.sql` | 2 incidental mentions | structural only |
+| `buildings_lifecycle.sql`, `research_lifecycle.sql`, `shipyard_defense_lifecycle.sql` | no combat content | — |
+
+Why the only combat suite is blocked: it hardcodes LIVE identifiers that no longer exist — attacker
+`60f1043a-2fa6-416c-80db-2a83215b5404`, origin planet `c0d77158-78ca-4631-98f2-b01d571d627c`, defender planet
+`bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb`, defender player `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`. All four return
+**0 rows** in LIVE today, while the fixture inserts `fleet_movements` (FK → `players`, `planets`) and
+`planet_ships` (FK → `planets`), so it now fails on foreign keys before asserting anything. Its documented
+"15/15 PASS" belongs to the 2026-09-19 database state, not to the current one.
+
+Missing assertions on production paths (to be added by a later mission, not by this audit):
+
+1. A fresh real-path battle running `resolve_attack_arrival` end-to-end on a fixture built from **LIVE-resolved**
+   player/planet ids (the pattern already used by `shipyard_defense_lifecycle.sql`).
+2. Replay assertion: a second `resolve_attack_arrival(fleet)` returns the same `battle_id`, creates no second
+   `combat_battles` row and adds no second `combat_rounds` / `combat_debris_generations` /
+   `combat_defense_repairs` row.
+3. Loss/debris consistency: ledger `destroyed_quantity` equals the drop in `planet_ships`/`planet_defenses`, and
+   the debris credited equals `destroyed_value × universe percentage`.
+4. Participant coverage assertion for the **expedition** path (currently zero participants → CB-01).
+5. No coverage at all for loot caps, defense repair probability or the 6-round DRAW boundary.
+
+### 14.19 OGameX — conceptual reference only (clearly separated from LGI reality)
+
+Conceptual comparison based only on the reference repository's public structure and the map already recorded in
+[`docs/reference/OGAMEX_LGI_MAP.md`](../reference/OGAMEX_LGI_MAP.md) §5C. No PHP/Laravel/Rust code, formula,
+schema or implementation was copied, and nothing below describes LGI:
+
+| Concept in OGameX | LGI reality (verified in this audit) |
+|---|---|
+| battle logic isolated in a dedicated battle engine/service, separate from the mission and event layer | LGI has **no** isolated battle component: the engine is the `combat_*` SQL function family, called directly by the Fleet worker |
+| explicit per-fleet battle participants (its engine supports multiple attacker and defender fleets) | LGI added explicit participants on 2026-09-19 but supports only **one attacker fleet + one planet**; multi-fleet is unimplemented (§14.17) |
+| battle simulation reachable standalone | LGI rounds are only reachable through the worker chain; the only standalone entry points are orphan readers |
+| round-based resolution with rapidfire, shield bounce and explosion | the same domain concepts exist in LGI, implemented independently in SQL (§14.9) |
+
+Conclusion: OGameX validates the direction already recorded in §12 (participant attribution before ACS) and the
+legitimacy of a separate battle boundary. It does **not** justify reshaping LGI combat now; the next step is to
+make the existing single-defender chain correct and testable, not to port a foreign architecture.
+
+### 14.20 Real bugs found (confirmed only)
+
+```text
+CB-01  Severity: HIGH
+Object:    resolve_expedition_pirates(uuid), resolve_expedition_aliens(uuid) vs
+           calculate_combat_round_pending_damage(uuid,int) and create_combat_round_snapshot(uuid,int)
+Evidence:  LIVE resolve_expedition_pirates/aliens insert combat_individual_units rows WITHOUT participant_id
+           and never insert combat_battle_participants rows (verified: neither function mentions
+           `participant`; only resolve_combat + initialize_individual_combat_units create participants).
+           LIVE create_combat_round_snapshot copies `cui.participant_id`, and LIVE
+           calculate_combat_round_pending_damage joins shots to the snapshot with
+           `t.participant_id = s.target_participant_id`. For an expedition battle both sides are NULL, so the
+           join matches nothing → zero combat_round_damage rows → resolve_pending_target_damage has no
+           targets → apply_combat_round_damage updates nothing → units never die.
+           The same path also initialises units from RAW ship_definitions.attack|shield|hull (no technology
+           scaling and hull NOT divided by 10) while the normal path uses get_combat_ship_*, so the two paths
+           do not even share the same stat contract.
+           Timeline: combat functions were last defined by 20260914202536; the participant model arrived
+           afterwards in 20260919080000 and was never extended to the expedition creators.
+LIVE/LOCAL: LIVE (definitions verified); no local migration fixes it.
+Impact:    Expedition pirate/alien combat cannot produce losses or debris; it would run to the 6-round
+           boundary and end as a DRAW with the fleet intact. Latent in LIVE only because
+           expedition_results, fleet_movements and combat_battles are currently empty (0 rows).
+```
+
+```text
+CB-02  Severity: MEDIUM (data integrity)
+Object:    combat_round_damage, combat_round_snapshot_units (missing FK to combat_battles)
+Evidence:  `has_fk_to_combat_battles` is FALSE for exactly these two tables (all other combat* tables are
+           TRUE). LIVE holds 661 orphan rows in combat_round_snapshot_units and 681 in combat_round_damage,
+           all belonging to 17 battle ids absent from combat_battles (written 2026-09-12 → 2026-09-16).
+           Three debris_fields rows (1:2:1, 1:2:2, 1:2:3) also survive without provenance rows.
+LIVE/LOCAL: LIVE.
+Impact:    round history can outlive its battle; any future battle report built from these tables would surface
+           orphan rows, and deleting a battle cannot clean its damage ledger.
+```
+
+```text
+CB-03  Severity: LOW (unreachable in the current production path)
+Object:    create_combat_debris(uuid)
+Evidence:  the function credits the field through add_debris_field BEFORE writing the
+           combat_debris_generations provenance row (`on conflict (battle_id) do nothing`). Two concurrent
+           calls could both pass the initial provenance check and both credit debris_fields; the second
+           provenance insert is discarded while the extra debris stays.
+LIVE/LOCAL: LIVE.
+Impact:    possible duplicated debris; unreachable today because resolve_attack_arrival locks the fleet row and
+           combat_battles is unique per fleet.
+```
+
+```text
+CB-04  Severity: MEDIUM (robustness)
+Object:    run_fleet_worker(), process_fleet_movements()
+Evidence:  no EXCEPTION handler anywhere in the chain; process_fleet_movements raises for malformed rows
+           (SUPPORT_HOLDING_WINDOW_MISSING / _INVALID, 'Expedition battle % finished without rounds', and every
+           exception raised by resolve_attack_arrival) and the single-transaction batch is rolled back entirely.
+LIVE/LOCAL: LIVE.
+Impact:    one poisoned fleet blocks every other due fleet permanently — the cron job retries the same failing
+           batch every second, so combat settlements behind it are never reached.
+```
+
+```text
+CB-05  Severity: LOW (hardening, not an exploit)
+Object:    expand_all_rapidfire_v2(uuid,int), finish_combat_round_v1(uuid,int), get_combat_unit_snapshot(uuid),
+           get_combat_round_snapshot(uuid,int), calculate_combat_* family, combat_hull_from_integrity(numeric)
+Evidence:  has_function_privilege('anon'|'authenticated', 'EXECUTE') = true for this set; only the
+           round-closed guard inside process_combat_round_v2 keeps RF expansion single-shot, and RLS
+           (deny_direct_api_access on all combat tables; no policy at all on combat_battle_participants) is what
+           currently blocks any client use.
+LIVE/LOCAL: LIVE.
+Impact:    a wider EXECUTE surface than the internal-step design requires. No mutation and no data leak is
+           currently possible, but the surface should be closed with the same pattern already used in
+           20260914223220.
+```
+
+Deliberately **not** classified as bugs (design decisions, not defects): stochastic non-determinism of rounds; the
+absence of a client battle-report read path; per-battle technology snapshot semantics; the retained legacy
+uniqueness keys for participant-aware rows; `DEFEND` being closed on purpose; `defense_debris_percentage = 0`.
+
+### 14.21 Open design gaps, not-implemented items and future work (separated)
+
+```text
+BUG (confirmed, see §14.20)
+  CB-01 expedition combat produces no losses (participant NULL join + divergent stat contract)
+  CB-02 combat_round_damage / combat_round_snapshot_units missing the battle FK (+ LIVE orphans)
+  CB-03 create_combat_debris double-credit race window
+  CB-04 one poisoned fleet blocks the whole fleet batch
+  CB-05 over-broad EXECUTE surface on read-only combat helpers
+
+DESIGN GAP (no confirmed defect; the contract is simply incomplete)
+  DG-01 no client battle-report read path: every combat table denies anon/authenticated and there is no
+        player-scoped policy or RPC, so the COMBATE feed in src/App.tsx (combat_battles select, App.tsx:70)
+        can only ever render nothing — a dead UI path, not a security hole
+  DG-02 no seeded determinism: rounds use random() and rapidfire rolls, so a battle cannot be replayed or
+        audited bit-for-bit, while expedition events already have deterministic streams
+  DG-03 no defender-fleet identity: the participant model cannot express reinforcing fleets, so
+        resolve_attack_arrival can never attribute survivors to a second fleet's owner/origin
+  DG-04 legacy uniqueness keys (battle_id, round_number, side, unit_type, unit_id, unit_number) are still the
+        only key on the unit/snapshot tables; participant-aware keys are required before multi-fleet work
+  DG-05 shield domes have no distinct rule (uniform unit, uniform 70 % repair)
+  DG-06 round report aggregates exclude DEFENDER defenses from the attack/shield/hull sums (ships only)
+  DG-07 the two history tables that hold LIVE orphans have no retention/cleanup path, and three debris fields
+        exist without provenance
+  DG-08 combat_unit_state plus 8 orphan functions remain in LIVE after the repo cleanup migrations; repo and
+        LIVE agree they are retired, but they are still callable by service_role
+
+NOT IMPLEMENTED (deliberate; out of scope for Phase 0)
+  multi-attacker fleets, multi-defender fleets, defender reinforcement (DEFEND), ACS combat integration,
+  combat-related items/lifeforms/officers/merchant/auction, battle-report UI
+
+FUTURE UPDATE (do not start)
+  lifeform-specific combat effects (explicitly deferred to a later engine version), any combat balance change
+```
+
+### 14.22 Verified closed — not reopened
+
+- Defense Engine certification (2026-09-21): this audit only consumed its interfaces
+  (`planet_defenses`, `defense_definitions.attack|shield|hull`, `get_combat_defense_*`,
+  `repair_defenses_after_combat`) and modified nothing.
+- Research certification (2026-09-21): only `get_player_research_level` was read, as a canonical reader.
+- Identity/Guest, Buildings, Universe Evolution and the single-attacker participant propagation are untouched.
+- The three protected migrations and `docs/systems/README_FLEET_ENGINE.md` were not modified;
+  `supabase/migrations/20260921044623…044659` remain exactly as the Block 1 closeout left them.
+- No migration, schema, RLS, ACL, formula, frontend or balance change was made by this audit.
+
+### 14.23 Recommended next mission (smallest safe CORE step)
+
+```text
+MISSION: COMBAT CORE PHASE 1 — INVARIANT AND COVERAGE REPAIR (no new gameplay)
+
+Step 1 (highest value, no gameplay change): restore a runnable combat fixture.
+  Rewrite supabase/tests/combat_participant_propagation.sql so it resolves its player/planet ids from LIVE at
+  run time (the shipyard_defense_lifecycle.sql pattern) while keeping the rolled-back transaction. That makes
+  the real ATTACK pipeline verifiable again.
+
+Step 2: fix CB-01 with a forward-only migration that gives expedition battles the same contract as the normal
+  path — participants for the two expedition sides and stats sourced from the certified get_combat_* readers —
+  without touching the ATTACK path. Validate with the new fixture plus one expedition case.
+
+Step 3 (bounded hygiene, one migration): add the missing battle FKs (CB-02) with the orphan rows handled
+  explicitly, close the CB-05 EXECUTE surface with the 20260914223220 pattern, and optionally add the per-fleet
+  error isolation behind CB-04.
+
+Do NOT in that mission: implement ACS/DEFEND, change formulas, change balance, touch Defense/Fleet/Research, or
+build a battle-report UI. Do not create a second combat architecture: extend the existing chain.
+```
+
+### 14.24 CORE question — explicit answer
+
+> **Does LGI currently have one authoritative Combat Engine chain from Fleet arrival → combat snapshot →
+> technologies → rounds → losses → debris → defense repair → battle result, or are there parallel/orphaned paths
+> that must be resolved before implementation?**
+
+**It has exactly one authoritative chain, and it is production-reachable.**
+`process_fleet_movements → resolve_attack_arrival → resolve_combat → initialize_individual_combat_units →
+run_expedition_combat → process_combat_round_v2 → … → sync_combat_battle_final_counts → apply_attack_loot →
+repair_defenses_after_combat → create_combat_debris → RETURNING` covers snapshot, technologies, rounds, losses,
+debris, defense repair and battle result inside a single transaction, with technologies routed through the
+certified `get_combat_ship_*` / `get_combat_defense_*` readers and replay safety anchored on
+`combat_battles.ux_combat_battles_one_per_fleet`.
+
+The parallel/orphaned material is **real but inert**: eight legacy functions with zero callers and one legacy
+table (`combat_unit_state`) are still present in LIVE after the repo's cleanup migrations, and the expedition
+branch of combat is a genuine second *entry* into the same pipeline that the participant migration left behind
+(CB-01). Neither is a competing architecture and neither requires replacing the current design.
+
+The preconditions for Combat Phase 1 are therefore **not architectural**: they are (1) a runnable combat test,
+(2) the expedition participant/stat contract, and (3) the two missing battle foreign keys. Once those are closed, a
+new Combat implementation can extend the existing chain without creating a second combat engine.
+
+### 14.25 Mission closeout — preserve / integrate / commit / sync gate
+
+- The audit remained **read-only**: no migration, schema, RLS, ACL, formula, frontend or Fleet/Defense/Research
+  change. All LIVE work was read-only inspection (`pg_proc`, `pg_constraint`, `pg_indexes`, `pg_policies`,
+  `has_function_privilege`, row counts); no `BEGIN … ROLLBACK` diagnostic mutation was executed against
+  production, precisely because the only available combat fixture's identifiers no longer exist (CB/stale test).
+- The full forensic audit lives here, in the canonical Combat document; `docs/PROJECT_CONTEXT_PROMPT.md` was
+  updated with the operational control-panel state only.
+- Protected material (`docs/systems/README_FLEET_ENGINE.md`, the three `20260921044623…044659` migrations, the
+  four 0-byte artefacts, both stashes) was preserved untouched and was **not** committed.
+- Commit scope: this file plus `docs/PROJECT_CONTEXT_PROMPT.md`. No push.
