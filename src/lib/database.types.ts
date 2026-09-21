@@ -5144,6 +5144,36 @@ export type Database = {
         Args: { p_effect_key: string; p_player_id: string }
         Returns: number
       }
+      get_player_battle_reports: {
+        Args: { p_limit?: number }
+        Returns: {
+          attacker_player_id: string
+          attacker_ships_after: number
+          attacker_ships_before: number
+          battle_id: string
+          caller_role: string
+          created_at: string
+          debris_crystal: number
+          debris_metal: number
+          defender_defenses_after: number
+          defender_defenses_before: number
+          defender_planet_id: string | null
+          defender_player_id: string | null
+          defender_ships_after: number
+          defender_ships_before: number
+          defenses_repaired: number
+          finished_at: string | null
+          losses: Json
+          loot_applied_at: string | null
+          loot_crystal: number
+          loot_deuterium: number
+          loot_metal: number
+          outcome: string
+          participants: Json
+          rounds: Json
+          rounds_played: number
+        }[]
+      }
       get_player_research_level: {
         Args: { p_player_id: string; p_research_id: string }
         Returns: number

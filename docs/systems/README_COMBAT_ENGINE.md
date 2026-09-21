@@ -1395,3 +1395,212 @@ MISSION: COMBAT CORE PHASE 2 — CLIENT BATTLE REPORT CONTRACT + ROBUSTNESS (bou
 Do NOT in that mission: implement ACS/DEFEND, change formulas or balance, or touch Defense/Fleet/Research.
 The engine is not certified yet; certification should follow these three items.
 ```
+
+---
+
+## 16. PHASE 2 — BATTLE-REPORT CONTRACT, WORKER ISOLATION, DEBRIS PROVENANCE (2026-09-21)
+
+> Scope executed: DG-01 client battle-report read contract, CB-04 per-fleet worker error isolation,
+> CB-03 debris provenance hardening, plus the tests, LIVE verification and documentation for each.
+> No formula, balance, Fleet/Defense/Research/Identity change, no ACS/DEFEND, no battle UI redesign,
+> no historical cleanup, no legacy removal.
+
+### 16.1 Status
+
+| Item | Before Phase 2 | After Phase 2 |
+|---|---|---|
+| **DG-01** client battle-report contract | none (every combat table denied to clients, COMBATE feed dead) | **IMPLEMENTED — `get_player_battle_reports`, authenticated-only, 7/7 PASS** |
+| **CB-04** worker error isolation | one malformed fleet rolled back the whole tick | **FIXED — per-fleet subtransaction, 8/8 PASS** |
+| **CB-03** debris double-credit window | real at function level, reachable only out-of-band | **HARDENED — battle-scoped advisory lock + observable branch, 5/5 PASS** |
+| Phase 1 ATTACK path | 12/12 PASS | **12/12 PASS (re-verified after Phase 2 changes)** |
+| Phase 1 expedition path | 10/10 PASS | **10/10 PASS (re-verified after Phase 2 changes)** |
+| Combat Engine | OPEN — not certified | **OPEN — not certified** (unchanged: no ACS/DEFEND, no certification claim) |
+
+### 16.2 Migrations applied to LIVE during Phase 2
+
+| Version | Name | Purpose |
+|---|---|---|
+| `20260921174955` | `add_player_battle_report_contract` | DG-01 read contract (SECURITY DEFINER projection, authenticated only) |
+| `20260921175038` | `add_worker_fleet_error_isolation` | CB-04 per-fleet subtransaction isolation in `process_fleet_movements` |
+| `20260921175114` | `harden_combat_debris_provenance` | CB-03 battle-scoped advisory lock + observable conflict branch |
+
+All three are forward-only; the local files carry the server-assigned ledger versions. `process_fleet_movements`
+keeps its exact signature (no worker-boundary API change), so `run_fleet_worker` and `process_universe_tick`
+were not modified at all.
+
+### 16.3 DG-01 — the battle-report contract
+
+```text
+client (src/App.tsx COMBATE feed)
+        ↓  supabase.rpc('get_player_battle_reports', { p_limit })
+public.get_player_battle_reports(p_limit integer default 25)
+        ↓  SECURITY DEFINER (owner postgres), search_path pinned
+auth.uid() → players.user_id → players.id
+        ↓  authorized only when that player id is a
+combat_battle_participants.player_id of the battle
+        ↓  projection of PERSISTED state only
+combat_battles · combat_battle_participants · combat_rounds ·
+calculate_combat_ship_losses / calculate_combat_defense_losses ·
+combat_debris_generations · combat_defense_repairs
+```
+
+Authorization derivation (no new identity system): the attacking player is
+`combat_battles.attacker_player_id`; the defending player is the `DEFENDER/PLANET` participant's `player_id`
+(which is the target planet's owner); both appear as participant rows, so a single participant lookup
+authorizes exactly the two sides. Expedition `ENEMY` participants have `player_id IS NULL` and therefore
+authorize nobody, which correctly restricts expedition battles to the expedition owner. An unauthenticated
+caller always receives an empty set (the player-mapping CTE is empty).
+
+Returned contract (one row per battle, newest first, `p_limit` clamped to 1..100):
+
+| Group | Columns |
+|---|---|
+| identity | `battle_id`, `created_at`, `finished_at`, `outcome` (`UNRESOLVED`/`ATTACKER_WIN`/`DEFENDER_WIN`/`DRAW`), `caller_role` (`ATTACKER`/`DEFENDER`) |
+| participants | `attacker_player_id`, `defender_planet_id`, `defender_player_id`, `participants` (jsonb: side, type, player, fleet, planet) |
+| persisted counters | `attacker_ships_before/after`, `defender_ships_before/after`, `defender_defenses_before/after` |
+| economy | `loot_metal/crystal/deuterium`, `loot_applied_at` |
+| combat effects | `debris_metal`, `debris_crystal`, `defenses_repaired` |
+| report body | `rounds_played`, `rounds` (jsonb per-round summary), `losses` (jsonb per-unit destroyed quantities from the certified derived readers) |
+
+Explicitly **not** done: no raw combat table is exposed (every `deny_direct_api_access` policy stays), no combat
+formula is recomputed, no client-side reconstruction of outcomes, no new identity/ownership concept, no battle
+UI redesign — the existing COMBATE feed consumes the contract and formats the same row shape (title/body) it
+already had, now including the caller's own losses, debris and round count.
+
+Client footprint: `src/App.tsx` (`loadMessages`) now calls the RPC instead of selecting `combat_battles`; the
+generated `src/lib/database.types.ts` gained the matching `Functions` entry. `npx tsc -b` and `npm run build`
+both pass.
+
+### 16.4 CB-04 — per-fleet worker isolation
+
+```text
+pg_cron (1s) → run_fleet_worker() → process_fleet_movements()      [unchanged signature]
+                                        │
+                     global advisory xact lock (unchanged)
+                                        │
+   for each due fleet:  begin  … one fleet's whole resolution …  exception when others then
+                                (status change, dispatch, combat, loot, repair, debris, return)   raise warning
+                                                                                                FLEET_RESOLUTION_FAILED
+                        end;   ← subtransaction: rolled back COMPLETELY, other fleets unaffected
+```
+
+- The isolation is a **subtransaction per fleet** (a PL/pgSQL block with an `EXCEPTION` handler), applied to all
+  three worker loops (OUTBOUND dispatch, HOLDING expiry, RETURNING settlement). The database provides the
+  subtransaction rollback, so no partial combat can survive a failure — combat stays atomic per fleet.
+- Failures are **not swallowed**: each one raises
+  `FLEET_RESOLUTION_FAILED fleet=<id> mission=<type> sqlstate=<code> error=<message>` into the Postgres logs
+  (the same observability channel the worker already uses for its DEFEND warning), and the fleet keeps its previous
+  status, so it stays visible and retryable by the next tick (queryable signal: an `OUTBOUND` row whose
+  `arrives_at` is already in the past).
+- Preserved invariants: combat atomicity, replay/idempotency guards, economic settlement, return-fleet behaviour,
+  the global advisory lock, worker semantics and the function signature. `run_fleet_worker` and
+  `process_universe_tick` are untouched, and the Fleet Engine architecture was not modified.
+
+### 16.5 CB-03 — debris provenance disposition
+
+Reachability analysis (recorded, not assumed):
+
+- `create_combat_debris` is `service_role`-only (re-verified), so no client can reach it;
+- its only engine caller is `resolve_attack_arrival`, which runs inside `process_fleet_movements` under the global
+  advisory lock, holds the fleet row lock and is protected by `UNIQUE (fleet_id)` on `combat_battles` — the same
+  battle cannot be resolved twice concurrently;
+- the residual exposure is an out-of-band concurrent `service_role` invocation, which the previous
+  check-then-credit-then-record order could double-credit.
+
+Hardening applied (no formula, percentage, balance or historical data touched):
+
+1. the whole function now takes a **battle-scoped advisory lock**
+   (`pg_advisory_xact_lock(hashtextextended('combat_debris:'||p_battle_id::text, 0))`), so concurrent invocations
+   serialize; the second observes the committed provenance row and returns `already_generated = true` without
+   crediting anything — this also survives the per-fleet retry boundary introduced by CB-04;
+2. the defensive `ON CONFLICT (battle_id)` branch (unreachable while the lock is held) now raises
+   `COMBAT_DEBRIS_CONFLICT …` instead of silently continuing, so any future re-entry is observable.
+
+Documented limitation: two genuinely concurrent sessions cannot be created from this environment, so the
+concurrency guard is proven structurally (lock + observable branch present in the LIVE definition) and
+behaviourally through replay (the same battle processed repeatedly credits exactly once). No historical debris was
+cleaned and no debris field was modified in LIVE.
+
+### 16.6 Phase 2 tests and results (LIVE, 2026-09-21)
+
+| File | Covers | Result |
+|---|---|---|
+| `supabase/tests/combat_report_contract.sql` | DG-01: attacker read, losses == derived ledger, defender read, unrelated player, unauthenticated caller, raw-table closure under `authenticated`, limit guard | **7/7 PASS** |
+| `supabase/tests/combat_worker_isolation.sql` | CB-04: failing fleet isolated, valid fleet resolved in the same call, failing fleet unchanged/retryable, valid battle complete, retry safe, handlers observable | **8/8 PASS** |
+| `supabase/tests/combat_debris_idempotency.sql` | CB-03: single credit equal to the provenance amount, re-entry no-op, replay stability, structural guard, internal ACL | **5/5 PASS** |
+
+Observed LIVE values: attacker report `outcome=ATTACKER_WIN`, `caller_role=ATTACKER`, 2 participants, ≥1 round,
+losses payload `small_cargo destroyed = 10` equal to the derived ledger, debris > 0; defender read returned the same
+battle as `caller_role=DEFENDER`; unrelated and unauthenticated callers 0 rows; `combat_battles` returned 0 rows for
+role `authenticated` while the contract returned the battle; worker isolation: 1 row returned, no battle for the
+invalid fleet, invalid fleet still `OUTBOUND`, valid battle with 2 participants / 32 units / 1 debris generation,
+retry returned 0 rows without duplication; debris: 1 generation row, field delta == `metal_generated`, re-entries
+returned `already_generated = true` with zero delta.
+
+Regression gates re-run after the Phase 2 changes: **ATTACK 12/12 PASS**, **EXPEDITION 10/10 PASS** (attack: 106
+ledger rows, 790 damage; expedition: 53 rows, 3300 damage, all defenders destroyed; alien: 48 rows, 8625 damage).
+No Phase 1 assertion was weakened or removed.
+
+All fixtures are rollback-safe by construction (nested block + sentinel) and resolve their identifiers from LIVE at
+run time. The DG-01 defender branch is exercised without creating identities: the real auth account is re-pointed at
+the defending player inside the rolled-back block, because `players.user_id` is FK-constrained to `auth.users`.
+
+### 16.7 LIVE verification and residue proof
+
+- After every fixture the full combat/fleet surface was compared against the pre-mission baseline:
+  `combat_battles` 0, `combat_battle_participants` 0, `combat_individual_units` 0, `combat_rounds` 0,
+  `combat_shots` 0, `combat_debris_generations` 0, `combat_defense_repairs` 0, `fleet_movements` 0,
+  `fleet_movement_ships` 0, `expedition_results` 0, `planet_defenses` 0, `planet_ships` quantity 1,
+  `debris_fields` 3 with an identical metal total, orphans 661 / 681, exactly 1 player with a `user_id`.
+  No poison fleet, battle, round, participant, debris, expedition, test player/planet or altered resource remained.
+- Grants verified LIVE: `get_player_battle_reports` → `anon = false`, `authenticated = true`, `PUBLIC = false`;
+  `create_combat_debris` → client roles `false`; `deny_direct_api_access` on `combat_battles` still present.
+- Definitions verified LIVE after each migration (three handlers present, advisory lock present, signature
+  unchanged), and the three Phase 2 versions are recorded in `supabase_migrations.schema_migrations`.
+- Static gates: `npx tsc -b` exit 0, `npm run build` exit 0 (worker + client), `git diff --check` clean.
+
+### 16.8 Remaining open items after Phase 2
+
+```text
+BUG
+  Alien technology lookup ids (`weapons`/`shielding`/`armour`) do not exist, so alien_tech is always 3.
+        Reported only: fixing it changes expedition difficulty (balance).
+  (CB-03 and CB-04 are closed by this phase: CB-03 hardened with the battle-scoped advisory lock,
+   CB-04 fixed with per-fleet subtransaction isolation.)
+
+DESIGN GAP
+  DG-02 no seeded determinism in rounds (random targeting and rapidfire rolls).
+  DG-03 no defender-fleet identity in the participant model (ACS prerequisite).
+  DG-04 legacy unit/snapshot uniqueness keys still in force.
+  DG-05 shield domes have no distinct rule.
+  DG-06 round report aggregates exclude DEFENDER defenses from the attack/shield/hull sums.
+  DG-07 1,342 historical orphans and 3 provenance-less debris fields remain; the two battle FKs stay NOT VALID
+        until a separate cleanup mission validates them.
+  DG-08 combat_unit_state + 8 orphan functions remain in LIVE (inert).
+  DG-09 the battle-report contract is a list projection; a dedicated per-battle screen is not implemented
+        beyond the jsonb payloads (participants, rounds, losses) it already exposes.
+
+NOT IMPLEMENTED
+  multi-attacker / multi-defender fleets, defender reinforcement (DEFEND), ACS combat integration,
+  combat items/lifeforms/officers, battle-report screen beyond the existing COMBATE feed.
+
+FUTURE UPDATE
+  lifeform-specific combat effects; any balance change.
+```
+
+### 16.9 Recommended next mission
+
+```text
+MISSION: COMBAT CORE PHASE 3 — CERTIFICATION CANDIDATE (read-only + bounded hardening)
+
+  1. Re-run the five combat fixtures (attack 12/12, expedition 10/10, report 7/7, worker 8/8, debris 5/5)
+     as one certification evidence pack, capturing before/after LIVE state for each.
+  2. Observe the CB-04 warning channel end-to-end in the real cron path (one deliberately malformed fleet
+     seen once in the logs, then removed), so the observability claim is proven and not only asserted.
+  3. Decide DG-07 as a separate, explicitly approved mission (still out of scope here): remove the 1,342
+     historical orphans and VALIDATE the two battle FKs, or document them as permanent residue.
+  4. Only then consider certifying the base Combat Engine (single attacker fleet vs one planet) as CLOSED,
+     keeping ACS/DEFEND and multi-fleet explicitly outside the certified scope.
+
+Do NOT in that mission: implement ACS/DEFEND, change formulas or balance, or start Lifeforms/Items/Officers.
+```
