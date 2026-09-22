@@ -204,6 +204,17 @@ The development workflow and tool-selection gate are defined in
   defect remains open.
   Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14 (Phase 0), §15 (Phase 1),
   §16 (Phase 2) and §17 (Phase 3 certification evidence).
+  **Phase 4A CLOSED (2026-09-21) — participant / battle identity foundation** (three migrations
+  `20260922035055` unit/snapshot uniqueness, `20260922035147` target identity, `20260922035253` loss
+  identity + unit initialisation): `combat_battles.fleet_id` is now explicitly documented as the
+  *initiating* fleet and per-fleet replay key, both unit/snapshot unique keys are participant-aware
+  (the silent snapshot drop is gone), `resolve_pending_target_damage` / `process_combat_round_v2` carry
+  `participant_id` in the target identity, both loss readers return `participant_id`, and the initialiser
+  iterates `ATTACKER`/`FLEET` participants. Two attacking fleets fielding the same ship type are now two
+  distinct units end-to-end. Evidence: new collision fixture
+  `supabase/tests/combat_participant_identity_collision.sql` **13/13 PASS** and the certified suites
+  re-run **42/42 PASS** (attack 12, expedition 10, report 7, worker 8, debris 5), LIVE residue NONE, no
+  formula/balance/gameplay/UI change, ACS and DEFEND still not implemented. Detail: §19.
 - Lifeforms, Items, Auction, Merchant, Alliance and Officers remain future **UPDATE** features and must not be
   started; lifeform-specific combat effects stay deferred to a later engine version.
 
@@ -416,13 +427,12 @@ BLOCKED / LATER
    `ON CONFLICT DO NOTHING`), the round-engine target identity omits `participant_id`, loss/report payloads
    have no participant key, loot capacity comes from one fleet, and no `DEFENDER/FLEET` participant is ever
    created (holdings are invisible to combat). **Phase 4A — Participant / Battle identity foundation** is
-   defined in [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §18.13 as the minimum next
-   architectural step (participant-aware uniqueness keys + target identity + per-participant unit
-   initialisation, no gameplay/formula/UI change) and is **NOT implemented**. Other combat work stays its
-   own future mission: ACS/DEFEND dispatch and grouping, loot/survivor attribution design decisions, a
-   battle-report screen, a DG-07 cleanup/validation decision, and the alien-technology balance decision
-   (§17.5/§17.6, §18.12). Do not reopen the certified chain without new evidence of a defect, and do not
-   create a second combat architecture.
+   **CLOSED** (2026-09-21): the three participant-aware migrations are applied and the identity foundation is
+   proven by the 13/13 collision fixture plus 42/42 certified regressions (§19). Remaining combat work is its
+   own future mission: ACS/DEFEND dispatch and grouping, per-fleet survivor/loot attribution decisions,
+   per-fleet report payloads, a DG-07 cleanup/validation decision, and the alien-technology balance decision
+   (§17.5/§17.6, §18.12, §19.11). Do not reopen the certified chain without new evidence of a defect, and do
+   not create a second combat architecture.
 9. Browser certification remains a separate validation track.
 ```
 
