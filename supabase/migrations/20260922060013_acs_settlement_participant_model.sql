@@ -1,0 +1,618 @@
+-- ============================================================================
+-- COMBAT — ACS SETTLEMENT (participant model, PG-08/09/10/17/18)
+-- ----------------------------------------------------------------------------
+-- Implements the settlement contracts the research gate (§23) defined as missing:
+--
+--   PG-08  per-participant survivor attribution (ATTACKER/FLEET and DEFENDER/FLEET)
+--   PG-09  loot capacity from the ORIGINAL (pre-combat) composition of every
+--          ATTACKER/FLEET participant, combined
+--   PG-10  entitlement = ATTACKER/FLEET participants with surviving ships;
+--          allocation proportional to each participant's SURVIVING cargo capacity
+--   PG-17  a defending fleet keeps its status and holding_until; only its
+--          surviving composition is rewritten
+--   PG-18  the battle-header defender counters stay planet-scoped (FLEET
+--          participants are excluded from them)
+--   plus   battle-level settlement resolution, so a battle can be settled from
+--          ANY participating fleet exactly once (DG-10 preserved as fallback)
+--
+-- NO SCHEMA CHANGE. Everything uses combat_battle_participants,
+-- combat_individual_units, fleet_movements, fleet_movement_ships, combat_battles.
+--
+-- Ordering preserved from the certified path:
+--   run_expedition_combat -> participant survivor write-back -> loot capacity ->
+--   loot credit -> repair/debris -> attacker fleets leave ARRIVED
+--
+-- PG-10 rounding (documented, NOT silently invented):
+--   each entitled participant is credited floor(total_resource * its_share), and the
+--   planet is debited ONLY by what was actually credited, so no resource is created or
+--   destroyed. With a single participant the share is exactly 1, so the credited amount
+--   is byte-identical to the certified single-fleet behaviour.
+--   The exact OGameX per-fleet lootShare arithmetic could NOT be read from this
+--   environment (see README_COMBAT_ENGINE section 24, BUG/OPEN).
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1) resolve_combat — battle-level resolution (PG-08)
+--    A battle is now resolved by PARTICIPANT first, falling back to the historic
+--    combat_battles.fleet_id anchor (DG-10), so a NON-initiating participating
+--    fleet finds the existing battle instead of creating a second one.
+-- ---------------------------------------------------------------------------
+create or replace function public.resolve_combat(p_fleet_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $function$
+declare
+    v_battle_id uuid;
+    v_fleet public.fleet_movements%rowtype;
+    v_defender_player_id uuid;
+    v_attacker_units bigint:=0;
+    v_defender_ship_units bigint:=0;
+    v_defense_units bigint:=0;
+    v_defender_units bigint:=0;
+    v_attacker_attack numeric:=0; v_attacker_shield numeric:=0; v_attacker_hull numeric:=0;
+    v_defender_ship_attack numeric:=0; v_defender_ship_shield numeric:=0; v_defender_ship_hull numeric:=0;
+    v_defense_attack numeric:=0; v_defense_shield numeric:=0; v_defense_hull numeric:=0;
+    v_defender_attack numeric:=0; v_defender_shield numeric:=0; v_defender_hull numeric:=0;
+begin
+    select * into v_fleet from public.fleet_movements where id=p_fleet_id for update;
+    if not found then raise exception 'Fleet % no existe',p_fleet_id; end if;
+    if v_fleet.mission_type <> 'ATTACK' then raise exception 'Fleet % no es una misión ATTACK',p_fleet_id; end if;
+    if v_fleet.destination_planet_id is null then raise exception 'La flota % no tiene planeta objetivo',p_fleet_id; end if;
+
+    -- ACS: the battle is resolved through the PARTICIPANT layer first, so any
+    -- participating fleet (not only the initiator) resolves to the SAME battle.
+    select cb.id into v_battle_id
+    from public.combat_battle_participants part
+    join public.combat_battles cb on cb.id = part.battle_id
+    where part.fleet_id = p_fleet_id
+      and part.side = 'ATTACKER'
+      and part.participant_type = 'FLEET'
+    order by part.created_at, part.id
+    limit 1
+    for update of cb;
+
+    -- historic DG-10 anchor, preserved for the certified single-fleet path
+    if v_battle_id is null then
+        select cb.id into v_battle_id from public.combat_battles cb
+        where cb.fleet_id=p_fleet_id order by cb.created_at limit 1 for update;
+    end if;
+    if v_battle_id is not null then return v_battle_id; end if;
+
+    select p.player_id into v_defender_player_id from public.planets p where p.id=v_fleet.destination_planet_id;
+    if v_defender_player_id is null then raise exception 'El planeta defensor % no tiene jugador',v_fleet.destination_planet_id; end if;
+
+    select coalesce(sum(sd.attack*fms.quantity),0),coalesce(sum(sd.shield*fms.quantity),0),
+           coalesce(sum(sd.hull*fms.quantity),0),coalesce(sum(fms.quantity),0)
+    into v_attacker_attack,v_attacker_shield,v_attacker_hull,v_attacker_units
+    from public.fleet_movement_ships fms join public.ship_definitions sd on sd.id=fms.ship_id
+    where fms.fleet_id=p_fleet_id;
+    if v_attacker_units<=0 then raise exception 'La flota % no contiene naves',p_fleet_id; end if;
+
+    select coalesce(sum(sd.attack*ps.quantity),0),coalesce(sum(sd.shield*ps.quantity),0),
+           coalesce(sum(sd.hull*ps.quantity),0),coalesce(sum(ps.quantity),0)
+    into v_defender_ship_attack,v_defender_ship_shield,v_defender_ship_hull,v_defender_ship_units
+    from public.planet_ships ps join public.ship_definitions sd on sd.id=ps.ship_id
+    where ps.planet_id=v_fleet.destination_planet_id and ps.quantity>0;
+
+    select coalesce(sum(dd.attack*pd.quantity),0),coalesce(sum(dd.shield*pd.quantity),0),
+           coalesce(sum(dd.hull*pd.quantity),0),coalesce(sum(pd.quantity),0)
+    into v_defense_attack,v_defense_shield,v_defense_hull,v_defense_units
+    from public.planet_defenses pd join public.defense_definitions dd on dd.id=pd.defense_id
+    where pd.planet_id=v_fleet.destination_planet_id and pd.quantity>0;
+
+    v_defender_units:=v_defender_ship_units+v_defense_units;
+    v_defender_attack:=v_defender_ship_attack+v_defense_attack;
+    v_defender_shield:=v_defender_ship_shield+v_defense_shield;
+    v_defender_hull:=v_defender_ship_hull+v_defense_hull;
+
+    insert into public.combat_battles(
+      fleet_id,attacker_player_id,defender_planet_id,attacker_ships_before,attacker_ships_after,
+      defender_ships_before,defender_ships_after,defender_defenses_before,defender_defenses_after,
+      defender_combat_units_before,defender_combat_units_after)
+    values(p_fleet_id,v_fleet.player_id,v_fleet.destination_planet_id,v_attacker_units,v_attacker_units,
+      v_defender_ship_units,v_defender_ship_units,v_defense_units,v_defense_units,v_defender_units,v_defender_units)
+    returning id into v_battle_id;
+
+    insert into public.combat_battle_participants(
+      battle_id,side,participant_type,fleet_id,planet_id,player_id,origin_planet_id,mission_type)
+    values(v_battle_id,'ATTACKER','FLEET',p_fleet_id,null,v_fleet.player_id,v_fleet.origin_planet_id,v_fleet.mission_type);
+
+    insert into public.combat_battle_participants(
+      battle_id,side,participant_type,fleet_id,planet_id,player_id,origin_planet_id,mission_type)
+    values(v_battle_id,'DEFENDER','PLANET',null,v_fleet.destination_planet_id,v_defender_player_id,null,null);
+
+    perform public.initialize_individual_combat_units(v_battle_id);
+    return v_battle_id;
+end;
+$function$;
+
+-- ---------------------------------------------------------------------------
+-- 2) resolve_attack_arrival — participant settlement (PG-08 / PG-17)
+-- ---------------------------------------------------------------------------
+create or replace function public.resolve_attack_arrival(p_fleet_id uuid)
+returns uuid
+language plpgsql
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_fleet public.fleet_movements%rowtype; v_battle_id uuid; v_last_round integer;
+  v_planet_participant_id uuid; v_unsupported integer; v_part record;
+begin
+  select * into v_fleet from public.fleet_movements where id=p_fleet_id for update;
+  if not found then raise exception 'Fleet % no existe',p_fleet_id; end if;
+  if v_fleet.mission_type<>'ATTACK' then raise exception 'Fleet % no es ATTACK',p_fleet_id; end if;
+  if v_fleet.status not in ('ARRIVED','RETURNING','COMPLETED') then raise exception 'Fleet % no está lista para resolver ataque. Estado: %',p_fleet_id,v_fleet.status; end if;
+  if v_fleet.status<>'ARRIVED' then
+    select cb.id into v_battle_id from public.combat_battles cb where cb.fleet_id=p_fleet_id order by cb.created_at limit 1;
+    if v_battle_id is null then raise exception 'Attack fleet % has no combat battle',p_fleet_id; end if;
+    return v_battle_id;
+  end if;
+
+  perform public.update_planet_resources_until(v_fleet.destination_planet_id,v_fleet.arrives_at);
+  perform public.process_shipyard_queue_until(v_fleet.destination_planet_id,v_fleet.arrives_at);
+  perform public.process_defense_queue_until(v_fleet.destination_planet_id,v_fleet.arrives_at);
+  v_battle_id:=public.resolve_combat(p_fleet_id);
+
+  select id into v_planet_participant_id from public.combat_battle_participants
+  where battle_id=v_battle_id and side='DEFENDER' and participant_type='PLANET' and planet_id=v_fleet.destination_planet_id;
+  if v_planet_participant_id is null then raise exception 'Battle % missing settlement participants',v_battle_id; end if;
+  if not exists (select 1 from public.combat_battle_participants part
+                  where part.battle_id=v_battle_id and part.side='ATTACKER'
+                    and part.participant_type='FLEET' and part.fleet_id is not null) then
+    raise exception 'Battle % missing settlement participants',v_battle_id;
+  end if;
+
+  -- Narrowed Phase-4B fail-closed guard: the settlement can now attribute every
+  -- FLEET participant (both sides) plus the PLANET participant. Anything else
+  -- still refuses to settle, so an unhandled participant can never be settled
+  -- silently.
+  select count(*) into v_unsupported
+  from public.combat_battle_participants part
+  where part.battle_id=v_battle_id
+    and (part.participant_type not in ('FLEET','PLANET')
+         or (part.participant_type='FLEET' and part.fleet_id is null));
+  if v_unsupported > 0 then
+    raise exception 'BATTLE_SETTLEMENT_UNSUPPORTED_PARTICIPANT: battle % owns % participant(s) that single-battle settlement cannot attribute',v_battle_id,v_unsupported;
+  end if;
+
+  if not exists(select 1 from public.combat_battles where id=v_battle_id and finished_at is not null) then perform public.run_expedition_combat(v_battle_id); end if;
+  select max(round_number) into v_last_round from public.combat_individual_units where battle_id=v_battle_id;
+  if v_last_round is null then raise exception 'Battle % finished without rounds',v_battle_id; end if;
+  perform public.sync_combat_battle_final_counts(v_battle_id);
+
+  -- PG-08: every FLEET participant is rewritten exclusively through its OWN fleet_id.
+  -- A fully destroyed participant simply leaves no composition rows (CHECK quantity > 0).
+  for v_part in
+    select part.id, part.fleet_id
+    from public.combat_battle_participants part
+    where part.battle_id=v_battle_id and part.participant_type='FLEET'
+    order by part.created_at, part.id
+  loop
+    delete from public.fleet_movement_ships where fleet_id=v_part.fleet_id;
+    insert into public.fleet_movement_ships(fleet_id,ship_id,quantity)
+    select v_part.fleet_id,ciu.unit_id,count(*)::bigint from public.combat_individual_units ciu
+    where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round and ciu.participant_id=v_part.id
+      and ciu.unit_type='SHIP' and ciu.alive group by ciu.unit_id;
+  end loop;
+
+  update public.planet_ships ps set quantity=coalesce(src.quantity,0)
+  from (select ciu.unit_id,count(*)::bigint quantity from public.combat_individual_units ciu
+    where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round and ciu.participant_id=v_planet_participant_id
+      and ciu.side='DEFENDER' and ciu.unit_type='SHIP' and ciu.alive group by ciu.unit_id) src
+  where ps.planet_id=v_fleet.destination_planet_id and ps.ship_id=src.unit_id;
+
+  update public.planet_ships ps set quantity=0
+  where ps.planet_id=v_fleet.destination_planet_id
+    and exists(select 1 from public.combat_individual_units ciu where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round
+      and ciu.participant_id=v_planet_participant_id and ciu.side='DEFENDER' and ciu.unit_type='SHIP' and ciu.unit_id=ps.ship_id)
+    and not exists(select 1 from public.combat_individual_units ciu where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round
+      and ciu.participant_id=v_planet_participant_id and ciu.side='DEFENDER' and ciu.unit_type='SHIP'
+      and ciu.unit_id=ps.ship_id and ciu.alive);
+
+  update public.planet_defenses pd set quantity=coalesce(src.quantity,0)
+  from (select ciu.unit_id,count(*)::bigint quantity from public.combat_individual_units ciu
+    where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round and ciu.participant_id=v_planet_participant_id
+      and ciu.side='DEFENDER' and ciu.unit_type='DEFENSE' and ciu.alive group by ciu.unit_id) src
+  where pd.planet_id=v_fleet.destination_planet_id and pd.defense_id=src.unit_id;
+
+  update public.planet_defenses pd set quantity=0
+  where pd.planet_id=v_fleet.destination_planet_id
+    and exists(select 1 from public.combat_individual_units ciu where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round
+      and ciu.participant_id=v_planet_participant_id and ciu.side='DEFENDER' and ciu.unit_type='DEFENSE' and ciu.unit_id=pd.defense_id)
+    and not exists(select 1 from public.combat_individual_units ciu where ciu.battle_id=v_battle_id and ciu.round_number=v_last_round
+      and ciu.participant_id=v_planet_participant_id and ciu.side='DEFENDER' and ciu.unit_type='DEFENSE'
+      and ciu.unit_id=pd.defense_id and ciu.alive);
+
+  -- loot while every attacker fleet is still ARRIVED (the credit is guarded by that state)
+  perform * from public.apply_attack_loot(v_battle_id);
+  perform * from public.repair_defenses_after_combat(v_battle_id);
+  perform public.create_combat_debris(v_battle_id);
+
+  -- attacker fleets leave ARRIVED only after their loot share was settled;
+  -- DEFENDER/FLEET participants keep their status and holding_until (PG-17)
+  for v_part in
+    select part.fleet_id
+    from public.combat_battle_participants part
+    where part.battle_id=v_battle_id and part.side='ATTACKER' and part.participant_type='FLEET'
+      and part.fleet_id is not null
+    order by part.created_at, part.id
+  loop
+    update public.fleet_movements set status='RETURNING',returns_at=arrives_at+(arrives_at-started_at)
+    where id=v_part.fleet_id and status='ARRIVED' and mission_type='ATTACK';
+  end loop;
+
+  return v_battle_id;
+end;
+$function$;
+
+-- ---------------------------------------------------------------------------
+-- 3) apply_attack_loot — PG-09 capacity + PG-10 entitlement/allocation
+-- ---------------------------------------------------------------------------
+create or replace function public.apply_attack_loot(p_battle_id uuid)
+returns table(loot_metal numeric, loot_crystal numeric, loot_deuterium numeric, cargo_capacity numeric)
+language plpgsql
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_battle public.combat_battles%rowtype;
+  v_fleet public.fleet_movements%rowtype;
+  v_res public.planet_resources%rowtype;
+  v_last_round integer;
+  v_capacity numeric := 0;        -- PG-09: combined ORIGINAL attacker cargo capacity
+  v_surv_capacity numeric := 0;   -- PG-10: combined SURVIVING cargo capacity of entitled participants
+  v_remaining numeric;
+  v_metal_cap numeric;
+  v_crystal_cap numeric;
+  v_deut_cap numeric;
+  v_m numeric := 0;
+  v_c numeric := 0;
+  v_d numeric := 0;
+  v_take numeric;
+  v_part record;
+  v_share numeric;
+  v_a_m numeric; v_a_c numeric; v_a_d numeric;
+  v_t_m numeric := 0; v_t_c numeric := 0; v_t_d numeric := 0;
+  v_rows integer;
+begin
+  select * into v_battle from public.combat_battles where id=p_battle_id for update;
+  if not found then raise exception 'Battle % not found',p_battle_id; end if;
+
+  if v_battle.loot_applied_at is not null then
+    return query select v_battle.loot_metal,v_battle.loot_crystal,v_battle.loot_deuterium,0::numeric;
+    return;
+  end if;
+
+  if not coalesce(v_battle.attacker_win,false) then
+    update public.combat_battles
+      set loot_applied_at=clock_timestamp(),loot_metal=0,loot_crystal=0,loot_deuterium=0
+      where id=p_battle_id;
+    return query select 0::numeric,0::numeric,0::numeric,0::numeric;
+    return;
+  end if;
+
+  -- the initiating fleet still provides the settlement timestamp (DG-10 anchor);
+  -- this is what keeps the certified single-fleet timing byte-identical.
+  select * into v_fleet from public.fleet_movements where id=v_battle.fleet_id for update;
+  if not found then raise exception 'Fleet % not found for battle %',v_battle.fleet_id,p_battle_id; end if;
+
+  select max(round_number) into v_last_round from public.combat_individual_units where battle_id=p_battle_id;
+
+  -- PG-09: capacity comes from the ORIGINAL (round 1) composition of EVERY
+  -- ATTACKER/FLEET participant, so it never depends on what survived.
+  select coalesce(sum(sd.cargo_capacity),0) into v_capacity
+  from public.combat_individual_units ciu
+  join public.combat_battle_participants part
+    on part.id = ciu.participant_id and part.battle_id = ciu.battle_id
+  join public.ship_definitions sd on sd.id = ciu.unit_id
+  where ciu.battle_id=p_battle_id and ciu.round_number=1 and ciu.unit_type='SHIP'
+    and part.side='ATTACKER' and part.participant_type='FLEET';
+
+  if v_capacity <= 0 then
+    update public.combat_battles set loot_applied_at=clock_timestamp() where id=p_battle_id;
+    return query select 0::numeric,0::numeric,0::numeric,v_capacity;
+    return;
+  end if;
+
+  -- PG-10: surviving capacity of the entitled participants (ATTACKER/FLEET with alive ships)
+  select coalesce(sum(sd.cargo_capacity),0) into v_surv_capacity
+  from public.combat_individual_units ciu
+  join public.combat_battle_participants part
+    on part.id = ciu.participant_id and part.battle_id = ciu.battle_id
+  join public.ship_definitions sd on sd.id = ciu.unit_id
+  where ciu.battle_id=p_battle_id and ciu.round_number=v_last_round and ciu.unit_type='SHIP' and ciu.alive
+    and part.side='ATTACKER' and part.participant_type='FLEET';
+
+  -- Loot is an arrival-time transaction. Settle production only through the
+  -- attack event timestamp before calculating the 50% plunder caps.
+  perform public.update_planet_resources_until(v_battle.defender_planet_id, v_fleet.arrives_at);
+
+  select * into v_res from public.planet_resources where planet_id=v_battle.defender_planet_id for update;
+  if not found then raise exception 'Resources for defender planet % not found',v_battle.defender_planet_id; end if;
+
+  v_metal_cap := greatest(0, floor(greatest(v_res.metal,0) * 0.5));
+  v_crystal_cap := greatest(0, floor(greatest(v_res.crystal,0) * 0.5));
+  v_deut_cap := greatest(0, floor(greatest(v_res.deuterium,0) * 0.5));
+  v_remaining := floor(v_capacity);
+
+  v_m := least(v_metal_cap, floor(v_remaining/3));
+  v_remaining := v_remaining-v_m;
+  v_c := least(v_crystal_cap, floor(v_remaining/2));
+  v_remaining := v_remaining-v_c;
+  v_d := least(v_deut_cap, v_remaining);
+  v_remaining := v_remaining-v_d;
+
+  v_take := least(v_metal_cap-v_m,v_remaining);
+  v_m := v_m+greatest(v_take,0); v_remaining := v_remaining-greatest(v_take,0);
+  v_take := least(v_crystal_cap-v_c,v_remaining);
+  v_c := v_c+greatest(v_take,0); v_remaining := v_remaining-greatest(v_take,0);
+  v_take := least(v_deut_cap-v_d,v_remaining);
+  v_d := v_d+greatest(v_take,0); v_remaining := v_remaining-greatest(v_take,0);
+
+  if v_surv_capacity > 0 then
+    for v_part in
+      select part.id as participant_id, part.fleet_id,
+             min(part.created_at) as created_at,
+             coalesce(sum(sd.cargo_capacity),0)::numeric as surv_cap
+      from public.combat_battle_participants part
+      join public.combat_individual_units ciu
+        on ciu.participant_id = part.id and ciu.battle_id = part.battle_id
+      join public.ship_definitions sd on sd.id = ciu.unit_id
+      where part.battle_id=p_battle_id and part.side='ATTACKER' and part.participant_type='FLEET'
+        and part.fleet_id is not null
+        and ciu.round_number=v_last_round and ciu.unit_type='SHIP' and ciu.alive
+      group by part.id, part.fleet_id
+      order by min(part.created_at), part.id
+    loop
+      if v_part.surv_cap <= 0 then
+        continue;
+      end if;
+      v_share := v_part.surv_cap / v_surv_capacity;
+      v_a_m := floor(v_m * v_share);
+      v_a_c := floor(v_c * v_share);
+      v_a_d := floor(v_d * v_share);
+
+      update public.fleet_movements
+      set metal=coalesce(metal,0)+v_a_m,
+          crystal=coalesce(crystal,0)+v_a_c,
+          deuterium=coalesce(deuterium,0)+v_a_d
+      where id=v_part.fleet_id and status='ARRIVED';
+      get diagnostics v_rows = row_count;
+      if v_rows > 0 then
+        v_t_m := v_t_m + v_a_m;
+        v_t_c := v_t_c + v_a_c;
+        v_t_d := v_t_d + v_a_d;
+      end if;
+    end loop;
+  end if;
+
+  -- the planet is debited only by what was actually credited, so the rounding
+  -- remainder is never taken (and never destroyed)
+  update public.planet_resources
+  set metal=greatest(0,metal-v_t_m),
+      crystal=greatest(0,crystal-v_t_c),
+      deuterium=greatest(0,deuterium-v_t_d),
+      updated_at=clock_timestamp()
+  where planet_id=v_battle.defender_planet_id;
+
+  update public.combat_battles
+  set loot_metal=v_t_m,loot_crystal=v_t_c,loot_deuterium=v_t_d,loot_applied_at=clock_timestamp()
+  where id=p_battle_id;
+
+  return query select v_t_m,v_t_c,v_t_d,v_capacity;
+end;
+$function$;
+
+-- ---------------------------------------------------------------------------
+-- 4) sync_combat_battle_final_counts — PG-18 planet-scoped defender counters
+-- ---------------------------------------------------------------------------
+create or replace function public.sync_combat_battle_final_counts(p_battle_id uuid)
+returns void
+language plpgsql
+set search_path to 'public', 'pg_temp'
+as $function$
+DECLARE
+    v_round integer;
+BEGIN
+    SELECT max(round_number) INTO v_round
+    FROM public.combat_individual_units
+    WHERE battle_id=p_battle_id;
+    IF v_round IS NULL THEN
+        RAISE EXCEPTION 'Battle % has no combat round',p_battle_id;
+    END IF;
+
+    UPDATE public.combat_battles cb
+    SET attacker_ships_after=(SELECT count(*) FROM public.combat_individual_units WHERE battle_id=p_battle_id AND round_number=v_round AND side='ATTACKER' AND unit_type='SHIP' AND alive),
+        defender_ships_after=(SELECT count(*) FROM public.combat_individual_units cui
+            JOIN public.combat_battle_participants part ON part.id=cui.participant_id AND part.battle_id=cui.battle_id
+            WHERE cui.battle_id=p_battle_id AND cui.round_number=v_round AND cui.side='DEFENDER' AND cui.unit_type='SHIP' AND cui.alive
+              AND part.participant_type <> 'FLEET'),
+        defender_defenses_after=(SELECT count(*) FROM public.combat_individual_units cui
+            JOIN public.combat_battle_participants part ON part.id=cui.participant_id AND part.battle_id=cui.battle_id
+            WHERE cui.battle_id=p_battle_id AND cui.round_number=v_round AND cui.side='DEFENDER' AND cui.unit_type='DEFENSE' AND cui.alive
+              AND part.participant_type <> 'FLEET'),
+        defender_combat_units_after=(SELECT count(*) FROM public.combat_individual_units cui
+            JOIN public.combat_battle_participants part ON part.id=cui.participant_id AND part.battle_id=cui.battle_id
+            WHERE cui.battle_id=p_battle_id AND cui.round_number=v_round AND cui.side='DEFENDER' AND cui.alive
+              AND part.participant_type <> 'FLEET')
+    WHERE cb.id=p_battle_id;
+END;
+$function$;
+
+-- ---------------------------------------------------------------------------
+-- 5) run_expedition_combat — same PG-18 scoping for the counters it writes
+--    (no-op for expeditions: a DEFENDER/ENEMY participant is not a FLEET participant)
+-- ---------------------------------------------------------------------------
+create or replace function public.run_expedition_combat(p_battle_id uuid)
+returns table(rounds_played integer, attacker_alive bigint, defender_alive bigint, battle_result text)
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $function$
+DECLARE
+    r integer:=1;
+    aa bigint:=0;
+    dd bigint:=0;
+    ds bigint:=0;
+    dc bigint:=0;
+    result text;
+    v_round record;
+BEGIN
+    WHILE r<=6 LOOP
+        IF EXISTS(
+            SELECT 1 FROM public.combat_rounds cr
+            WHERE cr.battle_id=p_battle_id AND cr.round_number=r
+        ) THEN
+            SELECT
+                count(*) FILTER(WHERE cui.side='ATTACKER' AND cui.alive),
+                count(*) FILTER(WHERE cui.side='DEFENDER' AND cui.alive),
+                count(*) FILTER(WHERE cui.side='DEFENDER' AND cui.unit_type='SHIP' AND cui.alive
+                                   AND part.participant_type <> 'FLEET'),
+                count(*) FILTER(WHERE cui.side='DEFENDER' AND cui.unit_type='DEFENSE' AND cui.alive
+                                   AND part.participant_type <> 'FLEET')
+            INTO aa,dd,ds,dc
+            FROM public.combat_individual_units cui
+            JOIN public.combat_battle_participants part ON part.id=cui.participant_id AND part.battle_id=cui.battle_id
+            WHERE cui.battle_id=p_battle_id AND cui.round_number=r;
+
+            EXIT WHEN aa=0 OR dd=0;
+            r:=r+1;
+            CONTINUE;
+        END IF;
+
+        SELECT * INTO v_round
+        FROM public.process_combat_round_v2(p_battle_id,r);
+
+        aa:=COALESCE(v_round.attacker_alive,0);
+        dd:=COALESCE(v_round.defender_alive,0);
+
+        EXIT WHEN aa=0 OR dd=0 OR v_round.battle_result<>'CONTINUE';
+        r:=r+1;
+    END LOOP;
+
+    SELECT
+        count(*) FILTER(WHERE cui.side='ATTACKER' AND cui.alive),
+        count(*) FILTER(WHERE cui.side='DEFENDER' AND cui.alive),
+        count(*) FILTER(WHERE cui.side='DEFENDER' AND cui.unit_type='SHIP' AND cui.alive
+                           AND part.participant_type <> 'FLEET'),
+        count(*) FILTER(WHERE cui.side='DEFENDER' AND cui.unit_type='DEFENSE' AND cui.alive
+                           AND part.participant_type <> 'FLEET')
+    INTO aa,dd,ds,dc
+    FROM public.combat_individual_units cui
+    JOIN public.combat_battle_participants part ON part.id=cui.participant_id AND part.battle_id=cui.battle_id
+    WHERE cui.battle_id=p_battle_id
+      AND cui.round_number=(SELECT max(round_number) FROM public.combat_individual_units WHERE battle_id=p_battle_id);
+
+    IF aa>0 AND dd=0 THEN result:='ATTACKER_WIN';
+    ELSIF aa=0 AND dd>0 THEN result:='DEFENDER_WIN';
+    ELSE result:='DRAW';
+    END IF;
+
+    UPDATE public.combat_battles
+    SET finished_at=COALESCE(finished_at,clock_timestamp()),
+        attacker_win=(result='ATTACKER_WIN'),
+        defender_win=(result='DEFENDER_WIN'),
+        draw=(result='DRAW'),
+        attacker_ships_after=aa,
+        defender_ships_after=ds,
+        defender_combat_units_after=dc
+    WHERE id=p_battle_id;
+
+    RETURN QUERY
+    SELECT r,aa,dd,result;
+END;
+$function$;
+
+-- ---------------------------------------------------------------------------
+-- ACL: signatures are unchanged (CREATE OR REPLACE), so ACLs are preserved.
+-- Re-asserted explicitly because a changed signature resets EXECUTE to PUBLIC.
+-- ---------------------------------------------------------------------------
+revoke all on function public.resolve_combat(uuid) from public, anon, authenticated;
+grant execute on function public.resolve_combat(uuid) to service_role;
+
+revoke all on function public.resolve_attack_arrival(uuid) from public, anon, authenticated;
+grant execute on function public.resolve_attack_arrival(uuid) to service_role;
+
+revoke all on function public.apply_attack_loot(uuid) from public, anon, authenticated;
+grant execute on function public.apply_attack_loot(uuid) to service_role;
+
+revoke all on function public.sync_combat_battle_final_counts(uuid) from public, anon, authenticated;
+grant execute on function public.sync_combat_battle_final_counts(uuid) to service_role;
+
+revoke all on function public.run_expedition_combat(uuid) from public, anon, authenticated;
+grant execute on function public.run_expedition_combat(uuid) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Post-conditions
+-- ---------------------------------------------------------------------------
+do $acs_settlement$
+begin
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='resolve_combat' and p.prosrc like '%part.side = ''ATTACKER''%'
+                   and p.prosrc like '%combat_battle_participants%') then
+    raise exception 'ACS-SETTLEMENT: resolve_combat has no participant-based resolution';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='resolve_combat' and p.prosrc like '%cb.fleet_id=p_fleet_id%') then
+    raise exception 'ACS-SETTLEMENT: the DG-10 fallback was lost from resolve_combat';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='resolve_attack_arrival'
+                   and p.prosrc like '%BATTLE_SETTLEMENT_UNSUPPORTED_PARTICIPANT%') then
+    raise exception 'ACS-SETTLEMENT: the narrowed fail-closed guard is missing';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='resolve_attack_arrival'
+                   and p.prosrc like '%part.participant_type=''FLEET''%') then
+    raise exception 'ACS-SETTLEMENT: resolve_attack_arrival does not iterate FLEET participants';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='apply_attack_loot'
+                   and p.prosrc like '%round_number=1%') then
+    raise exception 'ACS-SETTLEMENT: loot capacity is not read from the original composition';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='apply_attack_loot'
+                   and p.prosrc like '%v_part.surv_cap / v_surv_capacity%') then
+    raise exception 'ACS-SETTLEMENT: loot allocation is not proportional to surviving capacity';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='sync_combat_battle_final_counts'
+                   and p.prosrc like '%participant_type <> ''FLEET''%') then
+    raise exception 'ACS-SETTLEMENT: defender counters are not planet-scoped';
+  end if;
+
+  if not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+                   and p.proname='run_expedition_combat'
+                   and p.prosrc like '%participant_type <> ''FLEET''%') then
+    raise exception 'ACS-SETTLEMENT: expedition counters are not scoped';
+  end if;
+
+  if has_function_privilege('anon','public.resolve_combat(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.resolve_combat(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.resolve_attack_arrival(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.resolve_attack_arrival(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.apply_attack_loot(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.apply_attack_loot(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.sync_combat_battle_final_counts(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.sync_combat_battle_final_counts(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.run_expedition_combat(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.run_expedition_combat(uuid)','EXECUTE') then
+    raise exception 'ACS-SETTLEMENT: a settlement function became client-executable';
+  end if;
+
+  if exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace
+              and p.proname in ('resolve_combat','resolve_attack_arrival','apply_attack_loot',
+                                'sync_combat_battle_final_counts','run_expedition_combat')
+              and (not p.prosecdef and p.proname in ('resolve_combat','run_expedition_combat'))) then
+    raise exception 'ACS-SETTLEMENT: a definer property was lost';
+  end if;
+end
+$acs_settlement$;

@@ -44,6 +44,8 @@ declare
     v_f_guard uuid := gen_random_uuid();
     v_f_ok uuid := gen_random_uuid();
     v_f_d13 uuid := gen_random_uuid();
+    v_f_unsup uuid := gen_random_uuid();
+    v_hold timestamptz;
     v_b_guard uuid; v_res_battle uuid; v_status text;
     v_p_att uuid; v_p_planet uuid; v_p_d1 uuid; v_p_d2 uuid;
     v_h1 numeric; v_h2 numeric; v_exp numeric;
@@ -314,16 +316,60 @@ begin
                (v_b_guard,'DEFENDER','PLANET',null,v_target,v_def_player,null,null),
                (v_b_guard,'DEFENDER','FLEET',v_d1_fleet,null,v_player,v_origin,'DEFEND');
 
+        -- PHASE ACS (2026-09-22): a battle owning DEFENDER/FLEET participants is now
+        -- SETTLED (PG-08 + PG-17) instead of refused: the defending fleet's survivors are
+        -- rewritten and its hold is preserved. The fail-closed guarantee is kept for
+        -- participant shapes the settlement cannot attribute (see D11b).
+        perform public.initialize_individual_combat_units(v_b_guard);
+
+        v_raised := false; v_msg := null;
         begin
             perform public.resolve_attack_arrival(v_f_guard);
         exception when others then v_raised := true; v_msg := sqlerrm;
         end;
-        v_ok := v_raised and v_msg like '%MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED%';
+
+        select fm.status, fm.holding_until into v_status, v_hold
+          from public.fleet_movements fm where fm.id = v_d1_fleet;
+        select count(*) into v_n from public.fleet_movement_ships s where s.fleet_id = v_d1_fleet;
+        select coalesce(sum(s.quantity),0) into v_n2 from public.fleet_movement_ships s where s.fleet_id = v_d1_fleet;
+
+        v_ok := not v_raised and v_status = 'HOLDING' and v_hold > clock_timestamp() and v_n <= 1 and v_n2 <= 3;
         v_lines := v_lines || case when v_ok then 'PASS|' else 'FAIL|' end
-            || format('D11 settlement refuses a battle owning defending fleets (%s)', left(coalesce(v_msg,'no error'),90)) || E'\n';
+            || format('D11a a battle owning defending fleets now settles and the hold survives (status=%s rows=%s ships=%s)',
+                      v_status, v_n, v_n2) || E'\n';
+        v_fail := v_fail + case when v_ok then 0 else 1 end;
+
+        -- D11b: an unhandled participant shape must still refuse to settle
+        insert into public.fleet_movements(id,player_id,origin_planet_id,destination_planet_id,mission_type,
+            started_at,arrives_at,status) values
+          (v_f_unsup, v_player, v_origin, v_target, 'ATTACK',
+           clock_timestamp()-interval '60 seconds', clock_timestamp()-interval '1 second', 'ARRIVED');
+        insert into public.fleet_movement_ships(fleet_id,ship_id,quantity) values (v_f_unsup,'cruiser',2);
+
+        insert into public.combat_battles(fleet_id,attacker_player_id,defender_planet_id,draw)
+        values (v_f_unsup,v_player,v_target,false) returning id into v_b_guard;
+        insert into public.combat_battle_participants(battle_id,side,participant_type,fleet_id,planet_id,player_id,origin_planet_id,mission_type)
+        values (v_b_guard,'ATTACKER','FLEET',v_f_unsup,null,v_player,v_origin,'ATTACK'),
+               (v_b_guard,'DEFENDER','PLANET',null,v_target,v_def_player,null,null),
+               (v_b_guard,'DEFENDER','ENEMY',null,null,null,null,null);
+
+        v_raised := false; v_msg := null;
+        begin
+            perform public.resolve_attack_arrival(v_f_unsup);
+        exception when others then v_raised := true; v_msg := sqlerrm;
+        end;
+        v_ok := v_raised and v_msg like '%BATTLE_SETTLEMENT_UNSUPPORTED_PARTICIPANT%';
+        v_lines := v_lines || case when v_ok then 'PASS|' else 'FAIL|' end
+            || format('D11b settlement still FAILS CLOSED on an unhandled participant shape (%s)', left(coalesce(v_msg,'no error'),80)) || E'\n';
         v_fail := v_fail + case when v_ok then 0 else 1 end;
 
         -- ==== D12: the guard is inert on the certified single-fleet path ======
+        -- D11a settled a battle on this planet, so its resource clock is advanced; make the
+        -- fixture clock consistent again for the next arrival (rolled back with the fixture).
+        update public.planet_resources
+           set last_calculated_at = now() - interval '1 hour', updated_at = now()
+         where planet_id = v_target;
+
         v_res_battle := public.resolve_attack_arrival(v_f_ok);
         select status into v_status from public.fleet_movements where id = v_f_ok;
 
