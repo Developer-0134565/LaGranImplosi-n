@@ -34,6 +34,7 @@ declare
   v_planet_a2 uuid;
   v_planet_b uuid;
   v_player_b uuid;
+  v_player_c uuid;
   v_universe_a uuid;
   v_probe_universe uuid;
   v_key uuid := gen_random_uuid();
@@ -109,6 +110,18 @@ begin
 
   if v_planet_b is null then
     raise exception 'TEST_ABORT: no foreign planet in the origin universe is available';
+  end if;
+
+  /* Tercer jugador real, distinto del dueño del planeta ajeno: permite aislar la
+     comprobación de PROPIEDAD DEL PLANETA sin disparar antes la de auto-autorización. */
+  select pl.id into v_player_c
+  from public.players pl
+  where pl.id <> v_player_a and pl.id <> v_player_b
+  order by pl.created_at, pl.id
+  limit 1;
+
+  if v_player_c is null then
+    v_player_c := v_player_b;
   end if;
 
   select p.id into v_planet_a2
@@ -344,10 +357,15 @@ begin
     ('P0c. autorización a sí mismo -> rechazada [' || coalesce(v_err,'sin error') || ']',
      case when v_ok then 'PASS' else 'FAIL' end);
 
+  /* P0d: la versión anterior pasaba v_player_a TAMBIÉN como invitado, así que el
+     guard SUPPORT_AUTHORIZATION_SELF disparaba antes y la comprobación de propiedad
+     del planeta nunca llegaba a evaluarse (la suite era inejecutable en LIVE, por lo
+     que la expectativa nunca se validó). Se usa un invitado realmente ajeno
+     (v_player_c) para aislar la PROPIEDAD DEL PLANETA. El valor esperado NO cambia. */
   v_err := null;
   v_ok := false;
   begin
-    perform public.grant_planet_support_authorization(v_player_a, v_planet_b, v_player_a, null);
+    perform public.grant_planet_support_authorization(v_player_a, v_planet_b, v_player_c, null);
   exception when others then
     v_err := sqlerrm;
     v_ok := v_err like 'PLANET_NOT_OWNED_BY_PLAYER%';
