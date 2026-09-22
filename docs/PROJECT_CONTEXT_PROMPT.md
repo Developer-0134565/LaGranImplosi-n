@@ -253,6 +253,32 @@ multi-attacker settlement, per-fleet loot/survivors, late joins and ACS UI remai
 engine still creates **0** `DEFENDER/FLEET` participants and refuses to settle a battle it cannot attribute.
 Never report `transport reachable` as `ACS implemented`.
 
+**Combat product-gate package (2026-09-22)** — the decision record is `README_COMBAT_ENGINE` **§22**
+(§21 holds the option analysis; §22 holds the decision, the settlement contract, the exact implementation
+boundary and the future test plan). Status:
+
+- `PG-08` survivor attribution → **per-participant** · `DECIDED — READY FOR IMPLEMENTATION`.
+  Architecture-determined, not a free choice: pooling survivors would move ships between players, and
+  `fleet_movement_ships` (`UNIQUE(fleet_id, ship_id)`, `CHECK(quantity > 0)`) is an owned asset of one
+  player (§22.2). *Ratification pending.*
+- `PG-09` loot-capacity source → **`UNRESOLVED PRODUCT DECISION`** (§22.6). Surviving vs original
+  composition are both already persisted, so the architecture excludes neither; it is a balance rule.
+- `PG-10` loot recipient / allocation → **`UNRESOLVED PRODUCT DECISION`** (§22.7). Entitlement and the
+  deterministic allocation rule (plus rounding/remainder) are separate questions; LGI has no player-level
+  resource pool, so loot is always carried by a fleet to that fleet's origin planet.
+- `PG-17` defending-fleet lifecycle → **the hold contract is preserved** · `DECIDED — READY FOR
+  IMPLEMENTATION` (§22.3): settlement writes a defending participant's survivors back to its own fleet and
+  leaves `status` and `holding_until` untouched. *Ratification pending.* The **producer** contract (who may
+  hold) stays a separate future mission.
+- `PG-18` battle-header defender counters → **planet-scoped** · `DECIDED — READY FOR IMPLEMENTATION`
+  (§22.3): adding a `participant_type='PLANET'` filter is the only option that keeps `defender_ships_before`
+  (planet-only) coherent with `defender_ships_after` **and** preserves the certified report contract.
+  *Ratification pending.*
+
+**Next implementation boundary:** PG-08 / PG-17 / PG-18 can be implemented (function-body changes only, no
+migration). **Loot (PG-09/PG-10) is blocked until decided.** No settlement code exists yet, and the
+settlement contract in §22.4 is a proposal, not an approved contract.
+
 Implemented:
 
 - single support dispatcher `start_support_fleet(...)` (`ACS_HOLD` only) on the canonical fleet pipeline with
@@ -489,12 +515,12 @@ BLOCKED / LATER
    (`MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED`). No schema change was needed: `combat_battle_participants` could
    already represent `DEFENDER/FLEET`. Still NOT IMPLEMENTED (product decisions, not defects): ACS
    grouping/dispatch, DEFEND dispatch, multi-fleet settlement, per-fleet survivor/loot attribution, per-fleet
-   report payloads, ACS/DEFEND UI. **Next mission**: `README_COMBAT_ENGINE` **§21** now contains the full
-   per-gate analysis (current behaviour → what multi-fleet breaks → options → consequences → recommended
-   LGI-compatible option → code that would change → tests that would prove it). Resolve the blocking product
-   decisions first
-   (`README_COMBAT_ENGINE` §21 / §20.13 PG-08/PG-09/PG-17/PG-18), then per-participant settlement, then a
-   producer. The ACS_HOLD transport becoming reachable (§7) does not remove any of these gates.
+   report payloads, ACS/DEFEND UI. **Next mission**: the product-gate package is `README_COMBAT_ENGINE` **§22**
+   (§21 = option analysis; §22 = decision status, settlement contract, implementation boundary, test plan).
+   **PG-08 / PG-17 / PG-18 are ready for implementation** (function-body changes only, no migration);
+   **PG-09 / PG-10 remain unresolved product decisions** and block the loot path, so the settlement mission
+   must start with the three ready gates or wait. Nothing is implemented yet: no settlement, no producer, no
+   migration. The ACS_HOLD transport becoming reachable (§7) does not remove any of these gates.
    Do not reopen the certified chain without new evidence of a defect, and do not create a second combat
    architecture.
 
