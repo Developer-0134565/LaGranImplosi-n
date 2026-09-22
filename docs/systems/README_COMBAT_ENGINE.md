@@ -2179,6 +2179,181 @@ attribution decisions, holding-fleet visibility, support UI.
 
 **Phase 4A is defined here and NOT implemented by this mission.**
 
+---
+
+## 19. PHASE 4A — PARTICIPANT / BATTLE IDENTITY FOUNDATION (2026-09-21)
+
+> Implemented. This section records the problem, the decisions, the migrations, the changed functions and
+> constraints, the new collision fixture, the regression evidence and the LIVE verification.
+> Scope was exactly DG-10, DG-11, DG-12 and DG-13: **no ACS, no DEFEND, no holding combat, no multi-fleet
+> settlement, no loot/survivor attribution decision, no formula, balance, UI or gameplay change.**
+
+### 19.1 Problem this phase removes
+
+The certified engine collapsed "one battle" with "one attacking fleet": `combat_battles` carried a single
+`fleet_id` (uniquely indexed) while `combat_battle_participants` was already N-fleet capable, and both the
+unit/snapshot uniqueness keys and the target/loss identities omitted `participant_id`. Two participating
+fleets fielding the same ship type therefore shared `unit_number = 1`, which made their units *the same row*
+— and `combat_round_snapshot_units` did not even error: its `ON CONFLICT … DO NOTHING` silently dropped the
+second fleet's identical unit.
+
+### 19.2 Decisions
+
+| Item | Decision |
+|---|---|
+| **DG-10** battle identity | `combat_battles.fleet_id` is **kept** as the *initiating (primary) attacking fleet* and as the replay/idempotency key for that fleet (`UNIQUE (fleet_id)` unchanged, `NOT NULL` unchanged). Its meaning is now recorded in the database itself with a column comment. Additional attacking fleets live exclusively in `combat_battle_participants` (`ATTACKER`/`FLEET` rows); the header deliberately does not aggregate them. No header schema change was needed, so the certified replay path is untouched. |
+| **DG-11** unit/snapshot uniqueness | both keys become `(battle_id, round_number, participant_id, side, unit_type, unit_id, unit_number)`; the legacy keys are dropped and the only `ON CONFLICT` consumer (`create_combat_round_snapshot`) moves to the new key, so a second fleet's identical unit can no longer be silently skipped. |
+| **DG-12** target identity | `resolve_pending_target_damage` gains `p_target_participant_id` (and returns it); its snapshot lookup and damage-ledger cursor are keyed by it; `process_combat_round_v2` iterates `DISTINCT target_participant_id` as well. The old participant-less signature was retired. |
+| **DG-13** loss identity | both loss readers (`calculate_combat_ship_losses`, `calculate_combat_defense_losses`) now group, join and order by `participant_id` and return it, so a loss row names the fleet that suffered it. The **public** report contract was deliberately left unchanged (per Phase 4A §8): the internal identity is now available and a per-fleet report payload is a later, separate decision. |
+| §9 unit initialisation | `initialize_individual_combat_units` iterates the battle's `ATTACKER`/`FLEET` participants (one insert per fleet, each fleet's owner technologies) instead of deriving one fleet from `combat_battles.fleet_id`. With a single participant the produced rows are identical to the certified behaviour. |
+| ACL hardening (side effect, fixed) | a new signature (`resolve_pending_target_damage`) and any `DROP` + `CREATE` reset EXECUTE privileges to `PUBLIC`. The Phase 1/2 hardening is re-applied to all three functions inside the same migration, and asserted by post-conditions. |
+
+### 19.3 Migrations (forward-only, applied to LIVE)
+
+| Version | Name | Contents |
+|---|---|---|
+| `20260922035055` | `participant_aware_unit_uniqueness` | the two participant-aware unique keys, the updated `create_combat_round_snapshot` (`ON CONFLICT` on the new key), the drop of the two legacy keys, the `combat_battles.fleet_id` semantics comment |
+| `20260922035147` | `participant_aware_target_identity` | the participant-aware `resolve_pending_target_damage`, the `process_combat_round_v2` target loop, the retirement of the old signature |
+| `20260922035253` | `participant_aware_loss_identity_and_unit_init` | participant-aware loss readers, participant-aware unit initialisation, EXECUTE re-hardening |
+
+No historical migration was edited, no timestamp reused, no orphan row touched (661 + 681 still present and
+still isolated by the `NOT VALID` FKs). DG-07 remains **NON-BLOCKING** and untouched.
+
+### 19.4 Functions changed
+
+```text
+create_combat_round_snapshot      ON CONFLICT key → participant-aware (silent-drop removed)
+resolve_pending_target_damage     new signature (+p_target_participant_id), participant-scoped lookup/cursor
+process_combat_round_v2           target iteration DISTINCT now includes target_participant_id
+initialize_individual_combat_units  iterates ATTACKER/FLEET participants per fleet
+calculate_combat_ship_losses      participant_id in grouping, join, ordering, output
+calculate_combat_defense_losses   participant_id in grouping, join, ordering, output
+```
+
+Nothing else was touched: the round formulas, thresholds, RNG semantics, rapid fire, explosion rule, loot,
+repair, debris, settlement (`resolve_attack_arrival`), the report contract, the worker and the Fleet Engine
+are unchanged.
+
+### 19.5 Constraints and indexes
+
+```text
+added    combat_individual_units_participant_unique
+         UNIQUE (battle_id, round_number, participant_id, side, unit_type, unit_id, unit_number)
+added    combat_round_snapshot_units_participant_unique
+         UNIQUE (battle_id, round_number, participant_id, side, unit_type, unit_id, unit_number)
+dropped  combat_individual_units_battle_id_round_number_side_unit_ty_key
+dropped  combat_round_snapshot_units_unique
+unchanged combat_battles (pk, fleet_id FK CASCADE, ux_combat_battles_one_per_fleet, indexes)
+unchanged participants (shape/side/type/player CHECKs, both unique keys, FKs)
+unchanged shots / damage / rounds / repairs / debris keys
+comment   combat_battles.fleet_id documented as the initiating fleet + per-fleet replay key
+```
+
+Because `participant_id` is nullable, the new unique indexes keep PostgreSQL's default NULL-distinct
+semantics, so the 1,342 historical orphan rows (NULL participant ids) neither blocked index creation nor were
+modified; every **new** row is written with a non-NULL participant (re-verified in §19.9).
+
+### 19.6 Single-fleet compatibility (why the certified behaviour cannot drift)
+
+- With one attacking fleet there is exactly one `ATTACKER/FLEET` participant, so the participant-aware unit
+  key is equivalent to the legacy key (`participant_id` constant per side).
+- `resolve_pending_target_damage` is now called with that participant, and every snapshot/ledger row of the
+  battle belongs to it, so the lookup resolves exactly the same row as before.
+- The loss readers group by the same sub-key they already used (`side`, `unit_id`) plus a constant column;
+  their totals are unchanged, and all three callers (`calculate_combat_*_debris`,
+  `repair_defenses_after_combat`, `get_player_battle_reports`) select named columns and aggregate.
+- The initialiser produces the same rows with the same statistics — the only difference is that the attacker
+  identity comes from the participant (identical player in the certified case) rather than from
+  `combat_battles.fleet_id`.
+- No formula, threshold, RNG call count, loop bound or ordering rule inside the round engine changed.
+
+### 19.7 Expedition compatibility
+
+Expedition battles keep `DEFENDER/ENEMY` (`player_id NULL`) and their own unit inserts (unchanged);
+`ENEMY` was not converted into a fleet and no synthetic fleet identity was introduced. The expedition
+fixture passes unchanged, including participant attribution and the participant-aware damage ledger.
+
+### 19.8 Tests
+
+New: `supabase/tests/combat_participant_identity_collision.sql` (13 assertions, rollback-safe, LIVE-resolved
+identifiers, nothing permanent created):
+
+| # | Assertion | Result |
+|---|---|---|
+| T1 | two attacker fleets + one planet are three participants | PASS |
+| T2 | units attributed per fleet (20 + 5), none without participant | PASS |
+| T3 | `participant A cruiser #1` and `participant B cruiser #1` are two distinct unit rows | PASS |
+| T4 | the round-1 snapshot keeps all 37 units (25 attacker across three participants) — no silent loss | PASS |
+| T5 | every shot and every damage row resolves to a real unit of the recorded participant | PASS |
+| T6 | ship losses stay attributable per participant (2 rows for `cruiser`) | PASS |
+| T7 | defence losses stay planet-scoped (single defender participant) | PASS |
+| T8 | no authoritative unit without `participant_id` | PASS |
+| T9 | a two-attacker battle still resolves with exactly one result flag | PASS |
+| T10 | participant A resolves **its own** `cruiser #1` (1 shot) | PASS |
+| T11 | participant B resolves **its own** `cruiser #1` (1 shot) | PASS |
+| T12 | damage never crosses participants (A = 5, B = 5 shield damage) | PASS |
+| T13 | a participant that owns no such unit is rejected instead of guessed | PASS |
+
+Regression (certified suites, run on LIVE after the migrations and re-verified after the new fixture):
+
+| Suite | Result |
+|---|---|
+| `combat_participant_propagation.sql` | **12/12 PASS** |
+| `combat_expedition_combat.sql` | **10/10 PASS** |
+| `combat_report_contract.sql` | **7/7 PASS** |
+| `combat_worker_isolation.sql` | **8/8 PASS** |
+| `combat_debris_idempotency.sql` | **5/5 PASS** |
+| **total** | **42/42 PASS** |
+
+Static: `npx tsc -b` exit 0 · `npm run build` exit 0 · `git diff --check` clean · no conflict markers.
+
+### 19.9 LIVE verification
+
+```text
+constraints  both participant-aware keys present; the two legacy keys gone
+function     create_combat_round_snapshot uses the participant-aware ON CONFLICT key
+function     resolve_pending_target_damage has exactly one (participant-aware) signature
+function     process_combat_round_v2 iterates DISTINCT target_participant_id
+function     initialize_individual_combat_units iterates ATTACKER/FLEET participants
+function     both loss readers return participant_id
+ACLs         resolve_pending_target_damage and both loss readers: anon=false, authenticated=false,
+             service_role=true (re-hardened); the collision fixture exercises them from the engine context
+rows         after every fixture: 0 battles, 0 participants, 0 units, 0 rounds, 0 shots, 0 debris
+             generations, 0 repairs, 0 fleets, 0 fleet ships, 0 expeditions, 0 planet_defenses,
+             planet_ships quantity 1, debris_fields 3 with an identical metal total, 1 HUMAN player,
+             orphans 661 / 681 unchanged, 0 units with NULL participant_id
+```
+
+**Residue: NONE.** No test player, planet, fleet, battle, debris or resource was created or left behind, and
+nothing outside the combat identity layer was modified.
+
+### 19.10 Explicitly NOT implemented by Phase 4A
+
+```text
+ACS grouping · ACS/support dispatch · DEFEND dispatch or DEFENDER/FLEET participants · holding-fleet combat
+visibility · multi-fleet survivor settlement · multi-fleet loot attribution · fleet capacity aggregation ·
+ACS/DEFEND UI · battle-report redesign (the public payload is unchanged) · any balance or formula change ·
+DG-07 cleanup or FK validation · legacy-object cleanup
+```
+
+### 19.11 Next engineering boundary
+
+```text
+The identity foundation is in place (Phase 4A CLOSED). The next multi-fleet work is a separate decision:
+
+  1. attack-side multi-fleet (ACS): grouping/dispatch model, per-fleet settlement
+     (resolve_attack_arrival must write back N fleets and transition N statuses) and the loot/survivor
+     attribution product decisions — none of which exist yet.
+  2. DEFEND: defending-fleet storage + dispatch model, then per-fleet defender participation
+     (DEFENDER/FLEET) on top of this foundation.
+  3. per-fleet reporting: add participant_id to the report payloads (losses/rounds) if a battle screen needs
+     it — the internal identity now supports it.
+  4. DG-07 cleanup/validation decision, battle-report screen and alien-tech balance: unchanged, separate.
+
+The certified base engine (single attacker fleet vs one planet + expedition branch) remains CERTIFIED and was
+not modified in behaviour by this phase.
+```
+
 ### 18.14 Verification and closeout of this audit
 
 ```text
