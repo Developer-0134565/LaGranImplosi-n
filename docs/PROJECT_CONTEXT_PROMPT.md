@@ -516,7 +516,11 @@ BLOCKED / LATER
    already represent `DEFENDER/FLEET`. Still NOT IMPLEMENTED (product decisions, not defects): ACS
    grouping/dispatch, DEFEND dispatch, multi-fleet settlement, per-fleet survivor/loot attribution, per-fleet
    report payloads, ACS/DEFEND UI. **Next mission**: the product-gate package is `README_COMBAT_ENGINE` **§22**
-   (§21 = option analysis; §22 = decision status, settlement contract, implementation boundary, test plan).
+   (§21 = option analysis; §22 = decision status, settlement contract, implementation boundary, test plan;
+   **§23 = ACS settlement contract research**, read-only: LGI money-path contract inventory, the OGameX
+   responsibility map, the LGI↔OGameX contract map, the classification of every OGameX finding, and the
+   verified conclusion that the only MISSING contracts are the **battle-level settlement orchestrator** and
+   the **participant fleet settlement** one — both blockable by PG-09/PG-10 only on the loot path).
    **PG-08 / PG-17 / PG-18 are ready for implementation** (function-body changes only, no migration);
    **PG-09 / PG-10 remain unresolved product decisions** and block the loot path, so the settlement mission
    must start with the three ready gates or wait. Nothing is implemented yet: no settlement, no producer, no
