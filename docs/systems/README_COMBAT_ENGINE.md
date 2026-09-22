@@ -3878,6 +3878,155 @@ Still awaiting human ratification (from §22.1, unchanged):
 **No settlement code exists in LGI and none was written by this mission.** The three ready gates may be
 implemented after ratification; the loot path stays blocked until PG-09 and PG-10 are decided.
 
+## 24. ACS SETTLEMENT — IMPLEMENTED (2026-09-22)
+
+> Migration `20260922060013_acs_settlement_participant_model` (forward-only, LIVE applied, repo file
+> content-identical). **No schema change**: everything uses `combat_battle_participants`,
+> `combat_individual_units`, `fleet_movements`, `fleet_movement_ships` and `combat_battles`.
+
+### 24.1 What was implemented
+
+```text
+PG-08  resolve_attack_arrival now iterates EVERY FLEET participant (ATTACKER/FLEET and
+       DEFENDER/FLEET) and writes each one's survivors exclusively through ITS OWN fleet_id
+       (delete + insert into fleet_movement_ships). A fully destroyed participant simply leaves
+       no rows (CHECK quantity > 0 makes absence-of-rows the only representable form of zero).
+
+PG-08  resolve_combat now resolves a battle by PARTICIPANT first
+         combat_battle_participants.fleet_id -> battle_id
+       and falls back to the historic combat_battles.fleet_id anchor (DG-10). A non-initiating
+       participating fleet therefore finds the EXISTING battle instead of creating a second one.
+
+PG-09  apply_attack_loot derives the battle loot ceiling from the ORIGINAL (round 1) composition of
+       every ATTACKER/FLEET participant, combined, so it never depends on what survived. The 50 %
+       caps and the metal -> crystal -> deuterium cascade are byte-identical.
+
+PG-10  Entitlement = ATTACKER/FLEET participants with surviving ships. Allocation = proportional to
+       each participant's SURVIVING cargo capacity, credited to that participant's own fleet cargo
+       (which the certified return leg carries to that fleet's origin planet).
+
+PG-17  A DEFENDER/FLEET participant has its survivors rewritten and its status and holding_until
+       left UNTOUCHED, so the certified worker transition HOLDING -> RETURNING on holding_until
+       remains the only authority over the window.
+
+PG-18  sync_combat_battle_final_counts and run_expedition_combat now exclude FLEET participants
+       from the defender counters (participant_type <> 'FLEET'), so defender_ships_before (planet
+       only, computed in resolve_combat) stays coherent with defender_ships_after and the certified
+       report keeps its meaning. DEFENDER/ENEMY is not a FLEET participant, so expeditions are
+       untouched.
+
+ORDER  run_expedition_combat -> participant survivor write-back -> loot capacity/credit ->
+       repair/debris -> attacker fleets leave ARRIVED. The loot credit is guarded by
+       status='ARRIVED', and every attacker fleet's transition happens only AFTER its share landed.
+```
+
+### 24.2 PG-10 rounding — explicit convention and an OPEN OGameX gap
+
+```text
+CONVENTION (documented, not silent)
+  each entitled participant is credited floor(total_resource * its_share) per resource, and the
+  PLANET is debited ONLY by what was actually credited (the credit loop tracks it). Consequences:
+    · no resource is created and none is destroyed;
+    · the rounding remainder simply stays on the planet (the same semantic as the certified
+      single-fleet arithmetic, where unallocated capacity is never taken);
+    · with ONE participant the share is exactly 1, so the credited amounts are byte-identical to
+      the certified single-fleet behaviour.
+
+BUG / OPEN
+  The exact OGameX per-fleet `AttackerFleetResult::$lootShare` arithmetic (its own rounding and
+  remainder policy) could NOT be read from this environment: the 35 KB BattleEngine.php and its
+  introducing commit patch (c688e99) both truncate mid-file here, and two public code-search
+  endpoints answered HTTP 429. Per the mission rule the equivalence was therefore NOT invented:
+  the convention above is LGI's own and is isolated to three `floor(...)` expressions plus the
+  planet-debit statement, so a faithful OGameX adaptation can replace it without touching any other
+  rule. The entitlement rule, the capacity source and the credit path are unaffected by this gap.
+```
+
+### 24.3 ACL / definer verification (LIVE)
+
+```text
+resolve_combat                    SECURITY DEFINER · search_path public, pg_temp
+run_expedition_combat             SECURITY DEFINER · search_path public, pg_temp
+resolve_attack_arrival            SECURITY INVOKER · search_path pg_catalog, public
+apply_attack_loot                 SECURITY INVOKER · search_path pg_catalog, public
+sync_combat_battle_final_counts   SECURITY INVOKER · search_path public, pg_temp
+
+all five: proacl = {postgres=X/postgres, service_role=X/postgres}
+          anon EXECUTE = false · authenticated EXECUTE = false · service_role EXECUTE = true
+          exactly ONE pg_proc definition per name (no orphan overload)
+No client surface was widened: the settlement layer remains service_role only.
+```
+
+### 24.4 Tests
+
+New fixture `supabase/tests/combat_acs_settlement.sql` — **18/18 PASS** (rollback-safe, zero residue):
+
+| # | Assertion |
+|---|---|
+| H1 | a non-initiating participating fleet resolves to the SAME battle |
+| H2 | no second battle is created for it |
+| A1 | the single-attacker path still settles and the fleet returns |
+| A2 | no phantom participants |
+| A3 | at most one debris generation per battle |
+| A4 | a participating fleet's composition never exceeds its original |
+| G1 | replay returns the same battle with no duplicate loot or debris |
+| E1 | PG-09 capacity is the ORIGINAL combined composition (36700 == an independent oracle) |
+| F1 | distinct surviving capacities are both credited |
+| F2 | the split is proportional to surviving capacity (floor tolerance) |
+| F3 | the battle loot equals the credited sum and stays inside the plunder bound |
+| C1 | a different-owner participant is credited on its own fleet |
+| D1 | a destroyed participant receives no loot share |
+| B1 | same-owner fleets keep independent survivors |
+| B2 | different-owner survivors land on the owning fleet; a destroyed one leaves none |
+| I1 | a defending fleet keeps HOLDING and its holding_until, survivors rewritten |
+| B3 | every attacker fleet left ARRIVED only after its loot share was settled |
+| PG18 | the header defender counters stay planet-scoped (fleet alive 1, header ships 0, units 2) |
+
+**Intentional test change:** `combat_defender_fleet_participant.sql` D11 asserted the temporary Phase 4B
+refusal (`MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED`). That refusal was explicitly temporary and this mission
+defines the missing semantics, so D11 became **D11a** (a battle owning defending fleets now settles and the
+hold survives) plus **D11b** (an unhandled participant shape — `DEFENDER/ENEMY` in an attack battle — still
+refuses with `BATTLE_SETTLEMENT_UNSUPPORTED_PARTICIPANT`). Coverage was **strengthened**, never weakened:
+the suite went from 16 to 17 assertions. Two assertions also needed a fixture-clock normalisation because a
+battle now settles where it previously refused.
+
+Full suite after the change (**all certified regressions green**):
+
+```text
+attack 12/12 · expedition 11/11 · report 7/7 · worker 8/8 · debris 5/5 · collision 13/13 ·
+defender-fleet 17/17 · ACS settlement 18/18 (new) · fleet classes 23/23 · shipyard 25/25 ·
+acs_hold 50/50 · support chain 13/13 · buildings gate PASSED · research 12/12
+                                                                          TOTAL 214 PASS / 0 FAIL
+npx tsc -b = 0 · npm run build = 0 · git diff --check clean · LIVE residue = NONE
+```
+
+### 24.5 What is still NOT implemented
+
+```text
+· a producer: nothing yet creates a DEFENDER/FLEET participant or joins a fleet to an existing
+  battle. The settlement is ready for such participants (proved by the fixture inserting them the
+  way a future producer would) but it never creates them, and resolve_combat still creates only the
+  initiating ATTACKER/FLEET plus the DEFENDER/PLANET participant.
+· ACS grouping / dispatch, DEFEND dispatch, withdrawal, late-join rules and the ACS/DEFEND UI.
+· the OGameX lootShare arithmetic equivalence (isolated BUG/OPEN above).
+
+The certified single-attacker behaviour is unchanged, and the engine still refuses to settle a
+participant shape it cannot attribute.
+```
+
+### 24.6 Invariants preserved
+
+```text
+· participant, target and loss identity (Phase 4A) — untouched
+· DEFENDER/FLEET materialisation (Phase 4B) — untouched
+· the round engine: snapshots, shots, damage ledger, rapidfire, explosion, round cap — untouched
+· debris: ONE generation per battle (battle-scoped advisory lock) · repair: planet-scoped
+· loot: 50 % caps, metal -> crystal -> deuterium cascade — byte-identical
+· the worker's per-fleet failure isolation and replay guards — untouched
+· expedition compatibility: DEFENDER/ENEMY is never treated as DEFENDER/FLEET
+· the certified report payload keeps its meaning
+```
+
 
 
 

@@ -275,9 +275,21 @@ boundary and the future test plan). Status:
   (planet-only) coherent with `defender_ships_after` **and** preserves the certified report contract.
   *Ratification pending.*
 
-**Next implementation boundary:** PG-08 / PG-17 / PG-18 can be implemented (function-body changes only, no
-migration). **Loot (PG-09/PG-10) is blocked until decided.** No settlement code exists yet, and the
-settlement contract in §22.4 is a proposal, not an approved contract.
+**ACS SETTLEMENT IMPLEMENTED — 2026-09-22** (migration `20260922060013_acs_settlement_participant_model`,
+forward-only, LIVE applied, repo file content-identical, **no schema change**). All five gates are now
+implemented as decided: per-participant survivor attribution, battle-level settlement resolution
+(participant lookup with the DG-10 fallback), loot capacity from the ORIGINAL combined attacker
+composition, entitlement + proportional-to-surviving-capacity allocation, the defending-fleet hold
+preserved, and planet-scoped defender counters. Details, the PG-10 rounding convention, the ACL evidence and
+the intentional D11 test change: `README_COMBAT_ENGINE` **§24**.
+
+**Still NOT implemented:** a producer (nothing creates a `DEFENDER/FLEET` participant or joins a fleet to an
+existing battle), ACS grouping/dispatch, DEFEND dispatch, withdrawal/late-join rules and the ACS/DEFEND UI.
+
+**BUG / OPEN:** the exact OGameX `lootShare` arithmetic could not be read from this environment, so LGI uses
+its own documented rounding convention (floor per participant per resource; the planet is debited only by what
+was credited, so nothing is created or destroyed and the single-participant case is byte-identical to the
+certified behaviour). The convention is isolated so a faithful OGameX adaptation can replace it later.
 
 Implemented:
 
@@ -521,10 +533,12 @@ BLOCKED / LATER
    responsibility map, the LGI↔OGameX contract map, the classification of every OGameX finding, and the
    verified conclusion that the only MISSING contracts are the **battle-level settlement orchestrator** and
    the **participant fleet settlement** one — both blockable by PG-09/PG-10 only on the loot path).
-   **PG-08 / PG-17 / PG-18 are ready for implementation** (function-body changes only, no migration);
-   **PG-09 / PG-10 remain unresolved product decisions** and block the loot path, so the settlement mission
-   must start with the three ready gates or wait. Nothing is implemented yet: no settlement, no producer, no
-   migration. The ACS_HOLD transport becoming reachable (§7) does not remove any of these gates.
+   **All five gates (PG-08…PG-18) are IMPLEMENTED** by
+   `20260922060013_acs_settlement_participant_model` (`README_COMBAT_ENGINE` **§24**), with **no schema
+   change**; the certified regressions stay green (214 PASS) and the ACS settlement fixture is 18/18. What
+   remains is the **producer** (creating/joining participants), ACS grouping/dispatch, DEFEND dispatch,
+   withdrawal/late-join rules and the ACS/DEFEND UI, plus the isolated OGameX `lootShare` arithmetic
+   BUG/OPEN. The ACS_HOLD transport becoming reachable (§7) does not by itself create gameplay.
    Do not reopen the certified chain without new evidence of a defect, and do not create a second combat
    architecture.
 
