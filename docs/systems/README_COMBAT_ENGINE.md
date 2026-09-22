@@ -3442,6 +3442,442 @@ Imported semantics: NONE
 **Nothing in §22 is implemented.** The implementation mission may start on PG-08 / PG-17 / PG-18 and must
 wait for the PG-09 / PG-10 decisions before touching loot.
 
+## 23. ACS SETTLEMENT CONTRACT RESEARCH (read-only, 2026-09-22)
+
+> **Read-only mission.** No function created or replaced, no migration, no INSERT/UPDATE/DELETE, no GRANT,
+> no UI. Purpose: determine which settlement contracts LGI still needs, what each one must own, and which
+> part of that is evidenced by OGameX versus which part remains an LGI product decision.
+>
+> Evidence levels: **LGI LIVE VERIFIED** (deployed catalog/definitions re-read 2026-09-22),
+> **OGameX VERIFIED** (source read), **INFERRED**, **NOT VERIFIED** (explicitly stated).
+
+### 23.1 LGI money-path contract inventory (LIVE)
+
+| Function | SECURITY DEFINER | client EXECUTE | reads `combat_battle_participants` | reads `fleet_movement_ships` | filters `participant_type='PLANET'` |
+|---|---|---|---|---|---|
+| `resolve_combat` | yes | no | **yes** | yes | no |
+| `resolve_attack_arrival` | no | no | **yes** | yes | yes |
+| `apply_attack_loot` | no | no | **no** | yes | no |
+| `sync_combat_battle_final_counts` | no | no | **no** | **no** | no |
+| `run_expedition_combat` | yes | no | no | no | no |
+| `initialize_individual_combat_units` | no | no | yes | yes | yes |
+| `create_combat_debris` | no | no | no | no | no |
+| `repair_defenses_after_combat` | yes | no | no | no | no |
+| `process_fleet_movements` | yes | no | no | yes | no |
+| `get_player_battle_reports` | yes | **yes** | yes | no | no |
+
+Three structural facts follow directly from that table and they define the whole contract gap:
+
+```text
+1. apply_attack_loot does NOT reference combat_battle_participants at all ⇒ loot is structurally
+   single-fleet: it can only ever see combat_battles.fleet_id.          (PG-09 / PG-10 gap)
+2. sync_combat_battle_final_counts reads neither participants nor fleet composition ⇒ it is a pure
+   SIDE aggregate over combat_individual_units; it cannot tell a planet ship from a fleet ship.
+                                                                       (PG-18 gap)
+3. There is NO standalone "settle one participant" contract: all settlement is inlined inside
+   resolve_attack_arrival for exactly one attacker participant + the planet participant.
+                                                                       (PG-08 gap)
+```
+
+Available per-participant material (LIVE): `combat_battle_participants` carries `id`, `battle_id`, `side`,
+`participant_type`, `fleet_id`, `planet_id`, `player_id`, `origin_planet_id`, `mission_type`;
+`combat_individual_units` is participant-aware per round; `fleet_movements` carries the cargo
+(`metal/crystal/deuterium`), `status`, `returns_at`, `holding_until`; `fleet_movement_ships` is
+`UNIQUE(fleet_id, ship_id)` + `CHECK(quantity > 0)`.
+
+Idempotency gates present in LIVE (all verified, none participant-level):
+
+```text
+apply_attack_loot                 loot_applied_at gate                       (BATTLE level)
+create_combat_debris              combat_debris_generations UNIQUE(battle_id)
+repair_defenses_after_combat      combat_defense_repairs existence probe
+resolve_attack_arrival            early return unless status = ARRIVED       (FLEET level)
+resolve_combat                    replay lookup by combat_battles.fleet_id   (INITIATOR only)
+resolve_attack_arrival            run_expedition_combat only when finished_at IS NULL
+ux_combat_battles_one_per_fleet   UNIQUE(combat_battles.fleet_id)            (INITIATOR only)
+```
+
+### 23.2 OGameX responsibility map (reference, OGameX VERIFIED)
+
+Traced from the fleet mission down to the return, on the current OGameX `main` sources:
+
+```text
+FleetMission (AttackMission / AcsDefendMission)
+   ↓  AttackerFleet::fromFleetMission()      DefenderFleet::fromFleetMission() / ::fromPlanet()
+   │     units  = FleetMissionService::getFleetUnits($mission)
+   │     cargo  = FleetMissionService::getResources($mission)
+   │     ownerId = $mission->user_id
+   │     fleetMissionId = $mission->id        (0 = planet owner's stationary forces)
+   │     isInitiator = true only for the fleet that created the union
+   ↓  AttackerFleet::toBattleUnits()          "Each fleet uses its OWN player's tech levels"
+   ↓  BattleUnit{ ..., fleetMissionId, ownerId }   ← EVERY unit carries fleet + owner identity
+   ↓  battle rounds
+   ↓  AttackerFleetResult{ fleetMissionId, playerId, unitsStart, unitsResult, unitsLost,
+   │                       resourceLoss, lootShare, survivingCargo, completelyDestroyed }
+   │  DefenderFleetResult{ fleetMissionId, ownerId, unitsStart, unitsResult, unitsLost,
+   │                       completelyDestroyed }
+   ↓  BattleResult{ side aggregates + attackerFleetResults[] + defenderFleetResults[]
+   │               ("empty array for backward compatibility with single-* battles"),
+   │               loot, lootPercentage, debris, wreckField, repairedDefenses (70 %),
+   │               rounds, attacker/defender tech levels, attackerPlanetId }
+   ↓  LootService(UnitCollection $attackerFleet = COMBINED, PlayerService $attackerPlayer = attackers[0])
+   │     calculateLootCapacityConstrained() -> 50 % of the planet, constrained by capacity
+   │     distributeLoot($loot, $capacity)   -> splits across RESOURCE TYPES (not across fleets)
+   ↓  mission record updated with surviving units + resources
+   ↓  AcsDefendMission::processArrival()  -> startReturn($mission, getResources($mission),
+   │                                        getFleetUnits($mission))   (only after the hold expires)
+   ↓  processReturn() -> destination planet addUnits + addResources; $mission->processed = 1
+```
+
+Explicit OGameX statements used as evidence:
+
+```text
+AttackerFleetResult::$lootShare         "This fleet's share of the loot."
+AttackerFleetResult::$survivingCargo    "Cargo resources that survived (proportional to surviving
+                                         cargo capacity)."
+AttackerFleet::getSurvivingCargoCapacity(UnitCollection $survivingUnits)
+BattleResult::$attackerFleetResults     "Per-fleet results for each attacking fleet in ACS battles."
+BattleResult::$defenderFleetResults     "Per-fleet results for each defending fleet (planet owner + ACS
+                                         defend fleets)."
+DefenderFleet::fromPlanet()             planet ships + defences, EXCLUDING missiles
+FleetMission "ACS Defend"               FleetSpeedType::holding · requires buddy/alliance
+AcsDefendMission::processArrival()      "Unit counts on the mission record may have been updated by battle
+                                         processing if the fleet was attacked during hold time, so
+                                         getFleetUnits() returns the correct post-battle survivors."
+AcsDefendMission::processReturn()       returns units + resources to the destination planet;
+                                         $mission->processed = 1
+```
+
+**Evidence limit (NOT VERIFIED):** the exact arithmetic that turns the total loot into each fleet's
+`lootShare` (rounding and remainder) lives inside `BattleEngine.php` (35 KB), whose middle section was not
+readable in full from this environment. Only the model contract is asserted here. Per the OGameX rule it
+would not be imported anyway; it is recorded as not-fully-read rather than guessed.
+
+### 23.3 LGI ↔ OGameX contract map
+
+```text
+EXISTS FULL  = contract exists and is generic
+EXISTS FLEET = exists but hard-wired to one fleet (the initiator)
+PARTIAL      = exists only for part of the required scope
+MISSING      = does not exist
+```
+
+| Contract / function | LGI | OGameX equivalent | Responsibility | Inputs | Outputs | Decision |
+|---|---|---|---|---|---|---|
+| **battle-level settlement orchestrator** | PARTIAL (`resolve_attack_arrival`, keyed to one fleet id) | the triggering mission's `processArrival` + result application | settle the WHOLE battle **exactly once**, whichever fleet triggers it | `battle_id` | settled battle; no-op on replay | **MISSING CONTRACT — define** (PG-08) |
+| **participant fleet settlement** | MISSING (inlined, single participant) | `AttackerFleetResult` / `DefenderFleetResult` + mission update | write ONE participant fleet's survivors/losses and advance or leave its state | `battle_id` + `participant_id` | `fleet_movement_ships` rewritten; status transition | **MISSING CONTRACT — define** (PG-08 / PG-17) |
+| **loot capacity** | EXISTS FLEET (`apply_attack_loot`) | `LootService` (combined fleet) + `AttackerFleet::getSurvivingCargoCapacity()` | total cargo capacity the battle may fill | battle + ATTACKER participants' composition | one capacity number | **PG-09 product decision** |
+| **loot allocation** | MISSING | `AttackerFleetResult::$lootShare` (per fleet) | split the plunder deterministically across entitled fleets | capacity + entitlement + planet resources | per-fleet cargo credit | **PG-10 product decision** |
+| **defender fleet settlement** | MISSING (no producer; guard refuses) | `DefenderFleetResult` + `AcsDefendMission` | write a defending fleet's survivors and **preserve its hold** | `battle_id` + a DEFENDER/FLEET participant | `fleet_movement_ships` rewritten; `holding_until` untouched | **DECIDED** (PG-08 + PG-17) |
+| **ACS return transition** | EXISTS FLEET (`status` ARRIVED → RETURNING) | `startReturn()` per mission + `processed` flag | move each participating fleet out of its arrival state once | one `fleet_id` | `RETURNING` + `returns_at` | **DECIDED** (PG-08 + PG-17) |
+| **battle report projection** | EXISTS FULL (`get_player_battle_reports`) | `BattleResult` → battle report | expose the certified per-battle payload | `battle_id` + caller identity | report row | **DECIDED** (PG-18: meaning preserved) |
+
+**No contract in the MISSING/PARTIAL rows is written here** — only its responsibility, inputs and outputs.
+A contract is defined before it is implemented; that is the point of this gate.
+
+### 23.4 Classification of every OGameX finding
+
+```text
+CORROBORATED — OGameX independently does what LGI already does
+  · every combat unit carries fleet + owner identity (BattleUnit.fleetMissionId/ownerId
+    ↔ LGI combat_individual_units.participant_id)
+  · per-fleet survivor/loss results exist (AttackerFleetResult / DefenderFleetResult ↔ LGI
+    per-participant alive state + participant-aware loss readers)
+  · each fleet fights with ITS OWN owner's tech levels ("Always use OWN player's tech levels"
+    ↔ LGI get_combat_*_stat(part.player_id, ship_id))
+  · the defender side = stationery planet forces OR separately identified defending fleets
+    (DefenderFleet::fromPlanet with fleetMissionId 0 vs ::fromFleetMission ↔ LGI DEFENDER/PLANET
+    vs DEFENDER/FLEET)
+  · defences repaired at 70 % (BattleResult.repairedDefenses ↔ LGI repair_defenses_after_combat)
+  · a defending fleet keeps its hold and returns AFTER the hold window with its post-battle
+    survivors (AcsDefendMission ↔ the PG-17 decision)
+  · holding missions use a holding speed class (FleetSpeedType::holding ↔ holding_fleet_speed)
+
+ARCHITECTURAL REFERENCE — informs the contract shape without deciding anything
+  · side aggregates and per-fleet result arrays COEXIST, with the per-fleet arrays EMPTY for
+    single-fleet battles "for backward compatibility" → validates LGI keeping combat_battles
+    aggregates while adding per-participant settlement, and keeping single-fleet behaviour intact
+  · loot capacity from the COMBINED attacker fleet (pre-battle composition) → evidences PG-09
+    option (2) as a real design; it does not decide it
+  · per-fleet loot attribution exists as a concept (AttackerFleetResult::lootShare) → evidences
+    PG-10 per-fleet allocation as a real design; it does not decide it
+  · cargo survival proportional to surviving cargo capacity (survivingCargo) → reference for how a
+    fleet's own carried cargo could behave after losses; LGI currently has NO cargo-loss rule
+  · idempotency by a per-mission `processed` flag → reference for per-fleet idempotency; it is a
+    MISSION-level guard, conceptually the same unit as LGI's per-fleet status transition
+
+LGI-CONTRADICTORY — must NOT be imported
+  · loot credited to a single player (LootService is constructed with one PlayerService): LGI has no
+    player-level resource pool; resources live on planets and loot rides a fleet's cargo to that
+    fleet's origin planet
+  · the battle computed outside the database (PHP service + separate Rust engine, `rust/` present in
+    the repository root): LGI's integrity boundary is the worker transaction
+  · tactical retreat, Hamill Manoeuvre, moons, wreck fields, missile exclusion: features LGI has
+    deliberately not adopted; importing any of them would create a new product surface
+  · character-class loot percentages (base 50 %, e.g. 75 % for a class against inactive players):
+    LGI's cap is a fixed 50 % with no character classes
+
+NOT APPLICABLE
+  · Eloquent models, Laravel jobs/routing, PHP lifecycle assumptions, OGameX table names
+
+PRODUCT DECISION — still LGI's own
+  · whether destroyed ships may carry loot at all (PG-09)
+  · entitlement plus the deterministic allocation rule, including rounding and remainder (PG-10)
+
+Contradictions with CLOSED LGI decisions: NONE
+Imported semantics: NONE
+```
+
+### 23.5 PG-08 — survivor attribution
+
+```text
+OGameX evidence:            per-fleet result objects keyed by fleetMissionId + ownerId
+                            (AttackerFleetResult / DefenderFleetResult); BattleUnit carries
+                            fleetMissionId + ownerId per UNIT; AcsDefendMission returns the mission's
+                            own post-battle survivors after the hold.
+LGI architectural evidence: combat_individual_units.alive is per participant (Phase 4A/4B, certified);
+                            combat_battle_participants.fleet_id is the only durable fleet key;
+                            fleet_movement_ships is UNIQUE(fleet_id, ship_id) + CHECK(quantity > 0)
+                            and belongs to exactly one player.
+LGI product decision:       NONE REQUIRED. A pooled attacker result would have to zero or delete other
+                            participants' fleets, i.e. transfer ships between players, which the
+                            ownership chain auth.uid() -> players.user_id -> players.id forbids.
+Recommended boundary:       define ONE participant-settlement contract (responsibility: write the
+                            participant's own survivors/losses and advance or leave its state) and
+                            keep combat_battles as a side aggregate. No schema change, no new table.
+Verdict:                    PG-08 = per-participant. Same conclusion as §22.1, now independently
+                            corroborated by OGameX.
+```
+
+### 23.6 PG-09 — loot capacity: option matrix
+
+Every option is described on the fields the research gate requires.
+
+```text
+OPTION 1 — initiating fleet only  (current behaviour)
+  source data             fleet_movement_ships of combat_battles.fleet_id
+  authority               combat_battles.fleet_id (the replay key)
+  ownership               one player
+  destroyed fleet         n/a (only one fleet is ever considered)
+  partial loss            capacity follows that one fleet's survivors
+  zero survivors          capacity 0 -> early return that still stamps loot_applied_at
+  idempotency             loot_applied_at (battle level) — already present
+  interaction w/ fms      direct (it IS the query source)
+  interaction w/ ciu      none
+  OGameX equivalent       none — OGameX uses the combined fleet, never the initiator alone
+  LGI consequence         privileges whichever fleet happened to create the battle: an artifact of
+                          the replay key, not a rule; every other participant's cargo is irrelevant
+  verdict                 defensible ONLY if the product states "only the initiating fleet loots"
+
+OPTION 2 — all ATTACKER participants, ORIGINAL composition
+  source data             combat_individual_units WHERE round_number = 1 (participant-aware)
+  authority               the battle's initial state
+  ownership               per participant
+  destroyed fleet         still contributes capacity (a destroyed ship "carries")
+  partial loss            capacity ignores losses
+  zero survivors          may be > 0 with no surviving ship -> conflicts with PG-10 (ii)
+  idempotency             read-only over immutable round-1 rows (naturally idempotent)
+  interaction w/ fms      indirect (must be joined to participants to know which fleets count)
+  interaction w/ ciu      direct
+  OGameX equivalent       YES — capacity from the COMBINED attacker fleet as handed to the engine,
+                          i.e. the pre-battle composition
+  LGI consequence         creates a SECOND authority for "what a fleet consists of" inside loot
+                          (round-1 units) while settlement writes back fleet_movement_ships
+
+OPTION 3 — all ATTACKER participants, SURVIVING composition
+  source data             fleet_movement_ships joined to the battle's ATTACKER/FLEET participants,
+                          read AFTER the participant write-back
+  authority               fleet_movement_ships (the single existing composition authority)
+  ownership               per participant
+  destroyed fleet         contributes 0 (CHECK(quantity > 0) means no rows at all)
+  partial loss            capacity follows survivors exactly
+  zero survivors          contributes 0, while the aggregate can still be > 0 from other participants
+  idempotency             relies on the write-back being idempotent (it is: recomputed from units)
+  interaction w/ fms      direct
+  interaction w/ ciu      indirect (through the write-back)
+  OGameX equivalent       PARTIAL — OGameX has AttackerFleet::getSurvivingCargoCapacity() per fleet but
+                          its LootService constraint uses the combined (pre-battle) fleet
+  LGI consequence         no new data source, one authority, and the natural extension of the
+                          certified single-fleet read
+
+OPTION 4 — configured capacity
+  source data             a new configuration surface
+  authority / ownership / destroyed fleet / partial loss / zero survivors   undefined
+  idempotency / interactions                                              n/a
+  OGameX equivalent       none
+  LGI consequence         introduces configuration LGI does not have and cannot infer
+```
+
+```text
+OGameX evidence:            LootService is constructed with a COMBINED attacker fleet and constrains the
+                            total loot by its getTotalCargoCapacity(); a per-fleet
+                            AttackerFleet::getSurvivingCargoCapacity() also exists.
+LGI architectural evidence: apply_attack_loot reads ONLY combat_battles.fleet_id; the participant layer is
+                            participant-aware but loot never consults it; the certified single-fleet
+                            read is fleet_movement_ships AFTER the write-back.
+LGI product decision:       REQUIRED. Whether a destroyed ship may carry loot (and whether the initiator
+                            is privileged) is a balance rule; the architecture excludes neither (2)
+                            nor (3).
+Recommended boundary:       (3) if the product wants one authority and the smallest change; (2) only as
+                            an explicit product statement, because it adds a second composition
+                            authority; (1) only if "only the initiator loots" is stated as a rule;
+                            (4) rejected unless a configuration surface is deliberately specified.
+```
+
+### 23.7 PG-10 — loot recipient / allocation
+
+Entitlement and allocation are two separate questions; the table crosses them on the fields the gate
+requires.
+
+```text
+ENTITLEMENT
+  (i)   initiating fleet only
+        ownership: one player. carrier: one fleet_movements row. planet credit: that fleet's
+        origin_planet_id. destroyed participant: n/a. same-owner multiple fleets: only the initiator
+        carries. different-owner fleets: they receive nothing. rounding/remainder: single carrier, so
+        the existing code path is unchanged. LGI consequence: lowest regression risk and it matches the
+        certified credit statement, but in ACS it lets one player keep cargo other players' ships helped
+        to carry. OGameX: it credits ONE player (attackers[0]), which LGI cannot express as a pool but
+        CAN express as "the initiator's fleet carries it".
+  (ii)  every ATTACKER participant that survived with at least one ship
+        ownership: per participant. carrier: each fleet's own cargo (metal/crystal/deuterium columns).
+        planet credit: each fleet's own origin_planet_id. destroyed participant: gets nothing
+        (consistent with zero capacity). same-owner multiple fleets: each carries its own share.
+        different-owner fleets: each player receives what its own fleet carries home.
+        rounding/remainder: MUST be defined. LGI consequence: fair across players, needs a per-fleet
+        credit loop plus a remainder rule. OGameX: AttackerFleetResult::$lootShare is exactly a per-fleet
+        share, so the concept is corroborated.
+  (iii) every ATTACKER participant regardless of survival
+        ownership: per participant. carrier: a destroyed fleet has zero capacity
+        (CHECK(quantity > 0) leaves no rows), so it is entitled but cannot carry; the share would be
+        lost or need redistribution. LGI consequence: contradicts (iii)'s own premise and complicates
+        the remainder rule. OGameX: no equivalent (its per-fleet results have no zero-capacity carrier).
+  (iv)  same-owner aggregation (per player)
+        requires a cargo holder per PLAYER. LGI has no player-level resource pool: resources live on
+        planets, so the loot would still have to be split across that player's fleets. LGI consequence:
+        not directly expressible; it collapses back into (ii)/(iii).
+
+ALLOCATION (assuming (ii))
+  (a) the initiating fleet carries everything
+        deterministic, no rounding. Reuses the certified credit statement unchanged.
+  (b) proportional to each entitled participant's (surviving) cargo capacity
+        deterministic if the remainder rule is defined; scales with what each fleet contributed.
+  (c) equal shares per entitled participant
+        deterministic with a remainder rule; ignores fleet size.
+  (d) per player, then split within the player
+        two-stage; still needs a fleet-level split.
+```
+
+```text
+OGameX evidence:            per-fleet loot attribution exists (AttackerFleetResult::$lootShare, "This
+                            fleet's share of the loot"); LootService::distributeLoot() however splits
+                            across RESOURCE TYPES, not across fleets, and the loot is credited to ONE
+                            player. The exact share arithmetic was not fully readable (see 23.2).
+LGI architectural evidence: loot is physically carried in fleet_movements.metal/crystal/deuterium and is
+                            credited by the certified return leg to planet_resources of that fleet's
+                            origin_planet_id; the credit is guarded by status='ARRIVED'; loot_applied_at
+                            is a single BATTLE-level stamp. There is no player pool.
+LGI product decision:       REQUIRED — entitlement AND the allocation rule AND the remainder rule.
+Recommended boundary:       entitlement (ii) with allocation (b) if the product wants cross-player
+                            fairness; entitlement (i) with allocation (a) if it wants the smallest change
+                            and is willing to state that rule explicitly. Either way the per-fleet credit
+                            must happen BEFORE each fleet leaves status='ARRIVED', and the battle-level
+                            stamp must be applied exactly once at the end.
+```
+
+### 23.8 PG-17 — defender holding
+
+```text
+OGameX evidence:            AcsDefendMission keeps the fleet for the whole hold (FleetSpeedType::holding),
+                            states that battle processing may have updated the mission record's unit
+                            counts while the fleet was holding, and only then calls
+                            startReturn($mission, getResources($mission), getFleetUnits($mission)) — i.e.
+                            the surviving composition. Combat never redefines the hold window.
+LGI architectural evidence: holding_until is an ABSOLUTE UTC window and the single timing authority
+                            (active decision, PROJECT_CONTEXT §5); process_fleet_movements performs
+                            HOLDING -> RETURNING strictly on it; nothing else may own that window.
+LGI product decision:       NONE REQUIRED. Letting combat modify holding_until would create a second
+                            authority over a window that already has one.
+Recommended boundary:       defender fleet settlement writes the participant's survivors back to its own
+                            fleet_movement_ships and leaves status and holding_until untouched; a fully
+                            destroyed defending fleet travels the same certified path with no rows.
+Verdict:                    HOLDING -> (combat: survivors updated) -> holding_until preserved ->
+                            RETURNING only when holding_until expires. CONFIRMED, NOT IMPLEMENTED.
+```
+
+### 23.9 PG-18 — report counters
+
+```text
+OGameX evidence:            NO equivalent. BattleResult exposes per-fleet result arrays and per-round
+                            structures for the report; there is no persisted "defender_ships_before /
+                            defender_ships_after" pair in this shape, so OGameX offers no guidance.
+LGI architectural evidence: defender_ships_before is computed in resolve_combat from planet_ships ONLY;
+                            defender_ships_after is a side aggregate produced by
+                            sync_combat_battle_final_counts (which reads neither participants nor fleet
+                            composition, see 23.1); both are exposed by the certified report contract.
+                            Adding a DEFENDER/FLEET participant makes before and after describe
+                            DIFFERENT populations.
+LGI product decision:       NONE for the coherence fix: scoping both counters to the DEFENDER/PLANET
+                            participant keeps them coherent AND preserves the published meaning. A
+                            COMBINED defending-force counter would be a deliberate report-contract
+                            revision and is not part of this decision.
+Recommended boundary:       participant_type='PLANET' filter on the two defender counters.
+Verdict:                    planet-scoped. CONFIRMED, NOT IMPLEMENTED.
+```
+
+### 23.10 Idempotency model comparison (verified against code, not assumed)
+
+```text
+OGameX
+  unit of idempotency        the MISSION: a `processed` flag is set when the arrival mission creates its
+                             return leg (AcsDefendMission::processArrival -> $mission->processed = 1)
+  duplicate arrival          the flag + the mission state prevent a second application
+  duplicate loot/debris      lives inside the single BattleResult application for that battle
+  consequence for LGI        a mission-level guard is conceptually the same unit as LGI's per-fleet status
+                             transition, so per-fleet idempotency already has a home in LGI
+
+LGI (LIVE, verified)
+  fleet level                resolve_attack_arrival requires status = ARRIVED and early-returns otherwise
+  battle level               apply_attack_loot.loot_applied_at; combat_debris_generations UNIQUE(battle_id)
+                             + a battle-scoped advisory lock; combat_defense_repairs existence probe;
+                             run_expedition_combat only when finished_at IS NULL
+  initiator only             resolve_combat resolves a battle by combat_battles.fleet_id, enforced
+                             additionally by ux_combat_battles_one_per_fleet(fleet_id)
+
+VERIFIED GAP (this is why the earlier "battle-level idempotency" claim is not merely documentation)
+  resolve_combat's only replay lookup is `combat_battles.fleet_id = p_fleet_id`. A participating fleet
+  that did NOT create the battle cannot be resolved through it, so calling resolve_attack_arrival for
+  that fleet would CREATE A SECOND BATTLE instead of settling the existing one.
+  => battle-level resolution IS required. Minimal shape that preserves DG-10:
+       look up the battle by participant (combat_battle_participants.fleet_id = p_fleet_id,
+       side = 'ATTACKER') and FALL BACK to combat_battles.fleet_id.
+  => no new column is needed, and the certified single-fleet replay anchor is preserved.
+
+  The per-fleet guard then closes the loop at no extra cost: once settlement has moved every
+  participating fleet out of ARRIVED, any later arrival for the same battle early-returns.
+```
+
+### 23.11 Research outcome
+
+```text
+For every ACS piece that does not yet exist in LGI, this gate now states:
+  · its RESPONSIBILITY,
+  · its INPUTS and OUTPUTS,
+  · what OGameX evidences about it (classified), and
+  · which part is LGI's own product decision.
+
+STOP CONDITION REACHED
+  PG-09 (loot-capacity source) and PG-10 (entitlement + allocation + remainder) remain product decisions.
+  Nothing is implemented: no function created or replaced, no migration, no LIVE mutation, no UI, no
+  participant producer, no settlement, and no OGameX rule imported.
+
+Still awaiting human ratification (from §22.1, unchanged):
+  PG-08 per-participant · PG-17 hold preserved · PG-18 planet-scoped.
+```
+
+**No settlement code exists in LGI and none was written by this mission.** The three ready gates may be
+implemented after ratification; the loot path stays blocked until PG-09 and PG-10 are decided.
+
 
 
 
