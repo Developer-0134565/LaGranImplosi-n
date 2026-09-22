@@ -2783,6 +2783,250 @@ The certified base engine (single attacking fleet vs one planet + the expedition
 was not modified in behaviour by this phase.
 ```
 
+## 21. COMBAT PRODUCT GATES — TECHNICAL ANALYSIS (read-only, 2026-09-22)
+
+> **Analysis only. Nothing in this section is implemented.** These four gates require a product decision; the
+> purpose here is to make the next mission specific instead of exploratory. Evidence level: **LIVE VERIFIED**
+> (deployed definitions re-read on 2026-09-22; the Phase 4B invariants were re-checked and are unchanged).
+>
+> What changed since §20: the ACS_HOLD **transport** is now reachable end-to-end. The support authorization
+> blocker was repaired by `20260922052432_fix_support_authorization_conflict`, `fleet_acs_hold_lifecycle.sql`
+> passes **50/50** and a new authorization-chain fixture passes **13/13**. That changes nothing about these
+> four gates: a support fleet can now be *dispatched and held*, but it still cannot *participate in combat*,
+> because no producer creates a `DEFENDER/FLEET` participant (verified: 0 producers) and settlement refuses
+> such a battle on purpose.
+
+### 21.1 PG-08 — survivor attribution
+
+```text
+CURRENT LGI BEHAVIOUR
+  · combat keeps per-participant survivor state: combat_individual_units.alive is per
+    (battle, round, participant_id, unit...) and create_combat_next_round copies it forward.
+  · settlement is SINGLE-FLEET: resolve_attack_arrival resolves ONE attacker participant
+    (side='ATTACKER' AND fleet_id = p_fleet_id), deletes that fleet's fleet_movement_ships and
+    re-inserts the surviving composition of THAT participant, then moves THAT fleet to RETURNING.
+  · there is no pooled-attacker concept anywhere in the schema or the engine.
+
+WHAT MULTI-FLEET BREAKS
+  · an ACS battle owns N ATTACKER/FLEET participants, but only one of them (the initiating fleet,
+    combat_battles.fleet_id) has a settlement path. The other N-1 fleets would never be rewritten
+    and never transition out of their movement state.
+  · the per-participant survivor data already exists, so nothing needs to be *computed*; what is
+    missing is the *write-back loop* and the per-fleet status transition.
+
+AVAILABLE DESIGN OPTIONS
+  A. per-fleet survivors: each ATTACKER/FLEET participant's surviving units are written back to ITS
+     OWN fleet_movement_ships, and each fleet returns on its own duration.
+  B. pooled attacker survivors: the battle produces ONE attacker pool carried by a single movement.
+  C. hybrid: per-fleet survivors, pooled capacity (see 21.2).
+
+CONSEQUENCES
+  A. matches the engine's existing shape (participant-aware alive state), keeps every fleet
+     independently attributable, needs no new table and no new identity; cost = a loop over
+     participants replacing two single-participant statements.
+  B. contradicts the participant-aware foundation built in Phase 4A/4B, destroys per-fleet
+     attribution (the exact property those phases established), and requires inventing a carrier
+     for a pool that no LGI concept describes.
+  C. adds a second attribution model on top of an already-complete one.
+
+RECOMMENDED LGI-COMPATIBLE OPTION (not implemented)
+  A — per-fleet survivors. It is the only option that preserves the certified participant identity,
+  requires no new identity object, and matches the existing per-participant alive state. It is NOT
+  sufficient on its own: PG-17 defines what a defending fleet does, PG-09/10 define loot.
+
+WHAT CODE WOULD CHANGE (if A is chosen)
+  resolve_attack_arrival: replace the single-participant survivor write-back and the single status
+  transition with a loop over every participant of the battle that owns a fleet:
+      for each participant in combat_battle_participants where fleet_id is not null:
+          rewrite that fleet's fleet_movement_ships from ITS OWN participant's surviving units
+          move that fleet out of its current state with its own persisted timing
+  plus the Phase 4B fail-closed guard relaxed only for the participants the loop actually handles.
+  Nothing in the round engine, snapshots, shots, damage, rapidfire, debris or repair changes.
+
+WHAT TESTS WOULD PROVE IT
+  · a two-attacker battle where A loses everything and B survives: A's fleet_movement_ships and
+    status reflect A's own participant only, and likewise B (no cross-participant leakage);
+  · the existing 12/12 single-attacker regression must stay green unchanged;
+  · replay: a second settlement pass must not double-apply.
+```
+
+### 21.2 PG-09 / PG-10 — loot capacity source and loot recipient
+
+```text
+CURRENT LGI BEHAVIOUR
+  apply_attack_loot(p_battle_id):
+    · locks the battle row and returns early when loot_applied_at is set (idempotent);
+    · when the attacker did NOT win it records loot_applied_at with 0/0/0 and returns;
+    · capacity = SUM(fleet_movement_ships.quantity * ship_definitions.cargo_capacity) for
+      combat_battles.fleet_id ONLY;
+    · plunder = 50 % per resource, taken in the order metal -> crystal -> deuterium with the
+      surplus cascading;
+    · the cargo is credited to that ONE fleet_movements row (its metal/crystal/deuterium columns).
+
+WHAT MULTI-FLEET BREAKS
+  · capacity ignores every fleet except the initiating one — arbitrarily discriminating against
+    whoever happened to arrive first;
+  · there is exactly one credit target, so even a correct total has nowhere to go when N fleets
+    participate.
+
+AVAILABLE DESIGN OPTIONS (capacity and recipient are TWO separate decisions)
+  capacity:  (1) initiating fleet only (current); (2) sum over ALL ATTACKER participants;
+             (3) sum over SURVIVING attacker ships only; (4) a configured ACS capacity.
+  recipient: (a) the initiating fleet carries everything; (b) each fleet loads up to its own
+             remaining capacity under an allocation rule; (c) a player-level pool.
+
+CONSEQUENCES
+  (1) is not defensible once N fleets exist: it is an accident of arrival order.
+  (2) is the most faithful to "the ACS brought this carrying capacity".
+  (3) is arguably fairer (destroyed ships cannot carry) and follows from PG-08.
+  (4) requires a new configurable product surface LGI does not have.
+  (a) is simplest but lets one participant keep resources carried by another participant's ships —
+      in ACS the participants can be DIFFERENT players.
+  (b) is the only fair-across-players option, but it needs a deterministic allocation rule
+      (proportional to capacity? arrival order? owner?).
+  (c) introduces a player-level resource concept that does not exist in LGI.
+
+RECOMMENDED LGI-COMPATIBLE OPTION (not implemented)
+  capacity (3) — capacity from the SURVIVING attacker participants, because it follows directly
+  from the survivor model chosen in PG-08 and needs no new concept;
+  recipient (b) — per-fleet, once the allocation rule is decided. If the product wants the simplest
+  behaviour first, (a) with an explicitly written rule is acceptable. (c) is rejected: LGI has no
+  player-level resource pool.
+
+WHAT CODE WOULD CHANGE (if (3) + (b))
+  apply_attack_loot: the capacity query becomes a join over ALL ATTACKER participants' surviving
+  vehicles; the credit statement becomes a per-fleet allocation loop. The 50 % caps, the
+  metal -> crystal -> deuterium order, the cascade and the loot_applied_at idempotency must stay
+  byte-identical.
+
+WHAT TESTS WOULD PROVE IT
+  · two attackers with different cargo ships: total capacity equals the sum of survivors and each
+    fleet's credited cargo matches the allocation rule;
+  · the 50 % caps and the resource order are unchanged versus the single-fleet case;
+  · replay: loot_applied_at prevents a second application.
+```
+
+### 21.3 PG-17 — defending-fleet lifecycle after combat
+
+```text
+CURRENT LGI BEHAVIOUR
+  · a HOLDING fleet returns when its own persisted holding_until is due: process_fleet_movements sets
+    status='RETURNING', returns_at = holding_until + (arrives_at - started_at).
+  · resolve_attack_arrival never touches a defending fleet (none exists) and deliberately REFUSES a
+    battle that owns a DEFENDER/FLEET participant (MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED).
+  · repair is planet-scoped: a defending FLEET's ships are SHIP units and can never enter
+    calculate_combat_defense_losses.
+
+WHAT MULTI-FLEET BREAKS
+  · once defending fleets participate, someone must decide what happens to a SURVIVING defending fleet
+    and to a DESTROYED one: stay until holding_until and then return, or leave immediately after
+    combat? Does a wrecked fleet's movement still complete (empty) or get cancelled?
+
+AVAILABLE DESIGN OPTIONS
+  A. keep the hold contract: survivors stay HOLDING until holding_until, then return normally; a
+     wrecked fleet (no surviving ships) travels the same path with an empty composition.
+  B. combat ends the hold: every defending fleet becomes RETURNING at settlement time.
+  C. an explicit per-movement flag set by the dispatcher ("stay after combat").
+
+CONSEQUENCES
+  A. preserves the currently certified HOLDING contract exactly, needs no new column, and keeps
+     holding_until as the single timing authority; the defence keeps working after the battle.
+  B. contradicts the existing hold semantics (a fleet would leave before the window its owner chose)
+     and needs an extra rule for holding_until.
+  C. adds a new per-movement product surface.
+
+RECOMMENDED LGI-COMPATIBLE OPTION (not implemented)
+  A — the hold contract keeps governing, which makes the support authorization explicitly mean "you
+  may stay at my planet for this window". A wrecked fleet returns on the same path with zero surviving
+  ships; whether an empty COMPLETED movement is acceptable output must be confirmed by the product.
+
+WHAT CODE WOULD PROVE IT
+  · DEFENDER/FLEET settlement write-back (PG-08 model) while leaving status and holding_until untouched
+    for survivors;
+  · the Phase 4B fail-closed guard replaced by the loop and kept for anything unhandled.
+```
+
+### 21.4 PG-18 — battle-header defender counters
+
+```text
+CURRENT LGI BEHAVIOUR
+  · sync_combat_battle_final_counts and run_expedition_combat compute, per battle:
+      attacker_ships_after      = count(alive) where side='ATTACKER' and unit_type='SHIP'
+      defender_ships_after      = count(alive) where side='DEFENDER' and unit_type='SHIP'
+      defender_defenses_after   = count(alive) where side='DEFENDER' and unit_type='DEFENSE'
+      defender_combat_units_after = count(alive) where side='DEFENDER'
+    i.e. everything is aggregated BY SIDE.
+  · combat_rounds does the same at round level and get_player_battle_reports exposes the counters.
+
+WHAT MULTI-FLEET BREAKS
+  · a defending fleet's ships are side='DEFENDER' + unit_type='SHIP', so they would silently be added
+    to the PLANET's defender_ship counters. The header/report would claim the planet had more ships
+    than it ever had, with no way to tell the two apart.
+
+AVAILABLE DESIGN OPTIONS
+  A. redefine the header counters as side-level totals that include defending fleets (a semantic
+     change to existing columns and to the report payload).
+  B. keep the planet-only meaning and exclude DEFENDER/FLEET participants from those counters (the
+     participants payload already distinguishes them).
+  C. add NEW battle-level columns for the fleet-defender totals, leaving the existing ones intact.
+
+CONSEQUENCES
+  A. changes the meaning of values already stored and already exposed by get_player_battle_reports, so
+     historical battles and current readers would be reinterpreted.
+  B. preserves the existing meaning and the public payload byte-for-byte; per-participant truth stays
+     available.
+  C. is the most explicit but adds schema and duplicates what the participant layer already holds.
+
+RECOMMENDED LGI-COMPATIBLE OPTION (not implemented)
+  B — the only option that keeps the certified report contract stable (the Phase 2/3/4A/4B invariant) and
+  it follows from the participant-aware model: per-participant truth is authoritative, side-level
+  headers stay planet-scoped aggregates.
+
+WHAT CODE WOULD CHANGE
+  sync_combat_battle_final_counts and the equivalent block inside run_expedition_combat: add a
+  participant filter (participant_type='PLANET') to the two defender counters. No column change, no
+  report change.
+
+WHAT TESTS WOULD PROVE IT
+  · a battle with a planet holding 10 ships AND a defending fleet holding 5: defender_ships_* stays 10
+    while the participants payload shows both; the single-fleet and expedition cases stay unchanged.
+```
+
+### 21.5 OGameX contrast (§14 method applied)
+
+OGameX was consulted as a **reference only**, and the project's own translation layer
+(`docs/reference/OGAMEX_LGI_MAP.md` §C "Combat boundary" and §6 "What OGameX should NOT dictate") was used
+as the authoritative statement of how it may be used. External evidence checked on 2026-09-22: OGameX is a
+Laravel application whose combat is split into a PHP service layer plus a **separate Rust battle engine**
+(a third-party combat simulator built on it advertises "the OGameX Rust battle engine"). Its README does not
+document ACS/defend semantics.
+
+| OGameX pattern | LGI current architecture | Difference | Why the difference exists | LGI decision |
+|---|---|---|---|---|
+| Battle computed in a PHP service + Rust engine, outside the DB transaction | Single plpgsql engine **inside** the worker transaction (`resolve_combat` → rounds → settlement) | different execution and persistence boundary | LGI made PostgreSQL the authoritative engine (PROJECT_CONTEXT §2); transactions and RLS are the integrity boundary | **DISCARD** the split. Do not introduce a second resolver or an out-of-transaction battle service |
+| ACS as a grouping of fleets that share one battle | Battle-owned participants (`combat_battle_participants`); **no group object** | LGI models membership per battle, not as a pre-battle group | Phase 4A/4B deliberately built participant identity as the authority and found no structure requiring a group | **KEEP AS REFERENCE.** A group object is only introduced if PG-01…PG-05 choose one |
+| Loot distributed across participating fleets | Loot capacity + credit are single-fleet today | LGI has no allocation rule | the allocation rule is a product decision, not an architectural omission | **ADAPT ONLY AFTER PG-09/PG-10 are decided.** No OGameX value is imported |
+| Defender fleets participate in combat | `DEFENDER/FLEET` is representable; **0 producers**; settlement fails closed | LGI has no producer and no return rule | deliberately not implemented until PG-17/PG-08 exist | **DISCARD the timing.** Participation stays closed |
+| Collection/Eloquent models own state | Tables + functions; frontend is presentation only | different ownership model | LGI forbids ORM-driven authority | **DISCARD** |
+
+**Contradictions with CLOSED LGI decisions: NONE.** Nothing from OGameX was imported, adapted or copied, and
+no OGameX value entered any formula. The comparison confirmed the gaps already registered as PG-08…PG-18 and
+added no new LGI requirement.
+
+### 21.6 Decision summary — what the next mission must settle first
+
+| Gate | Decision required | Recommended (not implemented) | Blocking? |
+|---|---|---|---|
+| PG-08 | survivorship model: per-fleet vs pooled | per-fleet (matches participant identity) | **YES** |
+| PG-09 | loot capacity source | surviving ATTACKER participants | **YES** |
+| PG-10 | loot recipient / allocation rule | per-fleet with an explicit allocation rule | **YES** |
+| PG-17 | defending-fleet lifecycle after combat | keep the `holding_until` contract | **YES** |
+| PG-18 | battle-header defender counters | keep them planet-scoped (exclude fleet defenders) | no (can follow) |
+
+Nothing above is implemented. The engine today represents a defending fleet, refuses to settle a battle it
+cannot attribute, and produces no participant it cannot settle — which is exactly the fail-closed boundary
+this analysis is meant to hand over.
+
 
 
 

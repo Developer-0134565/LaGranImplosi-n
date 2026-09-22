@@ -151,6 +151,13 @@ The development workflow and tool-selection gate are defined in
 - Universe Evolution engine, monitor and production deployment validation are closed for their current scope.
 - Ownership hardening and the current single-attacker combat participant propagation are closed for their
   certified scopes.
+- **Fleet modifier pipeline CLOSED (2026-09-22, LIVE measured)**: the four dispatchers are the only callers of
+  `calculate_fleet_travel_time` and `calculate_player_fleet_fuel_for_distance`; every canonical step occurs
+  exactly once per dispatcher; `fuel_reduction` lives in one helper; **no double modifier and no bypass**.
+  Detail: [`UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md`](UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.md) §A.
+- **Support authorization CLOSED (2026-09-22)**: `20260922052432_fix_support_authorization_conflict` repaired
+  `grant_planet_support_authorization` (42702 ambiguous conflict target). `fleet_acs_hold_lifecycle.sql`
+  **50/50** and `fleet_support_authorization_chain.sql` **13/13** now pass LIVE.
 - **Research certification CLOSED (2026-09-21)** for the audited chain: availability (`can_start_research`
   is the single authoritative client contract), prerequisites (16 LIVE rows; SECDEF `can_research`),
   cost and time (single-sourced, verified to 4 decimals against LIVE), queue semantics, atomic
@@ -172,6 +179,19 @@ The development workflow and tool-selection gate are defined in
   role). `supabase/tests/shipyard_defense_lifecycle.sql` is runnable again (LIVE-resolved fixture) and now carries
   15 assertions including three client-role ones — 15/15 PASS LIVE. Detail:
   [`README_DEFENSE_ENGINE.md`](systems/README_DEFENSE_ENGINE.md).
+- **Shipyard client contract CLOSED (2026-09-22)** — `20260922050734_shipyard_availability_contract_definer`.
+  `can_build_ship` was the last availability contract still declared SECURITY INVOKER while depending on
+  `check_ship_requirements` (`postgres`/`service_role` only) and `calculate_ship_build_time` → `universes`
+  (no client `SELECT`): through the real client role it raised `42501`, so the Shipyard view could never load
+  authoritative availability. It also had **no identity gate**, unlike `can_build_defense` /
+  `can_start_research`. Both defects were closed together (`SECURITY DEFINER` + `auth.uid()` +
+  `PLAYER_NOT_OWNED`); the ACL now mirrors `can_build_defense` and **nothing was widened** (`universes`
+  SELECT and `check_ship_requirements` EXECUTE remain closed). Frontend: `productionInfo` is the only source
+  of cost/time/allowed/reason (no fallback to definition metadata), the button respects `allowed`, the
+  bounded completion refresh (one `setTimeout` + `clearTimeout`) now covers Shipyard, and the dead `QUEUED`
+  queue filter was removed there. Suite `shipyard_defense_lifecycle.sql` → **25/25 PASS LIVE** (the old
+  "12/12" label undercounted 15 assertions). Browser certification is **NOT done** — checklist in
+  [`README_SHIPYARD_DEFENSE.md`](systems/README_SHIPYARD_DEFENSE.md).
 - **Combat Engine: PHASE 0 AUDIT COMPLETE (read-only, 2026-09-21) — OPEN, NOT certified.** The engine already
   exists and is production-reachable; the previous statement that "no combat formula exists yet" was a
   documentation error and is corrected here. Authoritative path:
@@ -227,6 +247,12 @@ Evidence and detailed tests remain in
 
 Decision (2026-09-19): **ACS_HOLD Fase A implemented in the backend**; `DEFEND` remains closed.
 
+**Boundary kept explicit (2026-09-22):** the ACS_HOLD **transport** is now reachable end-to-end (authorization
++ dispatch + hold lifecycle verified LIVE, 50/50 + 13/13). That is **not** ACS gameplay: ACS grouping,
+multi-attacker settlement, per-fleet loot/survivors, late joins and ACS UI remain **NOT IMPLEMENTED**, and the
+engine still creates **0** `DEFENDER/FLEET` participants and refuses to settle a battle it cannot attribute.
+Never report `transport reachable` as `ACS implemented`.
+
 Implemented:
 
 - single support dispatcher `start_support_fleet(...)` (`ACS_HOLD` only) on the canonical fleet pipeline with
@@ -249,7 +275,22 @@ Not implemented and still open:
 - maximum holding duration → **product decision pending** (not hardcoded);
 - support recall during outbound/holding;
 - UI (the future selector is `ACS_HOLD` + `DEFEND`; DEFEND stays closed);
-- browser certification of the ACS_HOLD flow and execution of the new SQL test in LIVE.
+- browser certification of the ACS_HOLD flow. **The SQL test now runs and passes LIVE**: `fleet_acs_hold_lifecycle.sql` → 50/50, plus `fleet_support_authorization_chain.sql` → 13/13 (new).
+- **BLOCKER CLOSED 2026-09-22** — `20260922052432_fix_support_authorization_conflict`.
+  `grant_planet_support_authorization` raised `42702 :: column reference "destination_planet_id" is
+  ambiguous`: the function's OUT-parameter names collided with its own
+  `on conflict (destination_planet_id, guest_player_id)` target list, so **no support authorization could
+  ever be created** and `start_support_fleet` always raised `SUPPORT_AUTHORIZATION_REQUIRED`. The whole
+  ACS_HOLD dispatch was therefore unreachable end-to-end. The fix names the unique constraint
+  (`on conflict on constraint planet_support_authorizations_destination_guest_key`), which was proven
+  unambiguous by a rollback-safe A/B reproduction before applying it; signature, `SECURITY DEFINER`,
+  `search_path`, ACL (no widening), every authorization check and the upsert semantics are unchanged.
+  **Verified LIVE:** `fleet_acs_hold_lifecycle.sql` → **50/50 PASS** (previously unrunnable) and the new
+  `fleet_support_authorization_chain.sql` → **13/13 PASS** (grant → authorized dispatch → movement →
+  revoke → rejected). The `LOCAL_ONLY / NOT_DEPLOYED / BLOCKED`
+  `20260919180000_fix_planet_support_authorization_ambiguity.sql` does **not** fix this defect (it
+  re-declares the same ambiguous form); it stays blocked and untouched.
+  **This does NOT mean ACS gameplay exists** — see the next bullet.
 
 ### Other OPEN work
 
@@ -381,8 +422,9 @@ Not implemented and still open:
 - **Defense hygiene (P3 — deferred):** `start_defense` still grants EXECUTE to `anon` (the body rejects it);
   `calculate_defense_build_time` and `check_defense_requirements` are PUBLIC-executable and fail for clients;
   `CANCELLED` is admitted by the CHECK but unreachable; `COMPLETED` `defense_queue` rows are never purged.
-  **Shipyard parity (P1, Shipyard-owned):** `can_build_ship` still carries the same client-contract defect class
-  that `can_build_defense` had — reported by the Shipyard audit, to be closed by a Shipyard mission.
+  **Shipyard parity (P1): CLOSED 2026-09-22** by `20260922050734_shipyard_availability_contract_definer` —
+  `can_build_ship` is now a bounded `SECURITY DEFINER` contract with `auth.uid()`/`PLAYER_NOT_OWNED` gates
+  and `EXECUTE` only for `authenticated`/`service_role`.
 
 Do not change `OPEN — PARTIAL` to `CLOSED` because persistence, dispatcher or worker infrastructure exists.
 
@@ -447,8 +489,12 @@ BLOCKED / LATER
    (`MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED`). No schema change was needed: `combat_battle_participants` could
    already represent `DEFENDER/FLEET`. Still NOT IMPLEMENTED (product decisions, not defects): ACS
    grouping/dispatch, DEFEND dispatch, multi-fleet settlement, per-fleet survivor/loot attribution, per-fleet
-   report payloads, ACS/DEFEND UI. **Next mission**: resolve the blocking product decisions first
-   (`README_COMBAT_ENGINE` §20.13 PG-08/PG-09/PG-17/PG-18), then per-participant settlement, then a producer.
+   report payloads, ACS/DEFEND UI. **Next mission**: `README_COMBAT_ENGINE` **§21** now contains the full
+   per-gate analysis (current behaviour → what multi-fleet breaks → options → consequences → recommended
+   LGI-compatible option → code that would change → tests that would prove it). Resolve the blocking product
+   decisions first
+   (`README_COMBAT_ENGINE` §21 / §20.13 PG-08/PG-09/PG-17/PG-18), then per-participant settlement, then a
+   producer. The ACS_HOLD transport becoming reachable (§7) does not remove any of these gates.
    Do not reopen the certified chain without new evidence of a defect, and do not create a second combat
    architecture.
 
