@@ -74,6 +74,32 @@ Detailed fleet rules, mission matrix, modifier order, propulsion routing, fuel s
 8. Document durable discoveries in the specialized README first, then update this context only when operational
    state or an active decision changes.
 
+### Mandatory verification-before-new-work gate
+
+Before proposing, assigning or executing any new audit, investigation, implementation or agent mission, first verify whether the requested subject is already documented, tested, certified or otherwise explicitly closed in the current repository/context.
+
+- **CLOSED / VERIFIED:** do not repeat the work.
+- **OPEN but already investigated:** continue from the existing evidence; do not rerun the same audit.
+- **PARTIALLY VERIFIED:** work only on the exact unverified residue.
+- **UNRESOLVED PRODUCT DECISION:** do not silently convert technical evidence into a product decision.
+- **NOT YET VERIFIED:** only then create a new audit/investigation scope.
+
+The check must use the current repository state and the relevant specialized documentation, not memory or an older session assumption. If a prior report already establishes the requested result, treat that result as evidence and identify only what remains missing.
+
+This gate exists specifically to prevent duplicate Cline/Copilot missions, repeated OGameX comparisons and wasted implementation/audit cycles.
+
+### Missing-contract / OGameX implementation rule
+
+When L.G.I. requires a contract, function or subsystem that does **not yet exist**, OGameX must be consulted before designing the missing implementation. Use the current OGameX implementation to determine responsibility, lifecycle, inputs/outputs, ownership model, ordering and relevant failure/idempotency behavior.
+
+The sequence is:
+
+LGI existing invariants → OGameX equivalent/reference → LGI contract definition → human product decision where required → implementation → tests → verification.
+
+OGameX remains a reference, never an authority or dependency. Do not copy Laravel/PHP/ORM/routing architecture or import game/balance semantics blindly. If OGameX contradicts an explicit L.G.I. contract or product decision, L.G.I. wins and the contradiction must be documented.
+
+For an existing L.G.I. contract that has already been verified, do **not** reopen it merely because OGameX has an equivalent implementation. OGameX is primarily required for genuine L.G.I. gaps and for resolving documented architectural unknowns.
+
 ### Mandatory implementation-agent selection
 
 Before **every task I give or propose to you**, I must explicitly decide whether the execution belongs to:
