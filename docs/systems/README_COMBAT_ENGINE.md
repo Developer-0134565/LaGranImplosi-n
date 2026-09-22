@@ -2387,3 +2387,406 @@ fixture, no test run that changes state. Every statement executed was a catalog 
 
 **Phase 4 closes with: the certified Combat Engine untouched, ACS/DEFEND/multi-fleet still NOT IMPLEMENTED,
 their single-fleet blockers enumerated, and Phase 4A defined as the minimum next architectural step.**
+
+## 20. PHASE 4B — ACS / DEFEND ARCHITECTURE AUDIT + DEFENDER/FLEET REPRESENTATION (2026-09-22)
+
+> Cross-domain audit + minimal structural implementation. No gameplay was invented. The certified chain of
+> §17 was not redesigned, and no second combat engine, resolver or formula was introduced.
+>
+> Evidence levels: **LIVE VERIFIED** (deployed catalog/definitions), **STATIC VERIFIED** (repository),
+> **INFERRED**, **PRODUCT DECISION** (deliberately unresolved).
+
+### 20.1 Sync gate at mission start
+
+```text
+branch                    main
+HEAD                      c45aa49986f7c0cbd08030c0a7e6ba9b9be04619
+origin/main               50faddfee713cb1a744e957cc93ae519069fb17b
+ahead / behind            18 / 0   (origin/main is an ancestor of HEAD, merge-base = origin/main)
+staged                    EMPTY
+tracked modifications     README_FLEET_ENGINE.md (184/7, the documented protected local change)
+tracked deletions         the 3 defence/analysis/RLS migrations under their OLD 20260920* names
+untracked (pre-existing)  the same 3 migrations under their NEW 2026092104* names + the four 0-byte root artefacts
+stashes                   stash@{0}, stash@{1} both intact and untouched
+Phase 4A commits          present: 5be80aa (participant identity foundation) + c45aa49 (context record)
+```
+
+`README_FLEET_ENGINE.md` byte hash `a9d8f3789568779ec095be8330bdcc511c199080` and the three protected
+migrations `2e6d366d…` / `324e8b7b…` / `46a32d66…` are **unchanged at mission end**. The Fleet README was
+not modified, staged or restored; the stashes were not touched.
+
+### 20.2 Inventory — what actually exists (LIVE VERIFIED)
+
+Nothing was inferred from a name. Every object below was read from its LIVE definition and its callers.
+
+| Object | Class | Live evidence |
+|---|---|---|
+| `combat_battles` | CANONICAL | `fleet_id NOT NULL` FK → `fleet_movements(id)`; `ux_combat_battles_one_per_fleet(fleet_id)` UNIQUE; single `attacker_player_id`; side-level aggregate counters; `loot_*` + `loot_applied_at` |
+| `combat_battle_participants` | CANONICAL | `side ∈ {ATTACKER,DEFENDER}`, `participant_type ∈ {FLEET,PLANET,ENEMY}`; `side_type_check` **already permits `DEFENDER`/`FLEET`**; `shape_check` forces `fleet_id`+`origin_planet_id` for FLEET and `planet_id` for PLANET; `UNIQUE(battle_id,fleet_id)`; `UNIQUE(battle_id,planet_id)`; RLS ON + `deny_direct_api_access` |
+| participant producers | CANONICAL (3 only) | `resolve_combat`, `resolve_expedition_pirates`, `resolve_expedition_aliens` are the **only** functions that INSERT into `combat_battle_participants`; none creates a `DEFENDER/FLEET` row |
+| `combat_individual_units` / `combat_round_snapshot_units` | CANONICAL | participant-aware uniqueness keys (Phase 4A) |
+| `planet_support_authorizations` | CANONICAL (temporary policy) | destination-owner consent; `UNIQUE(destination_planet_id,guest_player_id)`; RLS ON + `deny_direct_api_access`; only reachable through the grant/revoke RPCs |
+| `start_support_fleet(p_player_id,p_origin_planet_id,p_destination_planet_id,p_ships,p_support_mission,p_holding_until,p_idempotency_key)` | READY (no caller yet) | `SECURITY DEFINER`, `auth.uid()`-checked, `ACS_HOLD` accepted, `DEFEND` → `COMBAT_SUPPORT_NOT_READY`, `HOLDING` → `HOLDING_IS_INTERNAL_STATE`, per-request idempotency key |
+| `grant_planet_support_authorization` / `revoke_planet_support_authorization` | READY | client-callable with `auth.uid()` → `players.user_id` → `players.id` ownership chain; **0 database callers, 0 runtime callers** |
+| `universes.holding_fleet_speed` | CANONICAL | `NOT NULL DEFAULT 1`; reached only via `calculate_mission_fleet_speed_multiplier(u,'ACS_HOLD')`; never re-implemented |
+| `fleet_movements` HOLDING lifecycle | CANONICAL | `mission_type` admits the 10 names; support missions require `holding_until > arrives_at`; `status` admits `HOLDING`; partial unique index on `(player_id,idempotency_key)` |
+| `combat_group` / `fleet_group` / `attack_group` / `support_group` | **DOES NOT EXIST** | no table, column, index or function anywhere in LIVE or in the repository |
+| ACS *combat participation* · DEFEND dispatch · multi-fleet settlement · support-mission UI | NOT IMPLEMENTED | see 20.3/20.5 |
+| `combat_hull_from_integrity`, `get_combat_unit_snapshot`, `initialize_combat_unit_state` | DEAD | exactly 1 definition each, **0 referencing functions**, not client-callable |
+| ≤0, ≥1, >N client-callable combat internals | — | every `combat_*`/support internal helper is `anon=false, authenticated=false, service_role=true` |
+
+**Classification correction to §18.7:** the Fleet Engine's `ACS_HOLD` Fase A (dispatch + hold lifecycle) is
+real and LIVE (`20260919100000`, `20260919101000`), but it produces **no combat participation**: the worker's
+`ACS_HOLD` branch moves `OUTBOUND → ARRIVED → HOLDING` and `resolve_combat` never reads `fleet_movements` for
+defenders. `LIVE` holds **0** support rows, **0** HOLDING rows and **0** authorizations, so the transport
+exists and the gameplay does not.
+
+### 20.3 The dependency map — every question answered (LIVE VERIFIED unless marked)
+
+**Identity**
+
+| Question | Answer |
+|---|---|
+| What is a combat group? | **It does not exist.** A battle *is* the only membership container: `combat_battle_participants`. There is no pre-battle grouping object, and none is structurally required to represent N participants. |
+| What creates the group? | — (no group). What creates a **battle**: `resolve_combat(p_fleet_id)`. |
+| What creates a participant? | Exactly 3 functions; for the attack path `resolve_combat` inserts `ATTACKER/FLEET` (the initiating fleet) + `DEFENDER/PLANET` (the target planet's owner). |
+| What creates a battle? | `resolve_combat(p_fleet_id)` only — reached from `resolve_attack_arrival` in the `ATTACK` branch of `process_fleet_movements`. |
+| What fleet belongs to which participant? | `combat_battle_participants.fleet_id` for `participant_type='FLEET'`; `planet_id` for `'PLANET'`; `ENEMY` carries neither. |
+| How does a fleet join? / leave? | **No join path and no leave path exist.** A participant set is written once, at battle creation, and never mutated afterwards. |
+| How is a fleet prevented from joining after combat started? | There is nothing to prevent because nothing can join: participants are only written by `resolve_combat` before the first round, and the table is RLS-denied to `anon`/`authenticated`. A late ATTACK fleet does not join an existing battle — it creates its **own** battle. |
+| What makes a fleet `ATTACKER/FLEET`? | Being the fleet passed to `resolve_combat` (`combat_battles.fleet_id` / `mission_type='ATTACK'`) or the single fleet of an expedition combat. |
+| What makes a fleet `DEFENDER/FLEET`? | **Nothing.** The representation is legal (CHECK constraints), but no producer exists. `start_support_fleet` refuses `DEFEND`; the four dispatchers' allow-lists exclude it; `fleet_movements` has no client INSERT policy; the worker leaves a stray `DEFEND` row in `ARRIVED` with a WARNING. |
+| How is `ACS_HOLD` represented? | As a `fleet_movements` row with `mission_type='ACS_HOLD'`, `status ∈ {OUTBOUND,ARRIVED,HOLDING,RETURNING,COMPLETED}`, a persisted `holding_until` and a per-request `idempotency_key`. It has **no** combat representation. |
+| How is `HOLDING` represented? | As a **movement status**, never a dispatch mission (`HOLDING_IS_INTERNAL_STATE`). |
+| How does a defending fleet enter combat? | **It cannot.** `initialize_individual_combat_units` reads defenders from `planet_ships`/`planet_defenses` only. |
+| How are fleets ordered? | There is **no** ordering requirement: shot generation iterates the snapshot with `ORDER BY random()` and target selection is `ORDER BY random() LIMIT 1`; unit identity is `(participant_id, unit_type, unit_id, unit_number)`, which is order-independent. Attacker/defender fleet ordering is therefore **not** a semantic input (see PD-06/PD-07). |
+| How are participants associated with players? | `combat_battle_participants.player_id` (NOT NULL for `FLEET`/`PLANET`, optional for `ENEMY`). |
+| How is ownership validated? | Only at the **dispatch** boundary: `start_*` RPCs resolve `auth.uid() → players.user_id → players.id → owned planet`. `resolve_combat` derives participants from persisted movement/planet rows; it never trusts a client. |
+| How are target planets associated? | `combat_battles.defender_planet_id` (the single battle-level target) + the `DEFENDER/PLANET` participant's `planet_id`. |
+| How is battle identity generated? | `gen_random_uuid()` PK, with `combat_battles.fleet_id` as the replay anchor. |
+| How is replay/idempotency preserved? | `resolve_combat` looks up an existing battle by `fleet_id` **before** creating one, under `FOR UPDATE` on the fleet row; `ux_combat_battles_one_per_fleet` is the hard backstop; `resolve_attack_arrival` early-returns for `RETURNING`/`COMPLETED`. |
+
+**Attribution**
+
+| Question | Answer |
+|---|---|
+| How are individual units attributed? | `combat_individual_units.participant_id` on every row (round 1 from `initialize_individual_combat_units`, later rounds copied by `create_combat_next_round`). |
+| How are losses attributed? | `calculate_combat_ship_losses` and `calculate_combat_defense_losses` group by `participant_id` and return it (Phase 4A / DG-13). |
+| How are survivors attributed? | Internally: per participant (`count(*) … alive` filtered on `participant_id`). Settlement: **only the initiating fleet and the planet** — see PD-08. |
+| How is loot attributed? | `apply_attack_loot` reads the cargo capacity of `combat_battles.fleet_id` **only** and credits that one fleet. Idempotent via `loot_applied_at`. |
+| How is repair attributed? | `repair_defenses_after_combat` is **planet-scoped**: it consumes `calculate_combat_defense_losses`, which filters `unit_type='DEFENSE'`, and writes `planet_defenses`/`combat_defense_repairs` at 70 %. Fleet ships can never enter it (proved by test D6). |
+| How is debris attributed? | **Battle-scoped**: one advisory lock `combat_debris:<battle_id>`, one row in `combat_debris_generations` (`UNIQUE(battle_id)`), totals from `calculate_combat_total_debris` = Σ ship losses + Σ defence losses over **all** participants. Participant count is irrelevant (proved by test D13). |
+| How does settlement know which fleet gets what? | By `side` + `fleet_id`: `ATTACKER/FLEET` with `fleet_id = p_fleet_id`, `DEFENDER/PLANET` with the destination planet. There is no generic per-participant settlement loop. |
+| What does the battle report expose? | `get_player_battle_reports`: visibility is already participant-based (`EXISTS participant.player_id = me`), `participants` is a jsonb array of `{side,participant_type,player_id,fleet_id,planet_id}`, `caller_role` is ATTACKER if any attacker participant is the caller. `losses` is `{side,unit_type,unit_id,destroyed_quantity}` — **no participant key** (DG-13 survives at payload level). The payload was not changed. |
+
+**Failure, concurrency and edge cases**
+
+| Question | Answer |
+|---|---|
+| One fleet fails during dispatch/arrival? | Phase 2 CB-04 isolation is intact: each fleet is processed inside its own `BEGIN … EXCEPTION WHEN others → RAISE WARNING 'FLEET_RESOLUTION_FAILED …'`. A malformed participant cannot poison the batch. |
+| One participant is invalid? | `initialize_individual_combat_units` raises `Battle % missing combat participants` if the battle has no usable attacker participant; `resolve_attack_arrival` raises `Battle % missing settlement participants` if either expected participant is absent. New in 4B: settlement raises rather than ignoring an unexpected `DEFENDER/FLEET`. |
+| A fleet arrives late? | It builds a **second, independent battle** against the same planet. Sequential battles are serialized by the worker's global advisory lock. Whether late arrivals should join one battle is PD-04. |
+| Two fleets arrive simultaneously? | `process_fleet_movements` iterates `ORDER BY arrives_at, id` with `FOR UPDATE SKIP LOCKED`; each is resolved independently → **two battles**, never one shared battle. This is the exact ACS gap. |
+| An ACS group is cancelled? | No recall/cancel path exists for any mission (Fleet README §22.6). PD-11. |
+| The target is destroyed? | `resolve_combat` requires the destination planet to have a player; nothing reads `planets.is_destroyed` in the attack path. Unchanged by 4B, recorded as an observation. |
+| The battle is already resolved? | `resolve_attack_arrival` early-returns the battle id; `run_expedition_combat` is called only when `finished_at IS NULL`; `apply_attack_loot`, `repair_defenses_after_combat` and `create_combat_debris` are each individually idempotent. |
+| Replay? | Same replay anchor (`combat_battles.fleet_id`), `ux_combat_battles_one_per_fleet`, per-fleet `idempotency_key`, `combat_debris_generations_battle_unique`. All regression-proved. |
+
+### 20.4 What was implemented (migration `20260922043604_defender_fleet_participant_representation`)
+
+Two functions changed. **No schema change was needed** — `combat_battle_participants` could already represent
+`DEFENDER/FLEET`, so no table, column, index or constraint was added, relaxed or dropped.
+
+```text
+1. initialize_individual_combat_units(p_battle_id)
+   + ONE new INSERT statement: every DEFENDER/FLEET participant materialises its own
+     fleet_movement_ships as 'SHIP' units, attributed to ITS participant_id and statted with
+     ITS OWN owner context (part.player_id) — the exact mirror of the Phase 4A ATTACKER branch.
+   · every pre-existing statement is preserved verbatim
+   · the FOUND check after the ATTACKER insert is deliberately NOT repeated: zero defending
+     fleets is the certified case, so an added statement that inserts nothing is a no-op
+
+2. resolve_attack_arrival(p_fleet_id)
+   + ONE fail-closed guard, placed after the existing participant-contract check:
+     if the battle owns any DEFENDER/FLEET participant -> RAISE
+     'MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED: ...single-fleet settlement cannot attribute their
+     survivors'. Without it, a future defending-fleet producer would destroy that fleet's ships
+     in combat and still return the fleet with its original composition (free ships).
+   · every pre-existing statement is preserved verbatim
+```
+
+Why this is safe, and why it is not gameplay:
+
+```text
+· No producer of DEFENDER/FLEET participants exists (proved: only 3 participant-inserting
+  functions, none of them creating that shape), so statement (1) inserts zero rows today and
+  statement (2) can never fire. Both are inert on every live path.
+· Technology attribution is not invented: it reuses the certified helper trio
+  get_combat_ship_attack / get_combat_ship_shield / get_combat_ship_hull(part.player_id, ship_id)
+  already used by the certified ATTACKER/FLEET branch.
+· No formula, percentage, threshold, RNG semantic, round cap, rapidfire value or result rule changed.
+· No product value was chosen: no fleet count, no timing window, no ordering, no priority, no
+  survivor rule and no loot rule.
+· The certified single-attacker and expedition paths stay behaviourally identical (tests D10/D12
+  plus the full 43/43 regression below).
+```
+
+Provenance: the repository file is content-identical to the applied migration (whitespace-normalised
+`md5` = `7dc703467ec25ff722cb85468d493ee1` on both sides, 16202 characters). The migration has **no**
+dependency on the `LOCAL_ONLY / NOT_DEPLOYED / BLOCKED` migration `20260919180000` (see the provenance gate).
+
+### 20.5 Explicitly NOT implemented (deliberate)
+
+```text
+· ACS grouping / invitation / join / leave / deadline — no group object created (PD-01...PD-05)
+· ACS or DEFEND dispatch — start_support_fleet still refuses DEFEND; no dispatcher accepts it
+· defending-fleet participation in a live battle — no producer was created on purpose
+· multi-fleet / multi-defender settlement — resolve_attack_arrival still settles one fleet + planet
+· per-fleet survivor, loot and debris-attribution semantics — untouched
+· battle-report per-fleet projection — the public payload is byte-identical
+· ACS/DEFEND UI, client types, mission-selector entries — nothing added
+· deletion or "cleanup" of any legacy object (deferred; see 20.11)
+· any balance, formula or alien-technology change
+```
+
+### 20.6 Concurrency and idempotency audit
+
+| Scenario | Mechanism found (LIVE) | Verdict |
+|---|---|---|
+| Two fleets joining an ACS simultaneously | **no join path exists** | n/a — nothing to race |
+| Two fleets arriving simultaneously | `process_fleet_movements` takes `pg_advisory_xact_lock(hashtextextended('fleet-processing-global',0))` then iterates `ORDER BY arrives_at, id` with `FOR UPDATE SKIP LOCKED`; each row is claimed by `UPDATE … WHERE id=? AND status='OUTBOUND'` + `IF NOT FOUND THEN CONTINUE` | SAFE, but produces **two battles** (the ACS gap is semantic, not concurrent) |
+| Two fleets resolving against the same target | no shared lock between battles; the global advisory lock serializes them, and each battle reads `planet_ships` at its own resolution time | SAFE by serialization; sequence semantics are PD-04 |
+| The same fleet joining twice | `combat_battle_participants_fleet_unique (battle_id, fleet_id)` | SAFE (test D14) |
+| The same fleet arriving twice | `ux_combat_battles_one_per_fleet(fleet_id)` + `resolve_combat`'s pre-lookup + fleet `FOR UPDATE` | SAFE |
+| The same battle resolving twice | `resolve_attack_arrival` early-return for non-`ARRIVED`; `run_expedition_combat` gated on `finished_at IS NULL` | SAFE (tests 12, C2/C3) |
+| The same participant inserted twice | the two participant unique keys | SAFE |
+| The same target unit selected twice | `combat_shots_battle_id_round_number_shot_number_key` + `combat_round_damage_unique(battle_id,round_number,source_shot_number)` + `resolve_pending_target_damage … FOR UPDATE` on the snapshot row | SAFE (test D9) |
+| Settlement retried | `loot_applied_at`, the `combat_defense_repairs` existence probe, `combat_debris_generations_battle_unique` + the battle-scoped advisory lock | SAFE |
+| `ON CONFLICT DO NOTHING` in combat identity paths | exactly one remains: `create_combat_round_snapshot` on the **Phase 4A participant-aware** key. Justified: it is a re-entrant snapshot builder whose key is now fully identifying, so a skipped row can only be a row already present with the same identity — the pre-4A silent cross-fleet drop is gone. `create_combat_debris` uses `ON CONFLICT (battle_id) DO NOTHING` **plus** an explicit conflict branch that raises a WARNING instead of losing data. | JUSTIFIED |
+
+### 20.7 Security / ACL / RLS audit
+
+```text
+initialize_individual_combat_units  CREATE OR REPLACE (signature unchanged) -> ACL preserved
+resolve_attack_arrival              CREATE OR REPLACE (signature unchanged) -> ACL preserved
+```
+
+Both were additionally re-declared explicitly, because Phase 4A proved that a *new* signature silently resets
+EXECUTE to PUBLIC:
+
+```text
+revoke all on function ... from public, anon, authenticated;
+grant execute on function ... to service_role;
+```
+
+Verified LIVE afterwards (exact string, both functions):
+
+```text
+pg_proc.proacl = {postgres=X/postgres,service_role=X/postgres}
+anon EXECUTE = false · authenticated EXECUTE = false · service_role EXECUTE = true
+exactly ONE definition per function name (no orphan overload left behind)
+```
+
+No other ACL or RLS object was touched: the client surface was neither widened nor narrowed. RLS is unchanged
+(`deny_direct_api_access` on `combat_battles`, `combat_battle_participants`, `combat_individual_units`,
+`combat_round_snapshot_units`, `debris_fields`, `planet_support_authorizations`), and the support RPCs remain
+`anon=false`.
+
+Ownership model for a future ACS/DEFEND surface (the established chain, reused unchanged):
+
+```text
+auth.uid() -> players.user_id -> players.id  ->  owned planet / owned fleet
+```
+
+No `is_guest`, no username, no frontend identity and no client-supplied ownership is used anywhere in the
+support or combat path.
+
+### 20.8 UI / frontend audit (STATIC VERIFIED)
+
+```text
+src/**.ts|tsx references to ACS_HOLD · HOLDING · DEFEND(mission) · start_support_fleet ·
+planet_support · holding_until · idempotency_key ......................... 0   (NOT STARTED)
+generated database types: mission_type is a plain string, no support contract, no HOLDING state NOT STARTED
+FleetView / GalaxyView / Overview / Messages / combat report: no ACS, DEFEND, holding-status or
+   participant-list surface; the mission selector exposes only the seven implemented missions NOT STARTED
+BACKEND DEPENDENCY for any of the above: ACS grouping/dispatch semantics (PD-01...PD-07) NOT DEFINED
+```
+
+No placeholder UI was created, because the ACS/DEFEND backend contract is not determined yet.
+
+### 20.9 Battle-report contract (LIVE VERIFIED, payload UNCHANGED)
+
+`get_player_battle_reports(p_limit)` already scales to N participants **without modification**:
+
+```text
+visibility          EXISTS (participant.player_id = me)   -> an ACS participant would see the battle
+participants        jsonb array {side,participant_type,player_id,fleet_id,planet_id}
+caller_role         ATTACKER if the caller owns any attacker participant, else DEFENDER
+defender_player_id  read from the DEFENDER/PLANET participant
+```
+
+Still missing for a per-fleet battle screen: `losses` and `rounds` carry no `participant_id` (DG-13 at payload
+level). A future optional projection is proposed in PD-15. The current payload was left byte-identical and the
+report regression is 7/7.
+
+### 20.10 Expedition compatibility (LIVE VERIFIED, 11/11)
+
+The expedition branch is untouched: `resolve_expedition_pirates`/`_aliens` create `ATTACKER/FLEET` +
+`DEFENDER/ENEMY`, `run_expedition_combat` derives the result from side aggregates, and the worker's
+`EXPEDITION` branch is byte-identical. `DEFENDER/ENEMY` is **not** reinterpreted as `DEFENDER/FLEET`
+(`initialize_individual_combat_units` matches `participant_type='FLEET'` explicitly, and the fail-closed guard
+in `resolve_attack_arrival` is unreachable for expeditions because that function rejects non-`ATTACK` missions).
+No expedition balance, alien-tech or ACS semantics were introduced.
+
+**Documentation correction (not a regression).** §17.3/§19.8 recorded `combat_expedition_combat.sql` as
+**10/10**. The fixture has emitted **11** assertions (P1–P7 + A1–A4) since commit `d64c338` and emits 11 PASS
+today. The five certified suites therefore contain **43** assertions, not 42; the "42/42" figure was an
+undercount.
+
+### 20.11 Legacy / dead infrastructure inventory (fresh, LIVE VERIFIED)
+
+```text
+LIVE            resolve_combat · initialize_individual_combat_units · process_combat_round_v2 ·
+                resolve_pending_target_damage · generate_combat_round_v2 · expand_all_rapidfire_v2 ·
+                calculate_combat_round_pending_damage · apply_combat_round_damage · finish_combat_round_v1 ·
+                create_combat_next_round · create_combat_round_snapshot · run_expedition_combat ·
+                resolve_attack_arrival · apply_attack_loot · repair_defenses_after_combat ·
+                create_combat_debris · sync_combat_battle_final_counts · both loss readers ·
+                calculate_combat_ship_debris · calculate_combat_defense_debris ·
+                calculate_combat_total_debris
+READY (0 database callers, client-callable, no gameplay produces their input)
+                start_support_fleet · grant_planet_support_authorization ·
+                revoke_planet_support_authorization
+DEAD (1 definition, 0 referencing functions, not client-callable)
+                combat_hull_from_integrity · get_combat_unit_snapshot · initialize_combat_unit_state
+DEAD TABLE      combat_unit_state (0 rows, no writer)
+DANGEROUS       none found by this audit
+UNKNOWN         none — every combat object was resolved to a caller set
+```
+
+No dead object was deleted (deletion was not required by the new implementation). `combat_unit_state`, the
+three orphan functions and the inert legacy residue stay deferred and documented.
+
+### 20.12 Tests and LIVE evidence
+
+New rollback-safe fixture: `supabase/tests/combat_defender_fleet_participant.sql` — **16/16 PASS**.
+
+| # | Assertion | Result |
+|---|---|---|
+| D1 | the battle owns 1 attacker + 1 planet + 2 defending fleets (4 participants) | PASS |
+| D2 | units per participant: planet 14, D1 3, D2 4, none without `participant_id` | PASS |
+| D3 | three distinct `cruiser #1` rows survive across three defender participants | PASS |
+| D4 | each defending fleet keeps its OWN owner context (D1 hull 351 vs D2 hull 270) | PASS |
+| D5 | defending-fleet units are never `DEFENCE` | PASS |
+| D6 | the repair loss reader cannot see fleet ships (0 rows) | PASS |
+| D7 | ship losses stay per-participant (5 rows / 4 participants) | PASS |
+| D8 | the round-1 snapshot keeps all 26 units, none without participant | PASS |
+| D9a | defending fleet A resolves **its own** `cruiser #1` (1 shot) | PASS |
+| D9b | defending fleet B resolves **its own** `cruiser #1` (1 shot) | PASS |
+| D9c | a participant that owns no such unit is rejected, never guessed | PASS |
+| D10 | with ZERO defending fleets the certified unit set is unchanged (19 units) | PASS |
+| D11 | settlement refuses a battle owning defending fleets (`MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED`) | PASS |
+| D12 | the certified single-fleet attack still settles (`RETURNING`) | PASS |
+| D13 | one battle-level debris generation merging 2 participants | PASS |
+| D14 | a fleet cannot join the same battle twice | PASS |
+
+Certified regressions re-run on LIVE after the migration **and** after the new fixture:
+
+| Suite | Result |
+|---|---|
+| `combat_participant_propagation.sql` (attack) | **12/12 PASS** |
+| `combat_expedition_combat.sql` | **11/11 PASS** (see the §20.10 correction) |
+| `combat_report_contract.sql` | **7/7 PASS** |
+| `combat_worker_isolation.sql` | **8/8 PASS** |
+| `combat_debris_idempotency.sql` | **5/5 PASS** |
+| **certified total** | **43/43 PASS** |
+| `combat_participant_identity_collision.sql` (Phase 4A) | **13/13 PASS** |
+| `combat_defender_fleet_participant.sql` (Phase 4B, new) | **16/16 PASS** |
+
+Static gates: `npx tsc -b` exit 0 · `npm run build` exit 0 (the reported exit 1 was a PowerShell stderr
+artefact around the chunk-size warning; the real process exit was 0) · `git diff --check` clean · no conflict
+markers in either new file.
+
+LIVE residue proof (identical before and after every fixture run, and at mission end):
+
+```text
+battles 0 · participants 0 · individual units 0 · rounds 0 · shots 0 · debris generations 0 ·
+defence repairs 0 · fleets 0 · fleet ships 0 · support rows 0 · support authorizations 0 ·
+support/HOLDING rows 0 · planet_defenses 0 · players 407 · players with a user_id 1 ·
+debris_fields 3 with an unchanged metal total 142240.29428409734012460000 · planet_ships quantity 1 ·
+pre-existing orphans unchanged: snapshot_units 661, damage rows 681
+```
+
+Residue: **NONE.** No test player, planet, fleet, battle, unit, shot, debris field, repair or authorization
+survives; the identity re-point used by the fixture (the `fleet_movements` ownership guard needs the inserted
+player to own the JWT) is restored inside the rolled-back block — `players.user_id` is back to exactly one
+holder.
+
+### 20.13 PRODUCT DECISION REGISTER (all still OPEN — nothing was chosen)
+
+Every item below is a genuine gameplay/product decision that the current architecture does **not** determine.
+None of them was silently resolved; no value was invented anywhere in this phase.
+
+| ID | Decision required | Why it cannot be inferred | Status |
+|---|---|---|---|
+| PG-01 | ACS group ownership (who creates/owns/cancels a group) | no group object exists; only a per-planet per-player consent table exists | OPEN |
+| PG-02 | ACS join deadline (how long a fleet may join before launch) | no timing field, no dispatch window anywhere | OPEN |
+| PG-03 | ACS member withdrawal before arrival | no recall/cancel path exists for any mission | OPEN |
+| PG-04 | Late arrival (join the running battle vs a new battle) | today it *is* a new battle; whether that is intended is a rule | OPEN |
+| PG-05 | Maximum ACS fleet count | no constant exists, nothing enforces a cap | OPEN |
+| PG-06 | Attacker fleet ordering | **downgraded to NOT REQUIRED**: shot generation is `ORDER BY random()` and unit identity is order-independent, so ordering has no semantic effect (UI ordering is a presentation choice) | NOT REQUIRED |
+| PG-07 | Defender fleet ordering | same evidence as PG-06 | NOT REQUIRED |
+| PG-08 | **Survivor attribution** — does each fleet keep its own surviving ships, or does combat produce one pooled attacker survivor result? | `resolve_attack_arrival` writes survivors back to exactly one `fleet_id`; no pool concept exists and no per-participant settlement loop exists | **OPEN — BLOCKING** |
+| PG-09 | Loot capacity attribution (initiating fleet / sum of survivors / pooled capacity) | `apply_attack_loot` reads `combat_battles.fleet_id` only | **OPEN — BLOCKING** |
+| PG-10 | Loot ownership (one recipient vs distributed) | same as PG-09; the cargo is credited to one movement row today | OPEN |
+| PG-11 | Retreat / cancellation semantics | no recall path exists at all | OPEN |
+| PG-12 | DEFEND authorization semantics (reuse `planet_support_authorizations`, or a different consent) | the consent *mechanism* exists; whether DEFEND uses it is a rule | OPEN |
+| PG-13 | DEFEND withdrawal | no endpoint exists (the revoke RPC revokes consent, it does not recall a fleet) | OPEN |
+| PG-14 | DEFEND arrival timing (does a defending fleet have to arrive *before* an attack to count?) | no arrival-vs-attack rule exists | OPEN |
+| PG-15 | Battle-report per-fleet projection (add `participant_id` to `losses`/`rounds`) | the internal model supports it; the customer-facing shape is a product choice | OPEN |
+| PG-16 | Settlement atomicity for N fleets of one battle (one transaction vs per-fleet) | settlement is one transaction per fleet today (the worker's per-fleet isolation model) | OPEN |
+| PG-17 | Defending-fleet lifecycle after combat (stay `HOLDING` until `holding_until`, or return immediately) | no rule exists; the fleet's `holding_until` is the only timing authority | **OPEN — BLOCKING** |
+| PG-18 | Whether `combat_battles.defender_ships_before/after` / `defender_combat_units_*` should include defending-fleet ships | `sync_combat_battle_final_counts` and `run_expedition_combat` aggregate by **side**, which would silently fold defending fleets into the planet's counters | OPEN |
+
+Blocking set for any defending-fleet gameplay: **PG-08, PG-09, PG-17, PG-18** (plus PG-01…PG-05 for ACS
+dispatch). Until they are decided, `resolve_attack_arrival` refuses to settle a battle that owns
+`DEFENDER/FLEET` participants, and no producer for such participants exists.
+
+Decisions **already determined elsewhere** and therefore not re-opened here:
+
+```text
+· maximum holding duration and holding fuel — OPEN in the Fleet Engine (README_FLEET_ENGINE §22.7), not a combat decision
+· battle winner semantics — side-aggregate, `aa>0 AND dd=0 -> ATTACKER_WIN` (certified, unchanged)
+· defence repair = planet-scoped at 70 % — certified, unchanged
+· debris = battle-scoped at `universes.fleet_debris_percentage` — certified, unchanged
+· loot plunder caps = 50 % per resource with the existing capacity order — certified, unchanged
+```
+
+### 20.14 Next engineering boundary
+
+```text
+The identity layer can now REPRESENT a defending fleet; it still cannot SETTLE one, and nothing can create one.
+
+NEXT MISSION (gameplay — requires the blocking product decisions first)
+  1. resolve PG-08 / PG-09 / PG-17 / PG-18
+  2. then: per-participant settlement in resolve_attack_arrival (write back N fleets, transition N statuses),
+     loot attribution, and the defending-fleet return rule
+  3. then: a producer (ACS_HOLD participation and/or DEFEND dispatch) plus its authorization rules
+
+SEPARATE, NON-BLOCKING
+  4. ACS group object — only if PG-01…PG-05 choose a grouping model; none is structurally required today
+  5. per-fleet report projection (PG-15), battle-report screen
+  6. legacy/DEAD combat-object disposition (combat_unit_state + 3 orphan functions)
+  7. the alien-technology balance item and DG-07 leftover cleanup (unchanged from §17.5)
+
+The certified base engine (single attacking fleet vs one planet + the expedition branch) stays CERTIFIED and
+was not modified in behaviour by this phase.
+```
+
+
+
+
+
+
+
+
