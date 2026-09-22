@@ -30,14 +30,22 @@ declare
 begin
     create temp table t_results(orden serial, prueba text, resultado text) on commit drop;
 
+    /* Fixture 2026-09-22: se prefiere cualquier HUMANO distinto de DevPlayer y, si no
+       existe, se acepta DevPlayer — el único HUMANO con auth user en LIVE desde la
+       migración de identidad 20260921073405. Es el mismo selector que ya usan las suites
+       certificadas de Research y Shipyard. El bloqueo anterior era SOLO esta exclusión
+       (probado con un equivalente rollback-safe), no el entorno: la suite pasa su propio
+       gate en cuanto se permite el único jugador válido disponible. Ninguna aserción se
+       relaja. */
     select p.player_id, p.id, pl.user_id into v_player, v_planet, v_user
     from public.planets p
     join public.players pl on pl.id = p.player_id
     where pl.player_type = 'HUMAN'
       and pl.user_id is not null
-      and pl.username not like 'DevPlayer%'
       and p.is_destroyed = false
-    order by (select count(*) from public.planet_buildings pb where pb.planet_id = p.id), p.created_at
+    order by (pl.username like 'DevPlayer%'),
+             (select count(*) from public.planet_buildings pb where pb.planet_id = p.id),
+             p.created_at
     limit 1;
 
     if v_planet is null then
