@@ -240,7 +240,11 @@ Implemented:
 
 Not implemented and still open:
 
-- `DEFEND` and ACS combat integration / multi-defender settlement → **BLOCKED BY COMBAT ENGINE**;
+- `DEFEND` and ACS combat integration / multi-defender settlement → still **OPEN**; since Phase 4B the
+  combat-side blocker is narrowed to multi-defender settlement plus the four blocking product decisions
+  (survivor attribution, loot capacity, defending-fleet return, battle-header defender counters) —
+  `README_COMBAT_ENGINE` §20.5/§20.13. `DEFENDER/FLEET` is now representable by the engine and settlement
+  fails closed until those decisions exist;
 - holding fuel → **product decision pending** (not invented);
 - maximum holding duration → **product decision pending** (not hardcoded);
 - support recall during outbound/holding;
@@ -251,13 +255,26 @@ Not implemented and still open:
 
 - **Combat Engine: CERTIFIED (2026-09-21) for the base engine** — one attacking fleet vs one planet
   (ATTACK) plus the expedition combat branch, on the deployed worker chain, with the authenticated
-  battle-report contract. Phases 0 (audit), 1 (CB-01/CB-02/CB-05/CB-06), 2 (DG-01/CB-03/CB-04) and 3
-  (read-only certification evidence) are closed; DG-07 is decided as non-blocking historical residue.
-  Five runnable combat suites are LIVE-verified: attack 12/12, expedition 10/10, report 7/7, worker 8/8,
-  debris 5/5. Not certified (by design): ACS, DEFEND, multi-fleet combat, seeded determinism, shield-dome
-  rules, the alien-technology balance item and legacy-object removal.
-  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14/§15/§16/§17; the operational
+  battle-report contract. Phases 0 (audit), 1 (CB-01/CB-02/CB-05/CB-06), 2 (DG-01/CB-03/CB-04), 3
+  (read-only certification evidence) and 4/4A are closed; DG-07 is decided as non-blocking historical residue.
+  Five runnable combat suites are LIVE-verified: attack 12/12, expedition **11/11**, report 7/7, worker 8/8,
+  debris 5/5 = **43/43** (the earlier "42/42" undercounted the expedition fixture — corrected in
+  `README_COMBAT_ENGINE` §20.10), plus the Phase 4A collision fixture 13/13 and the new Phase 4B fixture 16/16.
+  **Phase 4B — ACS/DEFEND architecture audit + DEFENDER/FLEET representation: CLOSED (2026-09-22).**
+  Migration `20260922043604_defender_fleet_participant_representation` (no schema change was required):
+  `initialize_individual_combat_units` now materialises every `DEFENDER/FLEET` participant with its own
+  `participant_id` and its own owner technology context (the mirror of the Phase 4A attacker branch), and
+  `resolve_attack_arrival` now **fails closed** (`MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED`) instead of silently
+  ignoring defending fleets. Both changes are inert today: no function creates a `DEFENDER/FLEET` participant
+  (`resolve_combat`, `resolve_expedition_pirates`, `resolve_expedition_aliens` are the only participant
+  producers). Still NOT IMPLEMENTED — all product decisions, not defects: ACS grouping/dispatch, DEFEND
+  dispatch, multi-fleet settlement, per-fleet survivor and loot attribution, per-fleet report payload,
+  ACS/DEFEND UI. Blocking product decisions: survivor attribution, loot-capacity attribution,
+  defending-fleet return rule, battle-header defender counters (`README_COMBAT_ENGINE` §20.13:
+  PG-08/PG-09/PG-17/PG-18).
+  Detail: [`README_COMBAT_ENGINE.md`](systems/README_COMBAT_ENGINE.md) §14/§15/§16/§17/§19/§20; the operational
   summary is the combat bullet in §5.
+
 - Guest decommission: **LIVE, PARTIAL — 2026-09-21**. The identity core is applied
   (`20260921073405_complete_email_identity_migration`): `provision_player` created, `on_auth_user_created`
   and `private.handle_new_auth_user()` dropped, `register_guest_player` dropped. Verified LIVE after the
@@ -419,20 +436,22 @@ BLOCKED / LATER
 7. AI is final-phase: compare its structure against OGameX/other clones first; implement only if L.G.I. has the
    required authoritative engine/callers, otherwise leave it deferred.
 8. Combat: the **base Combat Engine is CERTIFIED** (single attacking fleet vs one planet + expedition
-   branch, §5). **Phase 4 (read-only ACS/DEFEND/multi-fleet architecture audit) is CLOSED**: ACS, DEFEND and
-   multi-fleet are still NOT IMPLEMENTED, and their single-fleet blockers are enumerated — the battle header
-   is single-fleet (`combat_battles.fleet_id NOT NULL` + one-battle-per-fleet unique index +
-   single `attacker_player_id`) while the participant layer is already N-fleet, the two legacy
-   unit/snapshot uniqueness keys collide for identical units of different fleets (silently, via
-   `ON CONFLICT DO NOTHING`), the round-engine target identity omits `participant_id`, loss/report payloads
-   have no participant key, loot capacity comes from one fleet, and no `DEFENDER/FLEET` participant is ever
-   created (holdings are invisible to combat). **Phase 4A — Participant / Battle identity foundation** is
-   **CLOSED** (2026-09-21): the three participant-aware migrations are applied and the identity foundation is
-   proven by the 13/13 collision fixture plus 42/42 certified regressions (§19). Remaining combat work is its
-   own future mission: ACS/DEFEND dispatch and grouping, per-fleet survivor/loot attribution decisions,
-   per-fleet report payloads, a DG-07 cleanup/validation decision, and the alien-technology balance decision
-   (§17.5/§17.6, §18.12, §19.11). Do not reopen the certified chain without new evidence of a defect, and do
-   not create a second combat architecture.
+   branch, §5). Phase 4 (read-only ACS/DEFEND/multi-fleet audit) and **Phase 4A (participant/battle identity
+   foundation, 13/13 collision fixture) are CLOSED**; the Phase 4A defects it removed — legacy unit/snapshot
+   uniqueness keys colliding across fleets, target identity without `participant_id`, loss payloads without a
+   participant key — are fixed and must not be re-opened. **Phase 4B — ACS/DEFEND architecture + DEFENDER/FLEET
+   representation is CLOSED (2026-09-22)**: new migration
+   `20260922043604_defender_fleet_participant_representation` (forward-only, LIVE applied, repo file
+   content-identical) makes `initialize_individual_combat_units` materialise `DEFENDER/FLEET` participants
+   (own `participant_id`, own owner technology context) and makes `resolve_attack_arrival` fail closed
+   (`MULTI_DEFENDER_SETTLEMENT_NOT_DEFINED`). No schema change was needed: `combat_battle_participants` could
+   already represent `DEFENDER/FLEET`. Still NOT IMPLEMENTED (product decisions, not defects): ACS
+   grouping/dispatch, DEFEND dispatch, multi-fleet settlement, per-fleet survivor/loot attribution, per-fleet
+   report payloads, ACS/DEFEND UI. **Next mission**: resolve the blocking product decisions first
+   (`README_COMBAT_ENGINE` §20.13 PG-08/PG-09/PG-17/PG-18), then per-participant settlement, then a producer.
+   Do not reopen the certified chain without new evidence of a defect, and do not create a second combat
+   architecture.
+
 9. Browser certification remains a separate validation track.
 ```
 
