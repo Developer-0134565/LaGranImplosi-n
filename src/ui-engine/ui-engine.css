@@ -430,6 +430,7 @@ html[data-lgi-preview-mobile] .lgi-screen,
    ========================================================================= */
 
 html[data-lgi-preview-width] .lgi-engine {
+  width: 100%;
   max-width: var(--lgi-preview-width);
   margin-inline: auto;
   padding-top: env(safe-area-inset-top);
