@@ -22,7 +22,7 @@ export const commandTemplate = {
     'planet.bodies': 'aside',
     'fleet.command': 'header',
     'fleet.slots': 'header',
-    'fleet.launch': 'header',
+    'fleet.launch': 'main',
     'fleet.setup': 'main',
     'fleet.destination': 'main',
     'fleet.ships-civil': 'main',
