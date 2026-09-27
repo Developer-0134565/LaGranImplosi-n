@@ -70,8 +70,8 @@ The certification currently contains 27 checks.
 
 ### Certified checks
 
-The latest complete run before the final drag fix reached 26/27. The only failing check was 12d, the physical
-module drag.
+The complete browser certification now passes all 27 checks. The final failing check was 12d, the physical
+module drag, and it is now closed at the harness level.
 
 The final physical-drag issue was proven to be a certification-harness geometry problem, not a production
 Designer defect:
@@ -123,12 +123,8 @@ Only after those conditions are satisfied should designerInteractions.ts be trea
 
 The physical drag blocker is CLOSED at the harness level.
 
-The remaining certification step is a fresh full run of all 27 checks after the final harness commit, to record the
-complete 27/27 result as the durable certification baseline. Until that run is recorded, the project context
-must not claim a full 27/27 browser certification.
-
-After the full run, remove temporary drag diagnostics if they are no longer needed and keep only the durable
-certification behaviour.
+The complete 27/27 browser certification has now been recorded. The temporary drag diagnostics were removed;
+the durable offscreen-source/destination drag geometry remains in the certification harness.
 
 ## 8. Boundaries
 
