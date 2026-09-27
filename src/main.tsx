@@ -90,6 +90,7 @@ function AuthenticatedApp() {
     <div className="app-frame">
       <TemplateChrome />
       <App />
+      <UIDesigner />
     </div>
   )
 }
@@ -102,10 +103,7 @@ function Root() {
       {workbench ? (
         <UIWorkbench />
       ) : (
-        <>
-          <AuthenticatedApp />
-          <UIDesigner />
-        </>
+        <AuthenticatedApp />
       )}
     </UIEngineProvider>
   )
