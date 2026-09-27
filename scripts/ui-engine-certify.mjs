@@ -759,8 +759,10 @@ async function runChecks(session) {
           })
         }
         window.__lgiDesignerDragTraceHandler = record
-        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
-          window.addEventListener(type, record, true)
+        for (const type of [
+          'pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+          'mousedown', 'mousemove', 'mouseup',
+        ]) window.addEventListener(type, record, true)
       })()`)
 
       const dragged = await dragFrom(
@@ -772,8 +774,10 @@ async function runChecks(session) {
       await session.evaluate(`(() => {
         const handler = window.__lgiDesignerDragTraceHandler
         if (handler) {
-          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
-            window.removeEventListener(type, handler, true)
+          for (const type of [
+            'pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+            'mousedown', 'mousemove', 'mouseup',
+          ]) window.removeEventListener(type, handler, true)
         }
         delete window.__lgiDesignerDragTraceHandler
       })()`)
