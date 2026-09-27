@@ -44,16 +44,32 @@ export function UIEngine({ template, theme, density, className, children }: UIEn
 
   const resolution = useMemo<UIEngineResolution>(() => {
     const explicit = isUITemplateId(template) ? template : null
+    // The Designer config is the source of truth for the user-selected template.
+    // The provider remains a compatibility/persistence bridge, not a competing
+    // authority. An explicit <UIEngine template="..."> still wins.
+    const fromDesigner = isUITemplateId(designer.template) ? designer.template : null
     const fromContext = context?.template.id ?? null
     const stored = readStoredTemplate()
-    const selected = explicit ?? fromContext ?? (isUITemplateId(stored) ? stored : null)
+    const selected =
+      explicit ??
+      fromDesigner ??
+      fromContext ??
+      (isUITemplateId(stored) ? stored : null)
     const resolved = getUITemplate(selected)
     return {
       template: resolved,
       theme: theme ?? designer.theme ?? resolved.theme,
       density: density ?? designer.density ?? resolved.density,
     }
-  }, [template, theme, density, context?.template.id, designer.theme, designer.density])
+  }, [
+    template,
+    theme,
+    density,
+    designer.template,
+    designer.theme,
+    designer.density,
+    context?.template.id,
+  ])
 
   /**
    * Escalas del Designer. `fontScale` sólo afecta a la tipografía y `uiScale`
