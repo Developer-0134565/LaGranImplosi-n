@@ -6,7 +6,7 @@
 
   Qué hace:
 
-    1. levanta `vite preview` sobre el build de producción;
+    1. levanta un servidor estático sobre `dist/client` con un puerto libre;
     2. abre Edge headless con un perfil temporal;
     3. recorre el banco de pruebas (`#ui-designer`) y la superficie real (`/`) con
        la lista de comprobaciones del informe;
@@ -32,8 +32,9 @@ const readArg = (name, fallback) => {
   return index >= 0 && args[index + 1] ? Number(args[index + 1]) : fallback
 }
 
-const PREVIEW_PORT = readArg('port', 4174)
+const REQUESTED_PREVIEW_PORT = readArg('port', 0)
 const DEBUG_PORT = readArg('debug-port', 9333)
+let BASE = ''
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
 const BASE = `http://127.0.0.1:${PREVIEW_PORT}`
 const SHOT_DIR = join(tmpdir(), 'lgi-ui-certify')
@@ -72,15 +73,36 @@ async function waitForHttp(url, timeoutMs = 40000) {
   }
 }
 
-function startPreview() {
+async function startPreview() {
   /** Vite hace dos builds en este proyecto: el build de Cloudflare y el build
    *  del cliente. El cliente vive en dist/client, así que el certificador lo
-   *  sirve explícitamente desde ahí para evitar que Vite/Cloudflare resuelva
-   *  por accidente el outDir raíz (dist) y devuelva index.html como JS. */
+   *  sirve explícitamente desde ahí. Si no se indica --port, usamos uno libre
+   *  para que un proceso viejo en 4174 no pueda falsear la certificación. */
   const serverScript = join(process.cwd(), 'scripts', 'ui-engine-certify-server.mjs')
-  return spawn(process.execPath, [serverScript, '--root', join(process.cwd(), 'dist', 'client'), '--port', String(PREVIEW_PORT)], {
-    stdio: 'ignore',
+  const child = spawn(process.execPath, [serverScript, '--root', join(process.cwd(), 'dist', 'client'), '--port', String(REQUESTED_PREVIEW_PORT)], {
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
+  const port = await new Promise((resolve, reject) => {
+    let output = ''
+    const onData = (chunk) => {
+      output += chunk.toString()
+      const match = output.match(/READY\\s+(\\d+)/)
+      if (match) {
+        child.stdout.off('data', onData)
+        resolve(Number(match[1]))
+      }
+    }
+    child.stdout.on('data', onData)
+    child.stderr.on('data', (chunk) => {
+      output += chunk.toString()
+    })
+    child.once('error', reject)
+    child.once('exit', (code) => {
+      if (code !== 0) reject(new Error(`Servidor de certificación terminó con código ${code}: ${output.trim()}`))
+    })
+  })
+  BASE = `http://127.0.0.1:${port}`
+  return child
 }
 
 function startBrowser() {
@@ -695,7 +717,7 @@ let browser
 let session
 
 try {
-  preview = startPreview()
+  preview = await startPreview()
   await waitForHttp(`${BASE}/`)
   browser = startBrowser()
   session = await connect()
