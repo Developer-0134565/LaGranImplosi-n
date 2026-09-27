@@ -178,3 +178,5 @@ async function handleOnboarding(username:string){setOnboardingBusy(true);setOnbo
     </div>
  )
 }
+
+export default App
