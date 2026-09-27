@@ -18,6 +18,7 @@ export const minimalTemplate = {
   density: 'comfortable',
   regions: ['header', 'main', 'aside'],
   placement: {
+    'fleet.launch': 'main',
     'navigation.main': 'main',
     'planet.bodies': 'aside',
     'fleet.command': 'header',
@@ -29,7 +30,6 @@ export const minimalTemplate = {
     'fleet.ships-combat': 'main',
     'fleet.ships-other': 'main',
     'fleet.composition-note': 'main',
-    'fleet.launch': 'aside',
     'fleet.slots': 'aside',
     'fleet.slot-summary': 'aside',
     'fleet.capacity': 'aside',
