@@ -17,7 +17,6 @@ export const classicTemplate = {
   regions: ['rail', 'main', 'aside'],
   placement: {
     'resources.summary': 'main',
-    'fleet.launch': 'main',
     'navigation.rail': 'rail',
     'navigation.main': 'main',
     'planet.bodies': 'aside',
@@ -36,7 +35,6 @@ export const classicTemplate = {
     'fleet.launch': 'main',
     'fleet.slot-summary': 'aside',
     'fleet.active': 'aside',
-    'resources.summary': 'aside',
     'messages.feed': 'aside',
     'buildings.grid': 'main',
     'research.grid': 'main',
