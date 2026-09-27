@@ -373,14 +373,36 @@ async function dragFrom(session, selector, targetSelector) {
     const a = from.getBoundingClientRect()
     const b = to.getBoundingClientRect()
     if (a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) return null
-    return {
-      from: { x: a.left + Math.min(11, a.width / 2), y: a.top + Math.min(8, a.height / 2) },
-      to: { x: b.left + Math.max(8, Math.min(24, b.width * .12)), y: b.top + Math.max(8, Math.min(24, b.height * .12)) },
-    }
+
+    const sourceCandidates = [
+      [a.left + a.width / 2, a.top + a.height / 2],
+      [a.left + Math.min(8, a.width / 2), a.top + Math.min(8, a.height / 2)],
+    ]
+    const targetCandidates = [
+      [b.left + b.width / 2, b.top + b.height / 2],
+      [b.left + b.width * .75, b.top + b.height / 2],
+      [b.left + b.width / 2, b.top + b.height * .75],
+      [b.left + Math.min(24, Math.max(8, b.width * .12)), b.top + Math.min(24, Math.max(8, b.height * .12))],
+    ]
+    const source = sourceCandidates.find(([x, y]) => {
+      const hit = document.elementFromPoint(x, y)
+      return hit && (hit === from || hit.closest('.lgi-designer-grip') === from)
+    })
+    const target = targetCandidates.find(([x, y]) => {
+      const hit = document.elementFromPoint(x, y)
+      return hit && hit.closest('.lgi-region') === to
+    })
+    if (!source || !target) return null
+    return { from: { x: source[0], y: source[1] }, to: { x: target[0], y: target[1] } }
   })()`)
   if (!points) return false
   await session.send('Input.dispatchMouseEvent', {
-    type: 'mousePressed', x: points.from.x, y: points.from.y, button: 'left', clickCount: 1,
+    type: 'mousePressed',
+    x: points.from.x,
+    y: points.from.y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
   })
   for (let step = 1; step <= 6; step += 1) {
     await session.send('Input.dispatchMouseEvent', {
@@ -388,11 +410,17 @@ async function dragFrom(session, selector, targetSelector) {
       x: points.from.x + ((points.to.x - points.from.x) * step) / 6,
       y: points.from.y + ((points.to.y - points.from.y) * step) / 6,
       button: 'left',
+      buttons: 1,
     })
     await sleep(60)
   }
   await session.send('Input.dispatchMouseEvent', {
-    type: 'mouseReleased', x: points.to.x, y: points.to.y, button: 'left', clickCount: 1,
+    type: 'mouseReleased',
+    x: points.to.x,
+    y: points.to.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
   })
   await sleep(350)
   return true
