@@ -395,6 +395,34 @@ async function dragFrom(session, selector, targetSelector) {
   return true
 }
 
+async function dragBy(session, selector, dx, dy = 0) {
+  const point = await session.evaluate(`(() => {
+    const el = document.querySelector(${JSON.stringify(selector)})
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+  })()`)
+  if (!point) return false
+  const to = { x: point.x + dx, y: point.y + dy }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1,
+  })
+  for (let step = 1; step <= 6; step += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: point.x + ((to.x - point.x) * step) / 6,
+      y: point.y + ((to.y - point.y) * step) / 6,
+      button: 'left',
+    })
+    await sleep(60)
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1,
+  })
+  await sleep(350)
+  return true
+}
+
 async function guarded(id, label, run) {
   try {
     const outcome = await run()
@@ -583,6 +611,11 @@ async function runChecks(session) {
     return { ok: checked === true && state.edit === 'on' && grips > 0, detail: `edit=${state.edit} grips=${grips}` }
   })
 
+  /* MOVE/RESIZE necesitan una plantilla con más de una región. Tactical
+     ofrece 5 regiones y mantiene la selección/handles reales del engine. */
+  await selectTemplate(session, 'Tactical')
+  await sleep(300)
+
   /* 11. Selección */
   await guarded(11, 'Selección de módulo', async () => {
     await setDesignerPanelOpen(session, false)
@@ -655,7 +688,11 @@ async function runChecks(session) {
       const before = await session.evaluate(
         `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
       )
-      const dragged = await dragFrom(session, '.lgi-module.is-selected .lgi-designer-handle--span', '.lgi-module.is-selected')
+      const dragged = await dragBy(
+        session,
+        '.lgi-module.is-selected .lgi-designer-handle--span',
+        120,
+      )
       if (!dragged) throw new Error('No se encontró el handle físico de span')
       const after = await session.evaluate(
         `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
@@ -690,7 +727,7 @@ async function runChecks(session) {
     const fontFamily = await session.evaluate(JS.cssVar('.lgi-engine', '--lgi-font-family'))
     return {
       ok:
-        state.template === 'classic' &&
+        state.template === 'tactical' &&
         state.density === 'comfortable' &&
         state.grid === 'on' &&
         spans.length > 0,
