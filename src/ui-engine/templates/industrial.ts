@@ -17,6 +17,9 @@ export const industrialTemplate = {
   density: 'compact',
   regions: ['header', 'rail', 'main', 'aside', 'log', 'actions'],
   placement: {
+    'navigation.rail': 'rail',
+    'navigation.main': 'main',
+    'planet.bodies': 'aside',
     'fleet.command': 'header',
     'fleet.slots': 'header',
     'fleet.launch': 'header',
@@ -41,6 +44,9 @@ export const industrialTemplate = {
     'messages.feed': 'aside',
   },
   order: [
+    'navigation.rail',
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'fleet.slots',
     'resources.summary',
