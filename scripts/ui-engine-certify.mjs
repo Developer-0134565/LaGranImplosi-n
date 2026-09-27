@@ -324,7 +324,7 @@ async function clickAt(session, selector, offset = { x: 0, y: 0 }) {
 
 async function clickModule(session, selector = '.lgi-module') {
   const point = await session.evaluate(`(() => {
-    const el = document.querySelector(selector)
+    const el = document.querySelector(${JSON.stringify(selector)})
     if (!el) return null
     const rect = el.getBoundingClientRect()
     const candidates = [
