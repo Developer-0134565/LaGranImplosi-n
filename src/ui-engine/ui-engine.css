@@ -1214,33 +1214,33 @@ html[data-lgi-preview-width] .lgi-engine {
 
 /* The existing game shell keeps its gameplay DOM; templates change its
    macro-composition instead of forcing gameplay modules into DEV-only regions. */
-.lgi-engine[data-lgi-template='classic'] > .game {
+.lgi-engine[data-lgi-template='classic'] .game {
   --lgi-shell-sidebar-width: 164px;
   --lgi-shell-body-width: 196px;
 }
 
-.lgi-engine[data-lgi-template='command'] > .game .neo-shell {
+.lgi-engine[data-lgi-template='command'] .game .neo-shell {
   grid-template-columns: minmax(132px, 164px) minmax(0, 1fr);
 }
 
-.lgi-engine[data-lgi-template='command'] > .game .neo-main {
+.lgi-engine[data-lgi-template='command'] .game .neo-main {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.lgi-engine[data-lgi-template='command'] > .game .neo-owned-planets {
+.lgi-engine[data-lgi-template='command'] .game .neo-owned-planets {
   display: none;
 }
 
-.lgi-engine[data-lgi-template='command'] > .game .neo-main-content {
+.lgi-engine[data-lgi-template='command'] .game .neo-main-content {
   padding-inline: clamp(8px, 1.5vw, 18px);
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-shell {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-shell {
   grid-template-columns: 1fr;
   grid-template-rows: auto minmax(0, 1fr);
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-sidebar {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-sidebar {
   display: flex;
   align-items: center;
   overflow-x: auto;
@@ -1251,7 +1251,7 @@ html[data-lgi-preview-width] .lgi-engine {
   border-bottom: 1px solid var(--line);
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-nav {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-nav {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
@@ -1259,58 +1259,58 @@ html[data-lgi-preview-width] .lgi-engine {
   gap: 4px;
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-player {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-player {
   flex: 0 0 auto;
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-main {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-main {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-owned-planets {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-owned-planets {
   display: none;
 }
 
-.lgi-engine[data-lgi-template='tactical'] > .game .neo-main-content {
+.lgi-engine[data-lgi-template='tactical'] .game .neo-main-content {
   padding-inline: clamp(8px, 1.5vw, 18px);
 }
 
-.lgi-engine[data-lgi-template='orbital'] > .game .neo-shell {
+.lgi-engine[data-lgi-template='orbital'] .game .neo-shell {
   grid-template-columns: minmax(132px, 164px) minmax(0, 1fr);
 }
 
-.lgi-engine[data-lgi-template='orbital'] > .game .neo-main {
+.lgi-engine[data-lgi-template='orbital'] .game .neo-main {
   grid-template-columns: minmax(0, 1fr) minmax(176px, 22%);
 }
 
-.lgi-engine[data-lgi-template='industrial'] > .game .neo-header {
+.lgi-engine[data-lgi-template='industrial'] .game .neo-header {
   border-bottom-width: 2px;
 }
 
-.lgi-engine[data-lgi-template='industrial'] > .game .neo-main-content {
+.lgi-engine[data-lgi-template='industrial'] .game .neo-main-content {
   padding: clamp(6px, 1vw, 14px);
 }
 
-.lgi-engine[data-lgi-template='industrial'] > .game .neo-panel {
+.lgi-engine[data-lgi-template='industrial'] .game .neo-panel {
   border-radius: calc(var(--radius) * .65);
 }
 
-.lgi-engine[data-lgi-template='minimal'] > .game .neo-sidebar,
-.lgi-engine[data-lgi-template='minimal'] > .game .neo-owned-planets {
+.lgi-engine[data-lgi-template='minimal'] .game .neo-sidebar,
+.lgi-engine[data-lgi-template='minimal'] .game .neo-owned-planets {
   display: none;
 }
 
-.lgi-engine[data-lgi-template='minimal'] > .game .neo-shell,
-.lgi-engine[data-lgi-template='minimal'] > .game .neo-main {
+.lgi-engine[data-lgi-template='minimal'] .game .neo-shell,
+.lgi-engine[data-lgi-template='minimal'] .game .neo-main {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.lgi-engine[data-lgi-template='minimal'] > .game .neo-main-content {
+.lgi-engine[data-lgi-template='minimal'] .game .neo-main-content {
   padding-inline: clamp(10px, 3vw, 28px);
 }
 
 /* Designer appearance settings now affect legacy gameplay surfaces too. */
-.lgi-engine > .game {
+.lgi-engine .game {
   color: var(--lgi-text);
   font-family: var(--lgi-font-body);
   font-size: calc(14px * var(--lgi-font-scale));
@@ -1330,23 +1330,23 @@ html[data-lgi-preview-width] .lgi-engine {
   --shadow: var(--lgi-shadow-1);
 }
 
-.lgi-engine > .game .neo-header,
-.lgi-engine > .game .neo-sidebar,
-.lgi-engine > .game .neo-main-content,
-.lgi-engine > .game .neo-main {
+.lgi-engine .game .neo-header,
+.lgi-engine .game .neo-sidebar,
+.lgi-engine .game .neo-main-content,
+.lgi-engine .game .neo-main {
   min-width: 0;
 }
 
 @media (max-width: 760px) {
-  .lgi-engine[data-lgi-template='tactical'] > .game .neo-shell {
+  .lgi-engine[data-lgi-template='tactical'] .game .neo-shell {
     grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .lgi-engine[data-lgi-template='tactical'] > .game .neo-sidebar {
+  .lgi-engine[data-lgi-template='tactical'] .game .neo-sidebar {
     min-height: 44px;
   }
 
-  .lgi-engine[data-lgi-template='minimal'] > .game .neo-main-content {
+  .lgi-engine[data-lgi-template='minimal'] .game .neo-main-content {
     padding-inline: 6px;
   }
 }
