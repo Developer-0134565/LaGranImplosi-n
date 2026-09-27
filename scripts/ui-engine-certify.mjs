@@ -365,87 +365,79 @@ async function setDesignerPanelOpen(session, open) {
 }
 
 async function dragFrom(session, selector, targetSelector) {
-  const points = await session.evaluate(`(() => {
+  const source = await session.evaluate(`(() => {
     const from = document.querySelector(${JSON.stringify(selector)})
-    const to = document.querySelector(${JSON.stringify(targetSelector)})
-    if (!from || !to) return null
+    if (!from) return null
     from.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
-    const a = from.getBoundingClientRect()
-    const b = to.getBoundingClientRect()
-    if (a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) return null
-
-    const sourceCandidates = [
-      [a.left + a.width / 2, a.top + a.height / 2],
-      [a.left + Math.min(8, a.width / 2), a.top + Math.min(8, a.height / 2)],
+    const rect = from.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    const candidates = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + Math.min(8, rect.width / 2), rect.top + Math.min(8, rect.height / 2)],
     ]
-    const targetCandidates = [
-      [b.left + b.width / 2, b.top + b.height / 2],
-      [b.left + b.width * .75, b.top + b.height / 2],
-      [b.left + b.width / 2, b.top + b.height * .75],
-      [b.left + Math.min(24, Math.max(8, b.width * .12)), b.top + Math.min(24, Math.max(8, b.height * .12))],
-    ]
-    const source = sourceCandidates.find(([x, y]) => {
+    const point = candidates.find(([x, y]) => {
       const hit = document.elementFromPoint(x, y)
       return hit && (hit === from || hit.closest('.lgi-designer-grip') === from)
     })
-    const target = targetCandidates.find(([x, y]) => {
-      const hit = document.elementFromPoint(x, y)
-      return hit && hit.closest('.lgi-region') === to
-    })
-    if (!source || !target) {
-      window.__lgiDesignerDragGeometry = {
-        error: !source && !target ? 'source+target' : !source ? 'source' : 'target',
-        sourceCandidates,
-        targetCandidates,
-        sourceHits: sourceCandidates.map(([x, y]) => {
-          const hit = document.elementFromPoint(x, y)
-          return { x, y, className: hit instanceof Element ? hit.className : null, grip: hit?.closest('.lgi-designer-grip')?.className ?? null }
-        }),
-        targetHits: targetCandidates.map(([x, y]) => {
-          const hit = document.elementFromPoint(x, y)
-          return { x, y, className: hit instanceof Element ? hit.className : null, region: hit?.closest('.lgi-region')?.getAttribute('data-region') ?? null }
-        }),
-        sourceRect: { left: a.left, top: a.top, width: a.width, height: a.height },
-        targetRect: { left: b.left, top: b.top, width: b.width, height: b.height },
-      }
-      return null
-    }
-    return { from: { x: source[0], y: source[1] }, to: { x: target[0], y: target[1] } }
+    return point ? { x: point[0], y: point[1] } : null
   })()`)
-  if (!points) return false
+  if (!source) return false
+
   await session.send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
-    x: points.from.x,
-    y: points.from.y,
+    x: source.x,
+    y: source.y,
     button: 'left',
     buttons: 1,
     clickCount: 1,
   })
-  for (let step = 1; step <= 6; step += 1) {
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x: points.from.x + ((points.to.x - points.from.x) * step) / 6,
-      y: points.from.y + ((points.to.y - points.from.y) * step) / 6,
-      button: 'none',
-      buttons: 1,
+  await sleep(80)
+
+  const target = await session.evaluate(`(() => {
+    const to = document.querySelector(${JSON.stringify(targetSelector)})
+    if (!to) return null
+    to.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+    const rect = to.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    const candidates = [
+      [rect.left + rect.width / 2, rect.top + Math.min(120, rect.height / 2)],
+      [rect.left + rect.width * .75, rect.top + Math.min(120, rect.height / 2)],
+      [rect.left + rect.width / 2, rect.bottom - Math.min(120, rect.height / 2)],
+    ]
+    const point = candidates.find(([x, y]) => {
+      const hit = document.elementFromPoint(x, y)
+      return hit && hit.closest('.lgi-region') === to
     })
-    await sleep(60)
+    return point ? { x: point[0], y: point[1] } : null
+  })()`)
+  if (!target) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: source.x,
+      y: source.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    })
+    return false
   }
-  /* Repetimos el punto final una vez con el botón mantenido: esto hace que
-     el último pointermove llegue exactamente sobre la región destino antes de
-     pointerup, sin depender de cómo Edge traduzca el último tramo. */
+
+  /* El origen y el destino pueden estar separados por varios miles de
+     píxeles. Mantenemos el botón pulsado mientras hacemos scroll al destino;
+     así la prueba sigue usando eventos físicos CDP sin exigir que ambos
+     puntos quepan simultáneamente en el viewport. */
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
-    x: points.to.x,
-    y: points.to.y,
+    x: target.x,
+    y: target.y,
     button: 'none',
     buttons: 1,
   })
   await sleep(80)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
-    x: points.to.x,
-    y: points.to.y,
+    x: target.x,
+    y: target.y,
     button: 'left',
     buttons: 0,
     clickCount: 1,
