@@ -457,6 +457,31 @@ async function guarded(id, label, run) {
   }
 }
 
+const layoutSignature = `(() => {
+  const root = document.querySelector('.lgi-engine')
+  const layout = document.querySelector('.lgi-layout')
+  if (!root || !layout) return null
+  const regions = [...document.querySelectorAll('.lgi-region[data-region]')].map((el) => {
+    const rect = el.getBoundingClientRect()
+    return {
+      region: el.getAttribute('data-region'),
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      area: getComputedStyle(el).gridArea,
+    }
+  }).sort((a, b) => a.region.localeCompare(b.region))
+  const style = getComputedStyle(layout)
+  return {
+    template: root.getAttribute('data-lgi-template'),
+    columns: style.gridTemplateColumns,
+    rows: style.gridTemplateRows,
+    areas: style.gridTemplateAreas,
+    regions,
+  }
+})()`
+
 const engineState = `(() => {
   const root = document.querySelector('.lgi-engine')
   const screen = document.querySelector('.lgi-screen')
@@ -501,11 +526,22 @@ async function runChecks(session) {
   })
   await screenshot(session, '01-workbench-buildings')
 
-  /* 2. El template cambia en vivo */
+  /* 2. El template cambia en vivo: certifica el EFECTO, no sólo el estado. */
   await guarded(2, 'Template cambia en vivo', async () => {
+    await selectTemplate(session, 'Classic')
+    const classic = await session.evaluate(layoutSignature)
     await selectTemplate(session, 'Tactical')
+    const tactical = await session.evaluate(layoutSignature)
     const state = await session.evaluate(engineState)
-    return { ok: state.template === 'tactical', detail: `template=${state.template}` }
+    const different =
+      classic &&
+      tactical &&
+      JSON.stringify(classic.regions) !== JSON.stringify(tactical.regions) &&
+      (classic.areas !== tactical.areas || classic.columns !== tactical.columns || classic.rows !== tactical.rows)
+    return {
+      ok: state.template === 'tactical' && different,
+      detail: `classic=${classic?.areas ?? '—'} · tactical=${tactical?.areas ?? '—'} · geometría distinta=${Boolean(different)}`,
+    }
   })
 
   /* 19-21. Classic / Command / Tactical componen sin desbordar */
