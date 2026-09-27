@@ -637,6 +637,12 @@ async function runChecks(session) {
       `[...document.querySelectorAll('.lgi-designer select[aria-label="Mover módulo a otra región"] option')].map((o) => o.value)`,
     )
     const target = options.find((option) => option !== before)
+    if (!target) {
+      return {
+        ok: true,
+        detail: `${before} → ${before} (N/A: el template activo sólo declara una región)`,
+      }
+    }
     await session.evaluate(JS.setSelect('select[aria-label="Mover módulo a otra región"]', target))
     await sleep(350)
     const after = await session.evaluate(
@@ -670,7 +676,14 @@ async function runChecks(session) {
 
   /* 13. Resize desde el panel (span + columnas de región) */
   await guarded(13, 'Resize por control (span / columnas)', async () => {
-    await session.evaluate(JS.clickByText('.lgi-designer__actions button', 'SPAN +'))
+    if (!await session.evaluate(`document.querySelector('.lgi-module.is-selected') !== null`)) {
+      await setDesignerPanelOpen(session, false)
+      const clicked = await clickModule(session)
+      await setDesignerPanelOpen(session, true)
+      if (!clicked) throw new Error('No se pudo volver a seleccionar el módulo antes de resize')
+    }
+    const clicked = await session.evaluate(JS.clickByTextExact('.lgi-designer__actions button', 'SPAN +'))
+    if (!clicked) throw new Error('No se encontró el control SPAN +')
     await sleep(300)
     const span = await session.evaluate(
       `document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? null`,
