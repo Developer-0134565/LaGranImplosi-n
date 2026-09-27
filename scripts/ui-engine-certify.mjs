@@ -36,7 +36,6 @@ const REQUESTED_PREVIEW_PORT = readArg('port', 0)
 const DEBUG_PORT = readArg('debug-port', 9333)
 let BASE = ''
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
-const BASE = `http://127.0.0.1:${PREVIEW_PORT}`
 const SHOT_DIR = join(tmpdir(), 'lgi-ui-certify')
 
 const VIEWPORTS = [
