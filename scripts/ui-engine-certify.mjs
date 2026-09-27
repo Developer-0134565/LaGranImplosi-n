@@ -322,6 +322,36 @@ async function clickAt(session, selector, offset = { x: 0, y: 0 }) {
   return true
 }
 
+async function clickModule(session) {
+  const point = await session.evaluate(`(() => {
+    const el = document.querySelector('.lgi-module')
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    const candidates = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + Math.min(28, Math.max(4, rect.width * .18)), rect.top + Math.min(28, Math.max(4, rect.height * .18))],
+      [rect.left + rect.width - Math.min(28, Math.max(4, rect.width * .18)), rect.top + Math.min(28, Math.max(4, rect.height * .18))],
+      [rect.left + rect.width / 2, rect.top + rect.height - Math.min(28, Math.max(4, rect.height * .18))],
+    ]
+    for (const [x, y] of candidates) {
+      const hit = document.elementFromPoint(x, y)
+      if (hit && (hit === el || hit.closest('.lgi-module') === el)) {
+        return { x, y }
+      }
+    }
+    return null
+  })()`)
+  if (!point) return false
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1,
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1,
+  })
+  await sleep(300)
+  return true
+}
+
 async function setDesignerPanelOpen(session, open) {
   if (open) {
     const launcher = await session.evaluate(JS.clickByTextExact('.lgi-designer-launcher', 'UI DESIGNER'))
@@ -556,7 +586,8 @@ async function runChecks(session) {
   /* 11. Selección */
   await guarded(11, 'Selección de módulo', async () => {
     await setDesignerPanelOpen(session, false)
-    await clickAt(session, '.lgi-module')
+    const clicked = await clickModule(session)
+    if (!clicked) throw new Error('No se encontró un punto físico del módulo libre de overlays')
     await setDesignerPanelOpen(session, true)
     const selected = await session.evaluate(
       `document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module') ?? null`,
@@ -584,20 +615,24 @@ async function runChecks(session) {
   /* 12d. Move real arrastrando el grip (pointer events) */
   await guarded('12d', 'Move por arrastre (pointer events)', async () => {
     await setDesignerPanelOpen(session, false)
-    const regions = await session.evaluate(
-      `[...document.querySelectorAll('.lgi-region')].map((r) => r.dataset.region)`,
-    )
-    const current = await session.evaluate(
-      `document.querySelector('.lgi-module.is-selected').closest('.lgi-region').getAttribute('data-region')`,
-    )
-    const index = regions.indexOf(current)
-    const target = regions[index === regions.length - 1 ? 0 : index + 1]
-    await dragFrom(session, '.lgi-module.is-selected .lgi-designer-grip', `.lgi-region[data-region="${target}"]`)
-    const after = await session.evaluate(
-      `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region').getAttribute('data-region') ?? null`,
-    )
-    await setDesignerPanelOpen(session, true)
-    return { ok: after === target, detail: `${current} → ${after} (destino ${target})` }
+    try {
+      const regions = await session.evaluate(
+        `[...document.querySelectorAll('.lgi-region')].map((r) => r.dataset.region)`,
+      )
+      const current = await session.evaluate(
+        `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region')?.getAttribute('data-region') ?? null`,
+      )
+      if (!current) throw new Error('No hay módulo seleccionado antes del arrastre')
+      const index = regions.indexOf(current)
+      const target = regions[index === regions.length - 1 ? 0 : index + 1]
+      await dragFrom(session, '.lgi-module.is-selected .lgi-designer-grip', `.lgi-region[data-region="${target}"]`)
+      const after = await session.evaluate(
+        `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region')?.getAttribute('data-region') ?? null`,
+      )
+      return { ok: after === target, detail: `${current} → ${after} (destino ${target})` }
+    } finally {
+      await setDesignerPanelOpen(session, true)
+    }
   })
 
   /* 13. Resize desde el panel (span + columnas de región) */
@@ -616,15 +651,19 @@ async function runChecks(session) {
   /* 13d. Resize real arrastrando el handle de span */
   await guarded('13d', 'Resize por arrastre (handle de span)', async () => {
     await setDesignerPanelOpen(session, false)
-    const before = await session.evaluate(
-      `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
-    )
-    await dragFrom(session, '.lgi-module.is-selected .lgi-designer-handle--span', '.lgi-module.is-selected')
-    const after = await session.evaluate(
-      `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
-    )
-    await setDesignerPanelOpen(session, true)
-    return { ok: after > before, detail: `span ${before} → ${after}` }
+    try {
+      const before = await session.evaluate(
+        `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
+      )
+      const dragged = await dragFrom(session, '.lgi-module.is-selected .lgi-designer-handle--span', '.lgi-module.is-selected')
+      if (!dragged) throw new Error('No se encontró el handle físico de span')
+      const after = await session.evaluate(
+        `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
+      )
+      return { ok: after > before, detail: `span ${before} → ${after}` }
+    } finally {
+      await setDesignerPanelOpen(session, true)
+    }
   })
 
   /* 14. Save */
