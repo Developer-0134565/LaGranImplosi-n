@@ -253,6 +253,14 @@ const JS = {
     el.click()
     return true
   })()`,
+  clickByTextExact: (selector, text) => `(() => {
+    const wanted = ${JSON.stringify(text.trim().toLowerCase())}
+    const el = [...document.querySelectorAll(${JSON.stringify(selector)})]
+      .find((node) => node.textContent.trim().toLowerCase() === wanted)
+    if (!el) return false
+    el.click()
+    return true
+  })()`,
   setRange: (selector, value) => `(() => {
     const el = document.querySelector(${JSON.stringify(selector)})
     if (!el) return false
@@ -636,7 +644,7 @@ async function runChecks(session) {
 
   /* 16. Reset */
   await guarded(16, 'Reset del Designer', async () => {
-    await session.evaluate(JS.clickByText('.lgi-designer__actions button', 'RESET'))
+    await session.evaluate(JS.clickByTextExact('.lgi-designer__actions button', 'RESET'))
     await sleep(500)
     const config = await readStoredConfig(session)
     const state = await session.evaluate(engineState)
