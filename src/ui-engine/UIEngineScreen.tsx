@@ -152,7 +152,12 @@ export function UIEngineScreen({ id, modules, className }: UIEngineScreenProps) 
       data-lgi-width={devVisible ? Math.round(size.width) : undefined}
       data-lgi-selected={editMode && selection ? selection.moduleId : undefined}
     >
-      <div className="lgi-layout" style={trackStyle}>
+      <div
+        key={template.id}
+        className="lgi-layout"
+        data-lgi-layout-template={template.id}
+        style={trackStyle}
+      >
         {groups.map(({ region, entries }) => {
           const columns = layout.regionColumns[region] ?? 1
           const regionStyle =
