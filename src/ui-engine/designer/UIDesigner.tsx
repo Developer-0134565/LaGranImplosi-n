@@ -109,10 +109,15 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
 
   const applyTemplate = useCallback(
     (id: UITemplateId) => {
+      // A template switch is an actual Designer preference, not a transient
+      // preview. Update the Designer model first, clear template-scoped
+      // appearance overrides, then persist the complete state so a reload or
+      // a fresh workbench cannot silently fall back to the previous template.
       setUIDesignerTemplate(id)
       setUIDesignerTheme(null)
       setUIDesignerDensity(null)
       engine?.setTemplateId(id)
+      saveUIDesigner()
     },
     [engine],
   )
