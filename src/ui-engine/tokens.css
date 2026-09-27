@@ -33,13 +33,6 @@
   --lgi-ui-scale: 1;
   --lgi-touch-min: 0px;
 
-  /* ---- tipografía: familias ---- */
-  --lgi-font-title: var(--lgi-font-family, var(--font-title, Arial, sans-serif));
-  --lgi-font-heading: var(--lgi-font-family, var(--font-heading, Arial, sans-serif));
-  --lgi-font-body: var(--lgi-font-family, var(--font-body, Arial, sans-serif));
-  --lgi-font-number: var(--lgi-font-family, var(--font-number, ui-monospace, monospace));
-  --lgi-font-button: var(--lgi-font-family, var(--font-button, Arial, sans-serif));
-
   /* ---- tipografía: tamaño base (la densidad la sobreescribe) ---- */
   --lgi-text-2xs-base: 7px;
   --lgi-text-xs-base: 8px;
@@ -48,15 +41,6 @@
   --lgi-text-lg-base: 13px;
   --lgi-text-xl-base: 17px;
   --lgi-text-2xl-base: 22px;
-
-  /* ---- tipografía: tamaño efectivo (escala tipográfica) ---- */
-  --lgi-text-2xs: calc(var(--lgi-text-2xs-base) * var(--lgi-font-scale));
-  --lgi-text-xs: calc(var(--lgi-text-xs-base) * var(--lgi-font-scale));
-  --lgi-text-sm: calc(var(--lgi-text-sm-base) * var(--lgi-font-scale));
-  --lgi-text-md: calc(var(--lgi-text-md-base) * var(--lgi-font-scale));
-  --lgi-text-lg: calc(var(--lgi-text-lg-base) * var(--lgi-font-scale));
-  --lgi-text-xl: calc(var(--lgi-text-xl-base) * var(--lgi-font-scale));
-  --lgi-text-2xl: calc(var(--lgi-text-2xl-base) * var(--lgi-font-scale));
 
   --lgi-leading-tight: 1.15;
   --lgi-leading-normal: 1.42;
@@ -76,28 +60,6 @@
   --lgi-space-6-base: 18px;
   --lgi-space-7-base: 24px;
   --lgi-space-8-base: 32px;
-
-  /* ---- spacing efectivo (escala de UI) ---- */
-  --lgi-space-1: calc(var(--lgi-space-1-base) * var(--lgi-ui-scale));
-  --lgi-space-2: calc(var(--lgi-space-2-base) * var(--lgi-ui-scale));
-  --lgi-space-3: calc(var(--lgi-space-3-base) * var(--lgi-ui-scale));
-  --lgi-space-4: calc(var(--lgi-space-4-base) * var(--lgi-ui-scale));
-  --lgi-space-5: calc(var(--lgi-space-5-base) * var(--lgi-ui-scale));
-  --lgi-space-6: calc(var(--lgi-space-6-base) * var(--lgi-ui-scale));
-  --lgi-space-7: calc(var(--lgi-space-7-base) * var(--lgi-ui-scale));
-  --lgi-space-8: calc(var(--lgi-space-8-base) * var(--lgi-ui-scale));
-
-  /* ---- métricas de layout ---- */
-  --lgi-gap: var(--lgi-space-4);
-  --lgi-panel-pad-y: var(--lgi-space-4);
-  --lgi-panel-pad-x: var(--lgi-space-5);
-  --lgi-panel-head-y: var(--lgi-space-2);
-  --lgi-panel-head-x: var(--lgi-space-4);
-  --lgi-row-min-base: 30px;
-  --lgi-row-min: calc(var(--lgi-row-min-base) * var(--lgi-ui-scale));
-  --lgi-region-min: calc(190px * var(--lgi-ui-scale));
-  --lgi-card-min-base: 176px;
-  --lgi-card-min: calc(var(--lgi-card-min-base) * var(--lgi-ui-scale));
 
   /* ---- bordes y radios (el radio lo controla el tema) ---- */
   --lgi-border-width: 1px;
