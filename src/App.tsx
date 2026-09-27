@@ -160,7 +160,6 @@ function App(){
 async function handleOnboarding(username:string){setOnboardingBusy(true);setOnboardingError(null);try{await provisionPlayer(username);const{player:created,needsOnboarding:stillNeeds}=await resolveIdentity();if(stillNeeds||!created)throw new Error('PROVISION_FAILED');setPlayer(created);setNeedsOnboarding(false);const{data}=await supabase.from('planets').select('id,name,universe_id,galaxy,system,position,is_homeworld,is_destroyed,players(id,username),planet_resources(metal,crystal,deuterium,energy),kind,parent_planet_id').eq('player_id',created.id).eq('is_destroyed',false).order('is_homeworld',{ascending:false}).order('galaxy').order('system').order('position');setPlanets(data??[])}catch(err){setOnboardingError(err instanceof Error?err.message:'No se pudo crear el imperio')}finally{setOnboardingBusy(false)}}
  if(needsOnboarding) return <OnboardingPanel busy={onboardingBusy} error={onboardingError} onSubmit={handleOnboarding}/>;
  return (
-  <UIEngine>
     <div className='game' style={fontVariables}>
 
       <UIEngineScreen
