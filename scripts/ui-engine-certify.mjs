@@ -76,7 +76,7 @@ function startPreview() {
   /** Se lanza el binario de Vite con el propio Node: en Windows `spawn` de
    *  `.cmd` exige `shell: true`, y aquí no hace falta shell. */
   const viteBin = join(process.cwd(), 'node_modules', 'vite', 'bin', 'vite.js')
-  return spawn(process.execPath, [viteBin, 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
+  return spawn(process.execPath, [viteBin, 'preview', '--outDir', join(process.cwd(), 'dist', 'client'), '--port', String(PREVIEW_PORT), '--strictPort'], {
     stdio: 'ignore',
   })
 }
