@@ -322,6 +322,17 @@ async function clickAt(session, selector, offset = { x: 0, y: 0 }) {
   return true
 }
 
+async function setDesignerPanelOpen(session, open) {
+  if (open) {
+    const launcher = await session.evaluate(JS.clickByTextExact('.lgi-designer-launcher', 'UI DESIGNER'))
+    if (!launcher) throw new Error('No se encontró el launcher del UI Designer')
+  } else {
+    const hidden = await session.evaluate(JS.clickByTextExact('.lgi-designer__head-actions button', 'OCULTAR'))
+    if (!hidden) throw new Error('No se encontró el control OCULTAR del UI Designer')
+  }
+  await sleep(250)
+}
+
 async function dragFrom(session, selector, targetSelector) {
   const points = await session.evaluate(`(() => {
     const from = document.querySelector(${JSON.stringify(selector)})
@@ -544,7 +555,9 @@ async function runChecks(session) {
 
   /* 11. Selección */
   await guarded(11, 'Selección de módulo', async () => {
+    await setDesignerPanelOpen(session, false)
     await clickAt(session, '.lgi-module')
+    await setDesignerPanelOpen(session, true)
     const selected = await session.evaluate(
       `document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module') ?? null`,
     )
@@ -570,6 +583,7 @@ async function runChecks(session) {
 
   /* 12d. Move real arrastrando el grip (pointer events) */
   await guarded('12d', 'Move por arrastre (pointer events)', async () => {
+    await setDesignerPanelOpen(session, false)
     const regions = await session.evaluate(
       `[...document.querySelectorAll('.lgi-region')].map((r) => r.dataset.region)`,
     )
@@ -582,6 +596,7 @@ async function runChecks(session) {
     const after = await session.evaluate(
       `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region').getAttribute('data-region') ?? null`,
     )
+    await setDesignerPanelOpen(session, true)
     return { ok: after === target, detail: `${current} → ${after} (destino ${target})` }
   })
 
@@ -600,6 +615,7 @@ async function runChecks(session) {
 
   /* 13d. Resize real arrastrando el handle de span */
   await guarded('13d', 'Resize por arrastre (handle de span)', async () => {
+    await setDesignerPanelOpen(session, false)
     const before = await session.evaluate(
       `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
     )
@@ -607,6 +623,7 @@ async function runChecks(session) {
     const after = await session.evaluate(
       `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
     )
+    await setDesignerPanelOpen(session, true)
     return { ok: after > before, detail: `span ${before} → ${after}` }
   })
 
