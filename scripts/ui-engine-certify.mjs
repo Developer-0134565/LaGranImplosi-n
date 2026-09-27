@@ -326,6 +326,7 @@ async function clickModule(session, selector = '.lgi-module') {
   const point = await session.evaluate(`(() => {
     const el = document.querySelector(${JSON.stringify(selector)})
     if (!el) return null
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
     const rect = el.getBoundingClientRect()
     const candidates = [
       [rect.left + rect.width / 2, rect.top + rect.height / 2],
