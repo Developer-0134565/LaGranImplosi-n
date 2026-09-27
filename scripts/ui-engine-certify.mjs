@@ -393,7 +393,7 @@ async function dragFrom(session, selector, targetSelector) {
       return hit && hit.closest('.lgi-region') === to
     })
     if (!source || !target) {
-      return {
+      window.__lgiDesignerDragGeometry = {
         error: !source && !target ? 'source+target' : !source ? 'source' : 'target',
         sourceCandidates,
         targetCandidates,
@@ -408,6 +408,7 @@ async function dragFrom(session, selector, targetSelector) {
         sourceRect: { left: a.left, top: a.top, width: a.width, height: a.height },
         targetRect: { left: b.left, top: b.top, width: b.width, height: b.height },
       }
+      return null
     }
     return { from: { x: source[0], y: source[1] }, to: { x: target[0], y: target[1] } }
   })()`)
@@ -786,6 +787,7 @@ async function runChecks(session) {
         '.lgi-module.is-selected .lgi-designer-grip',
         `.lgi-region[data-region="${target}"]`,
       )
+      const geometry = await session.evaluate(`window.__lgiDesignerDragGeometry ?? null`)
       const trace = await session.evaluate(`window.__lgiDesignerDragTrace ?? []`)
       await session.evaluate(`(() => {
         const handler = window.__lgiDesignerDragTraceHandler
@@ -805,7 +807,7 @@ async function runChecks(session) {
         .join(' ')
       return {
         ok: dragged && after === target,
-        detail: `${current} → ${after} (destino ${target}) · drag=${dragged} · eventos=${trace.length} · ${traceSummary || 'sin Mouse/PointerEvents'}`,
+        detail: `${current} → ${after} (destino ${target}) · drag=${dragged} · eventos=${trace.length} · ${traceSummary || 'sin Mouse/PointerEvents'}${geometry ? ` · hit-test=${JSON.stringify(geometry)}` : ''}`,
       }
     } finally {
       await setDesignerPanelOpen(session, true)
