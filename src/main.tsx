@@ -26,7 +26,7 @@ import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 import LoginPage from './LoginPage'
 import { supabase } from './lib/supabase'
-import { UIDesigner, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } from './ui-engine'
+import { UIDesigner, UIEngine, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } from './ui-engine'
 
 /*
   Raíz de la aplicación.
@@ -87,11 +87,15 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div className="app-frame">
-      <TemplateChrome />
-      <App />
+    <>
+      <UIEngine>
+        <div className="app-frame">
+          <TemplateChrome />
+          <App />
+        </div>
+      </UIEngine>
       <UIDesigner />
-    </div>
+    </>
   )
 }
 
