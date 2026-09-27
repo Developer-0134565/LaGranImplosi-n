@@ -288,40 +288,37 @@ DOCS                    docs/systems/README_ESPIONAGE_ENGINE.md §7 + §10
 Validation: `git diff --check` clean · `npx tsc -b` exit 0 · `npm run build` exit 0 · no commit, no push.
 ```
 
+## UI DESIGNER BROWSER CERTIFICATION (2026-09-27) — 27/27 CLOSED
 
-## UI DESIGNER BROWSER CERTIFICATION (2026-09-27) — physical drag blocker closed
-
-The UI Designer browser certification reached the final physical-drag check and the failure was isolated to the
-certification harness geometry, not production drag logic.
+The UI Designer browser certification is fully closed.
 
 ```text
 CERTIFICATION
   script       scripts/ui-engine-certify.mjs
-  total checks 27
-  previous     26/27; only 12d failed
-  latest 12d   PASS — status → ops
-  evidence     pointerdown@428,189:status
-               pointermove@318,24:ops
-               pointerup@318,24:ops
+  checks       27/27 PASS
+  physical 12d PASS — status → ops
+  evidence     pointerdown → pointermove → pointerup
+  production   no drag-logic change required
 ```
 
-The harness was attempting to hit-test a selected module grip and destination region that could be thousands of
-pixels apart because reference content is vertically long. The final harness sequence now scrolls the source into
-view, presses the grip, scrolls the destination into view while retaining the button state, and releases at a
-validated in-viewport point in the destination region.
+The durable technical record is segregated into docs/systems/README_UI_DESIGNER.md. Temporary drag diagnostics
+were removed after the 27/27 run; the durable offscreen source/destination geometry remains in the harness.
 
-Conclusion: no production change to designerInteractions.ts was required for this blocker.
+## AUTONOMOUS FOLLOW-THROUGH (2026-09-27) — fleet backend + P3 verification
 
-The durable UI Designer record is segregated into
-[docs/systems/README_UI_DESIGNER.md](systems/README_UI_DESIGNER.md).
+Direct LIVE Supabase verification was performed without modifying persistent game state:
+- P3 dead-helper cleanup is present in LIVE (`20260927130100` + `20260927140000`); the four dead INVOKER helpers
+  have no client EXECUTE, while the fleet/UI contracts retain `authenticated` EXECUTE.
+- A real `start_fleet` call was executed with the DevPlayer identity against an AI planet inside a transaction and
+  rolled back. The authoritative dispatcher returned a fleet id, mission `TRANSPORT`, origin/destination and
+  arrival timestamp. Zero persistent residue remains.
+- The LIVE migration history contains both P3 cleanup migrations and the espionage buildings/research migration.
 
-CURRENT REMAINING VERIFICATION:
-- run the complete 27-check certification after the final harness commit;
-- record the complete 27/27 result before calling the whole browser battery fully certified;
-- if 27/27 passes, remove temporary drag diagnostics if they are no longer needed.
+Browser certification of the actual authenticated Fleet screen remains an environment-level item: the available
+browser harness can certify the UI workbench, but this session has no reusable human session credential/driver for
+the authenticated gameplay surface. It must not be simulated or replaced with a claim of browser certification.
 
-EXECUTOR FOR THE NEXT VERIFICATION: Copilot Pro is sufficient for the localized UI-certification rerun/cleanup;
-no new gameplay implementation mission is justified by this result.
+NEXT EXECUTOR: the implementation work remains in-repo/Supabase-owned; no Cline/Copilot handoff is required.
 
 ## 4. Rules for work
 
