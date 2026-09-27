@@ -320,6 +320,26 @@ the authenticated gameplay surface. It must not be simulated or replaced with a 
 
 NEXT EXECUTOR: the implementation work remains in-repo/Supabase-owned; no Cline/Copilot handoff is required.
 
+## P3 ACL + ESPIONAGE + FLEET LIVE VERIFICATION (2026-09-27)
+
+P3 ACL fixture has been executed directly against LIVE Supabase and passes 11 assertions (plus INFO):
+- 32/32 client RPCs retain authenticated EXECUTE.
+- 0 anonymous-reachable functions remain outside the client allow-list.
+- 21 internal AI-engine views are unreadable by anon/authenticated and remain service_role-readable.
+- AI smoke passes.
+- The 12 audited INVOKER helpers and 4 dead client-reachable helpers are engine-only.
+- 0 public functions retain an ACL-level PUBLIC EXECUTE grant.
+- failed assertions: 0.
+
+The espionage buildings/research migration is LIVE as `20260927130000_espionage_report_buildings_and_research`. Its OGameX-derived server-side thresholds are:
+- buildings: remaining probes >= 5 OR attacker espionage >= defender + 3;
+- research: remaining probes >= 7 OR attacker espionage >= defender + 4.
+The sections are snapshotted at arrival and exposed through the owner-scoped `get_player_espionage_reports` contract.
+
+Fleet backend smoke was also executed against LIVE with DevPlayer inside a transaction and rolled back: `start_fleet` returned a valid fleet id, mission and arrival without persistent residue. Authenticated browser certification of the Fleet screen remains environment-blocked and must not be fabricated.
+
+Durable technical segregation for the espionage engine should live in `docs/systems/README_ESPIONAGE_ENGINE.md`.
+
 ## 4. Rules for work
 
 1. Recover this context and only the specialized documents relevant to the task.
