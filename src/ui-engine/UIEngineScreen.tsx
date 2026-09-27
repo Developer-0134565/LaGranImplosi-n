@@ -197,6 +197,11 @@ export function UIEngineScreen({ id, modules, className }: UIEngineScreenProps) 
                           ? () => selectUIDesignerModule({ screen: id, moduleId: entry.key })
                           : undefined
                       }
+                      onClick={
+                        editMode
+                          ? () => selectUIDesignerModule({ screen: id, moduleId: entry.key })
+                          : undefined
+                      }
                     >
                       {editMode && (
                         <span
