@@ -73,10 +73,12 @@ async function waitForHttp(url, timeoutMs = 40000) {
 }
 
 function startPreview() {
-  /** Se lanza el binario de Vite con el propio Node: en Windows `spawn` de
-   *  `.cmd` exige `shell: true`, y aquí no hace falta shell. */
-  const viteBin = join(process.cwd(), 'node_modules', 'vite', 'bin', 'vite.js')
-  return spawn(process.execPath, [viteBin, 'preview', '--outDir', join(process.cwd(), 'dist', 'client'), '--port', String(PREVIEW_PORT), '--strictPort'], {
+  /** Vite hace dos builds en este proyecto: el build de Cloudflare y el build
+   *  del cliente. El cliente vive en dist/client, así que el certificador lo
+   *  sirve explícitamente desde ahí para evitar que Vite/Cloudflare resuelva
+   *  por accidente el outDir raíz (dist) y devuelva index.html como JS. */
+  const serverScript = join(process.cwd(), 'scripts', 'ui-engine-certify-server.mjs')
+  return spawn(process.execPath, [serverScript, '--root', join(process.cwd(), 'dist', 'client'), '--port', String(PREVIEW_PORT)], {
     stdio: 'ignore',
   })
 }
