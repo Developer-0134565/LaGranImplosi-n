@@ -409,11 +409,22 @@ async function dragFrom(session, selector, targetSelector) {
       type: 'mouseMoved',
       x: points.from.x + ((points.to.x - points.from.x) * step) / 6,
       y: points.from.y + ((points.to.y - points.from.y) * step) / 6,
-      button: 'left',
+      button: 'none',
       buttons: 1,
     })
     await sleep(60)
   }
+  /* Repetimos el punto final una vez con el botón mantenido: esto hace que
+     el último pointermove llegue exactamente sobre la región destino antes de
+     pointerup, sin depender de cómo Edge traduzca el último tramo. */
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: points.to.x,
+    y: points.to.y,
+    button: 'none',
+    buttons: 1,
+  })
+  await sleep(80)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
     x: points.to.x,
