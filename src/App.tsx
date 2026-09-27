@@ -177,3 +177,4 @@ async function handleOnboarding(username:string){setOnboardingBusy(true);setOnbo
       {panelOpen&&<div className='neo-panel style-panel'><div className='neo-panel-header'><strong>CONFIGURACIÓN</strong><button type='button' className='neo-button' onClick={()=>setPanelOpen(false)}>CERRAR</button></div>{(['title','heading','body','number','button'] as FontRole[]).map(role=><FontSelector key={role} role={role} label={role.toUpperCase()} value={fontSettings[role]} onChange={v=>changeFont(role,v)}/>)}</div>}
     </div>
  )
+}
