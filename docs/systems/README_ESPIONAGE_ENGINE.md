@@ -399,3 +399,29 @@ supabase/tests/espionage_report_gating.sql                17 PASS + 1 INFO
 Residual: buildings/research are NOT part of the ranking or any other contract (unchanged); the counter-espionage
 chance still does not count a foreign holding fleet (OGameX parity, §7).
 
+
+
+## 12. CURRENT VERIFIED BASELINE — 2026-09-27
+
+This section supersedes stale historical wording in §1, §5, §7 and the residual notes in §9.
+
+- Buildings and research are **implemented and LIVE**, not a pending product decision.
+- The authoritative reveal thresholds are 5/3 for buildings and 7/4 for research, applied by
+  `resolve_espionage_arrival` using the same remaining-probe calculation as the other report sections.
+- `get_player_espionage_reports` returns the four maps and four stored reveal flags through the owner-scoped
+  authenticated contract.
+- The implementation migration is LIVE:
+  `20260927130000_espionage_report_buildings_and_research`.
+- The related LIVE certification reported by the migration/fixtures covers both positive and negative gating,
+  snapshot semantics, ownership isolation and direct-table closure.
+- The UI consumer is already wired through `EspionageReportsPanel`; it consumes the server-returned flags and
+  definition contracts rather than reproducing the gating formula.
+
+### Current residual
+
+The remaining known limitation on this track is the documented OGameX parity limitation around foreign fleets holding
+at the target during counter-espionage. This is coupled to the existing ACS_HOLD model and is not part of the
+buildings/research gating work.
+
+Historical sections above remain useful as an audit trail; when they say buildings/research are "MISSING" or a
+"PRODUCT DECISION", read those statements as the state **before §11**.
