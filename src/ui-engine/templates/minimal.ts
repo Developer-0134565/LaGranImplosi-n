@@ -18,6 +18,8 @@ export const minimalTemplate = {
   density: 'comfortable',
   regions: ['header', 'main', 'aside'],
   placement: {
+    'navigation.main': 'main',
+    'planet.bodies': 'aside',
     'fleet.command': 'header',
     'fleet.setup': 'main',
     'fleet.destination': 'main',
@@ -42,6 +44,8 @@ export const minimalTemplate = {
     'messages.feed': 'aside',
   },
   order: [
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'resources.summary',
     'fleet.setup',
