@@ -399,18 +399,24 @@ async function dragFrom(session, selector, targetSelector) {
     to.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
     const rect = to.getBoundingClientRect()
     if (rect.width <= 0 || rect.height <= 0) return null
+    const viewport = { width: window.innerWidth, height: window.innerHeight }
+    const y = Math.max(24, Math.min(viewport.height - 24, rect.top + Math.min(160, rect.height / 2)))
     const candidates = [
-      [rect.left + rect.width / 2, rect.top + Math.min(120, rect.height / 2)],
-      [rect.left + rect.width * .75, rect.top + Math.min(120, rect.height / 2)],
-      [rect.left + rect.width / 2, rect.bottom - Math.min(120, rect.height / 2)],
+      [Math.max(24, Math.min(viewport.width - 24, rect.left + rect.width / 2)), y],
+      [Math.max(24, Math.min(viewport.width - 24, rect.left + rect.width * .75)), y],
+      [Math.max(24, Math.min(viewport.width - 24, rect.left + 80)), y],
     ]
     const point = candidates.find(([x, y]) => {
       const hit = document.elementFromPoint(x, y)
       return hit && hit.closest('.lgi-region') === to
     })
-    return point ? { x: point[0], y: point[1] } : null
+    return {
+      point: point ? { x: point[0], y: point[1] } : null,
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      candidates,
+    }
   })()`)
-  if (!target) {
+  if (!target?.point) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
       x: source.x,
@@ -428,16 +434,16 @@ async function dragFrom(session, selector, targetSelector) {
      puntos quepan simultáneamente en el viewport. */
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
-    x: target.x,
-    y: target.y,
+    x: target.point.x,
+    y: target.point.y,
     button: 'none',
     buttons: 1,
   })
   await sleep(80)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
-    x: target.x,
-    y: target.y,
+    x: target.point.x,
+    y: target.point.y,
     button: 'left',
     buttons: 0,
     clickCount: 1,
