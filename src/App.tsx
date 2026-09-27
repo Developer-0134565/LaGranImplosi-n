@@ -14,7 +14,7 @@ import GalaxyView from './GalaxyView'
 import BuildingDemolitionPanel from './BuildingDemolitionPanel'
 import OnboardingPanel from './OnboardingPanel'
 import UniverseEvolutionMonitor from './components/monitor/UniverseEvolutionMonitor'
-import { UIEngine, UIEngineScreen, type UIModuleMap } from './ui-engine'
+import { UIEngineScreen, type UIModuleMap } from './ui-engine'
 import { FleetScreen } from './screens/fleet'
 
 // All RPCs below are typed against database.types.ts (the 2026-09-26 contract audit added the entries).
@@ -177,5 +177,4 @@ async function handleOnboarding(username:string){setOnboardingBusy(true);setOnbo
       />
       {panelOpen&&<div className='neo-panel style-panel'><div className='neo-panel-header'><strong>CONFIGURACIÓN</strong><button type='button' className='neo-button' onClick={()=>setPanelOpen(false)}>CERRAR</button></div>{(['title','heading','body','number','button'] as FontRole[]).map(role=><FontSelector key={role} role={role} label={role.toUpperCase()} value={fontSettings[role]} onChange={v=>changeFont(role,v)}/>)}</div>}
     </div>
-  </UIEngine>
  )
