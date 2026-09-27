@@ -369,7 +369,7 @@ async function dragFrom(session, selector, targetSelector) {
     const from = document.querySelector(${JSON.stringify(selector)})
     const to = document.querySelector(${JSON.stringify(targetSelector)})
     if (!from || !to) return null
-    to.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+    from.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
     const a = from.getBoundingClientRect()
     const b = to.getBoundingClientRect()
     if (a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) return null
