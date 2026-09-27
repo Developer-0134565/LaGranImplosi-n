@@ -17,6 +17,7 @@ export const orbitalTemplate = {
   density: 'comfortable',
   regions: ['status', 'rail', 'main', 'ops', 'assets', 'actions'],
   placement: {
+    'resources.summary': 'status',
     'navigation.rail': 'rail',
     'navigation.main': 'main',
     'planet.bodies': 'assets',
@@ -35,7 +36,6 @@ export const orbitalTemplate = {
     'fleet.composition-note': 'assets',
     'fleet.active': 'ops',
     'fleet.launch': 'actions',
-    'resources.summary': 'status',
     'buildings.grid': 'main',
     'research.grid': 'main',
     'shipyard.grid': 'assets',
