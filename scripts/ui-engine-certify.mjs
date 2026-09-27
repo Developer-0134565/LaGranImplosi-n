@@ -85,7 +85,7 @@ async function startPreview() {
     let output = ''
     const onData = (chunk) => {
       output += chunk.toString()
-      const match = output.match(/READY\\s+(\\d+)/)
+      const match = output.match(/READY\s+(\d+)/)
       if (match) {
         child.stdout.off('data', onData)
         resolve(Number(match[1]))
