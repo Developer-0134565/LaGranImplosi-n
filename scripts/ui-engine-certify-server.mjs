@@ -9,7 +9,7 @@ const arg = (name, fallback) => {
 }
 
 const root = resolve(arg('root', join(process.cwd(), 'dist', 'client')))
-const port = Number(arg('port', 4174))
+const port = Number(arg('port', 0))
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -28,7 +28,7 @@ const mime = {
 }
 
 const server = createServer((request, response) => {
-  const pathname = decodeURIComponent(new URL(request.url ?? '/', `http://127.0.0.1:${port}`).pathname)
+  const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://127.0.0.1').pathname)
   const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '')
   const file = normalize(join(root, relative))
 
@@ -50,4 +50,12 @@ const server = createServer((request, response) => {
   createReadStream(target).on('error', () => response.destroy()).pipe(response)
 })
 
-server.listen(port, '127.0.0.1')
+server.on('error', (error) => {
+  console.error(error)
+  process.exitCode = 1
+})
+
+server.listen(port, '127.0.0.1', () => {
+  const address = server.address()
+  console.log(`READY ${typeof address === 'object' && address ? address.port : port}`)
+})
