@@ -16,6 +16,8 @@ export const commandTemplate = {
   density: 'comfortable',
   regions: ['header', 'main', 'aside'],
   placement: {
+    'navigation.main': 'main',
+    'planet.bodies': 'aside',
     'fleet.command': 'header',
     'fleet.slots': 'header',
     'fleet.launch': 'header',
@@ -40,6 +42,8 @@ export const commandTemplate = {
     'galaxy.grid': 'main',
   },
   order: [
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'fleet.slots',
     'fleet.launch',
