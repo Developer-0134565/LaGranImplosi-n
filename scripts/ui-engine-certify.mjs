@@ -789,7 +789,7 @@ async function runChecks(session) {
         .join(' ')
       return {
         ok: dragged && after === target,
-        detail: `${current} → ${after} (destino ${target}) · eventos=${trace.length} · ${traceSummary || 'sin PointerEvents'}`,
+        detail: `${current} → ${after} (destino ${target}) · drag=${dragged} · eventos=${trace.length} · ${traceSummary || 'sin Mouse/PointerEvents'}`,
       }
     } finally {
       await setDesignerPanelOpen(session, true)
