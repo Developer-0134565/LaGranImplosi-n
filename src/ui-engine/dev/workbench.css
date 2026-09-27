@@ -176,6 +176,7 @@
   color: var(--lgi-dev-faint);
   font-family: var(--font-number, monospace);
   font-size: 9px;
+}
 
 .lgi-workbench__meta b {
   color: var(--lgi-dev-dim);
