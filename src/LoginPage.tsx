@@ -4,12 +4,17 @@ import { supabase } from './lib/supabase'
 
 export default function LoginPage() {
   return (
-    <div
+    <div className="lgi-login-page"
       style={{
         maxWidth: 420,
         margin: '80px auto',
         padding: '0 20px',
         color: '#d7e4ee',
+        position: 'relative',
+        zIndex: 20000,
+        width: '100%',
+        minHeight: '100vh',
+        boxSizing: 'border-box',
       }}
     >
       <h1
