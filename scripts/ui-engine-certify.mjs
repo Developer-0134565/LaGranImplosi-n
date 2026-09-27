@@ -369,11 +369,13 @@ async function dragFrom(session, selector, targetSelector) {
     const from = document.querySelector(${JSON.stringify(selector)})
     const to = document.querySelector(${JSON.stringify(targetSelector)})
     if (!from || !to) return null
+    to.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
     const a = from.getBoundingClientRect()
     const b = to.getBoundingClientRect()
+    if (a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) return null
     return {
-      from: { x: a.left + a.width / 2, y: a.top + a.height / 2 },
-      to: { x: b.left + b.width / 2, y: b.top + b.height / 2 },
+      from: { x: a.left + Math.min(11, a.width / 2), y: a.top + Math.min(8, a.height / 2) },
+      to: { x: b.left + Math.max(8, Math.min(24, b.width * .12)), y: b.top + Math.max(8, Math.min(24, b.height * .12)) },
     }
   })()`)
   if (!points) return false
@@ -749,10 +751,21 @@ async function runChecks(session) {
       const before = await session.evaluate(
         `Number(document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module-span') ?? 1)`,
       )
+      const regionMetrics = await session.evaluate(`(() => {
+        const handle = document.querySelector('.lgi-module.is-selected .lgi-designer-handle--span')
+        const region = handle?.closest('.lgi-region')
+        if (!handle || !region) return null
+        handle.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+        const rect = region.getBoundingClientRect()
+        const columns = Number(region.getAttribute('data-region-columns') ?? 1)
+        return { width: rect.width, columns }
+      })()`)
+      if (!regionMetrics) throw new Error('No se pudo medir la rejilla de resize')
+      const dragDistance = Math.max(80, Math.ceil(regionMetrics.width / Math.max(1, regionMetrics.columns)) + 24)
       const dragged = await dragBy(
         session,
         '.lgi-module.is-selected .lgi-designer-handle--span',
-        120,
+        dragDistance,
       )
       if (!dragged) throw new Error('No se encontró el handle físico de span')
       const after = await session.evaluate(
