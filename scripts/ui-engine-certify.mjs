@@ -742,11 +742,51 @@ async function runChecks(session) {
       if (!current) throw new Error('No hay módulo seleccionado antes del arrastre')
       const index = regions.indexOf(current)
       const target = regions[index === regions.length - 1 ? 0 : index + 1]
-      await dragFrom(session, '.lgi-module.is-selected .lgi-designer-grip', `.lgi-region[data-region="${target}"]`)
+
+      /* Diagnóstico temporal de 12d: registra PointerEvents reales y el
+         resultado de elementFromPoint() en cada coordenada. No altera la
+         lógica del Designer; sólo identifica dónde se pierde el destino. */
+      await session.evaluate(`(() => {
+        window.__lgiDesignerDragTrace = []
+        const record = (event) => {
+          const hit = document.elementFromPoint(event.clientX, event.clientY)
+          const region = hit?.closest('.lgi-region')?.getAttribute('data-region') ?? null
+          window.__lgiDesignerDragTrace.push({
+            type: event.type, pointerId: event.pointerId, pointerType: event.pointerType,
+            button: event.button, buttons: event.buttons, x: event.clientX, y: event.clientY,
+            target: event.target instanceof Element ? event.target.className : null,
+            hitRegion: region,
+          })
+        }
+        window.__lgiDesignerDragTraceHandler = record
+        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
+          window.addEventListener(type, record, true)
+      })()`)
+
+      const dragged = await dragFrom(
+        session,
+        '.lgi-module.is-selected .lgi-designer-grip',
+        `.lgi-region[data-region="${target}"]`,
+      )
+      const trace = await session.evaluate(`window.__lgiDesignerDragTrace ?? []`)
+      await session.evaluate(`(() => {
+        const handler = window.__lgiDesignerDragTraceHandler
+        if (handler) {
+          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
+            window.removeEventListener(type, handler, true)
+        }
+        delete window.__lgiDesignerDragTraceHandler
+      })()`)
       const after = await session.evaluate(
         `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region')?.getAttribute('data-region') ?? null`,
       )
-      return { ok: after === target, detail: `${current} → ${after} (destino ${target})` }
+      const traceSummary = trace
+        .map((event) => `${event.type}@${Math.round(event.x)},${Math.round(event.y)}:${event.hitRegion ?? 'none'}`)
+        .join(' ')
+      return {
+        ok: dragged && after === target,
+        detail: `${current} → ${after} (destino ${target}) · eventos=${trace.length} · ${traceSummary || 'sin PointerEvents'}`,
+      }
     } finally {
       await setDesignerPanelOpen(session, true)
     }
