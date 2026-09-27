@@ -110,6 +110,8 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
   const applyTemplate = useCallback(
     (id: UITemplateId) => {
       setUIDesignerTemplate(id)
+      setUIDesignerTheme(null)
+      setUIDesignerDensity(null)
       engine?.setTemplateId(id)
     },
     [engine],
