@@ -616,7 +616,16 @@ async function runChecks(session) {
   await session.evaluate(JS.clickByTextExact('.lgi-workbench__deck', 'ALL'))
   await sleep(500)
   await selectTemplate(session, 'Tactical')
-  await sleep(300)
+  /*
+     El test 9 deja deliberadamente el preview en Android 390. ALL monta nueve
+     módulos y, en móvil, Tactical los apila dentro de un frame con overflow
+     oculto; buildings.grid puede quedar físicamente fuera de la zona visible.
+     Para certificar interacción física de MOVE/RESIZE cambiamos sólo el
+     dispositivo del banco a Desktop 1280: seguimos probando el mismo engine,
+     template y módulos, pero todos los objetivos quedan realmente alcanzables.
+  */
+  await session.evaluate(JS.setSelect('select[aria-label="Perfil de dispositivo"]', 'desktop-1280'))
+  await sleep(500)
 
   /* 11. Selección */
   await guarded(11, 'Selección de módulo', async () => {
