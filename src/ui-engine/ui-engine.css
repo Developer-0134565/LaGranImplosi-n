@@ -1084,6 +1084,129 @@ html[data-lgi-preview-width] .lgi-engine {
 
 
 /* ============================================================================
+   LIVE PAGE CHROME — TEMPLATE AUTHORITY
+   The visible TemplateChrome is part of the same UIEngine as the gameplay.
+   These rules make template selection affect the actual chrome, not only the
+   engine/workbench surface.
+   ============================================================================ */
+
+.lgi-engine[data-lgi-template='classic'] .template-chrome,
+.lgi-engine[data-lgi-template='classic'] .template-planetstrip,
+.lgi-engine[data-lgi-template='classic'] .template-side {
+  display: block;
+}
+
+.lgi-engine[data-lgi-template='command'] .template-utilnav {
+  display: none;
+}
+.lgi-engine[data-lgi-template='command'] .template-chrome {
+  height: 76px !important;
+}
+.lgi-engine[data-lgi-template='command'] .template-mainbar {
+  height: 76px !important;
+}
+.lgi-engine[data-lgi-template='command'] .template-side,
+.lgi-engine[data-lgi-template='command'] .template-planetstrip {
+  display: none !important;
+}
+.lgi-engine[data-lgi-template='command'] .game {
+  padding-top: calc(76px + var(--frame-size)) !important;
+}
+
+.lgi-engine[data-lgi-template='tactical'] .template-chrome {
+  height: 62px !important;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-utilnav,
+.lgi-engine[data-lgi-template='tactical'] .template-planetstrip {
+  display: none !important;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-mainbar {
+  height: 62px !important;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-brand {
+  width: 220px !important;
+  flex-basis: 220px !important;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-side {
+  top: calc(var(--frame-size) + 62px) !important;
+  bottom: var(--frame-size) !important;
+  left: var(--frame-size) !important;
+  width: 100% !important;
+  height: 46px !important;
+  padding: 0 8px !important;
+  display: flex !important;
+  align-items: stretch !important;
+  border-right: 0 !important;
+  border-bottom: 1px solid rgba(135,171,207,.19);
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-side section {
+  display: contents;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-side h3 {
+  display: none;
+}
+.lgi-engine[data-lgi-template='tactical'] .template-side .template-menu-link {
+  width: auto !important;
+  min-width: max-content !important;
+  min-height: 34px !important;
+  margin: 6px 2px !important;
+}
+.lgi-engine[data-lgi-template='tactical'] .game {
+  padding-top: calc(62px + 46px + var(--frame-size)) !important;
+}
+
+.lgi-engine[data-lgi-template='orbital'] .template-side {
+  width: 180px !important;
+}
+.lgi-engine[data-lgi-template='orbital'] .template-planetstrip {
+  height: 64px !important;
+}
+.lgi-engine[data-lgi-template='orbital'] .template-chrome {
+  height: 94px !important;
+}
+
+.lgi-engine[data-lgi-template='industrial'] .template-utilnav {
+  height: 24px !important;
+}
+.lgi-engine[data-lgi-template='industrial'] .template-chrome {
+  height: 82px !important;
+}
+.lgi-engine[data-lgi-template='industrial'] .template-mainbar {
+  height: 58px !important;
+}
+.lgi-engine[data-lgi-template='industrial'] .template-side {
+  width: 190px !important;
+}
+.lgi-engine[data-lgi-template='industrial'] .template-planetstrip {
+  height: 52px !important;
+  top: calc(var(--frame-size) + 82px) !important;
+}
+.lgi-engine[data-lgi-template='industrial'] .game {
+  padding-top: calc(82px + 52px + var(--frame-size)) !important;
+}
+
+.lgi-engine[data-lgi-template='minimal'] .template-utilnav,
+.lgi-engine[data-lgi-template='minimal'] .template-planetstrip,
+.lgi-engine[data-lgi-template='minimal'] .template-side {
+  display: none !important;
+}
+.lgi-engine[data-lgi-template='minimal'] .template-chrome {
+  height: 58px !important;
+}
+.lgi-engine[data-lgi-template='minimal'] .template-mainbar {
+  height: 58px !important;
+}
+.lgi-engine[data-lgi-template='minimal'] .template-brand {
+  width: 235px !important;
+  flex-basis: 235px !important;
+}
+.lgi-engine[data-lgi-template='minimal'] .game {
+  padding-top: calc(58px + var(--frame-size)) !important;
+}
+
+/* ============================================================================
    LIVE GAME SHELL ADAPTER
    El UI Designer también gobierna la página real. El workbench sólo es una
    superficie de prueba: el .game vive dentro del mismo UIEngine en producción.
