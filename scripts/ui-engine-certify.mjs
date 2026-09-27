@@ -625,7 +625,32 @@ async function runChecks(session) {
      template y módulos, pero todos los objetivos quedan realmente alcanzables.
   */
   await session.evaluate(JS.setSelect('select[aria-label="Perfil de dispositivo"]', 'desktop-1280'))
-  await sleep(500)
+  const devicePreview = await (async () => {
+    const started = Date.now()
+    for (;;) {
+      const state = await session.evaluate(`(() => ({
+        select: document.querySelector('select[aria-label="Perfil de dispositivo"]')?.value ?? null,
+        engine: document.querySelector('.lgi-engine')?.getAttribute('data-lgi-device') ?? null,
+        preview: document.documentElement.dataset.lgiPreviewWidth ?? null,
+      }))()`)
+      if (
+        state.select === 'desktop-1280' &&
+        state.engine === 'desktop-1280' &&
+        state.preview === 'desktop-1280'
+      ) return state
+      if (Date.now() - started > 3000) return state
+      await sleep(100)
+    }
+  })()
+  if (
+    devicePreview.select !== 'desktop-1280' ||
+    devicePreview.engine !== 'desktop-1280' ||
+    devicePreview.preview !== 'desktop-1280'
+  ) {
+    throw new Error(
+      `Device preview no aplicado: select=${devicePreview.select} engine=${devicePreview.engine} html=${devicePreview.preview}`,
+    )
+  }
 
   /* 11. Selección */
   await guarded(11, 'Selección de módulo', async () => {
