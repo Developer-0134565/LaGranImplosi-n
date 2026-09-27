@@ -322,9 +322,9 @@ async function clickAt(session, selector, offset = { x: 0, y: 0 }) {
   return true
 }
 
-async function clickModule(session) {
+async function clickModule(session, selector = '.lgi-module') {
   const point = await session.evaluate(`(() => {
-    const el = document.querySelector('.lgi-module')
+    const el = document.querySelector(selector)
     if (!el) return null
     const rect = el.getBoundingClientRect()
     const candidates = [
@@ -611,16 +611,18 @@ async function runChecks(session) {
     return { ok: checked === true && state.edit === 'on' && grips > 0, detail: `edit=${state.edit} grips=${grips}` }
   })
 
-  /* MOVE/RESIZE necesitan una plantilla con más de una región. Tactical
-     ofrece 5 regiones y mantiene la selección/handles reales del engine. */
+  /* MOVE/RESIZE necesitan varios módulos del mismo screen. ALL los monta todos;
+     Tactical decide su distribución entre varias regiones. */
+  await session.evaluate(JS.clickByTextExact('.lgi-workbench__deck', 'ALL'))
+  await sleep(500)
   await selectTemplate(session, 'Tactical')
   await sleep(300)
 
   /* 11. Selección */
   await guarded(11, 'Selección de módulo', async () => {
     await setDesignerPanelOpen(session, false)
-    const clicked = await clickModule(session)
-    if (!clicked) throw new Error('No se encontró un punto físico del módulo libre de overlays')
+    const clicked = await clickModule(session, '.lgi-module[data-module="buildings.grid"]')
+    if (!clicked) throw new Error('No se encontró un punto físico de buildings.grid libre de overlays')
     await setDesignerPanelOpen(session, true)
     const selected = await session.evaluate(
       `document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module') ?? null`,
@@ -674,11 +676,22 @@ async function runChecks(session) {
     }
   })
 
+  /* Restaurar buildings.grid a assets antes de certificar resize. */
+  await guarded('12r', 'Restaurar módulo a región redimensionable', async () => {
+    const selected = await session.evaluate(`document.querySelector('.lgi-module.is-selected')?.getAttribute('data-module') ?? null`)
+    if (selected !== 'buildings.grid') throw new Error(`selección inesperada: ${selected}`)
+    const changed = await session.evaluate(JS.setSelect('select[aria-label="Mover módulo a otra región"]', 'assets'))
+    if (!changed) throw new Error('No se encontró el selector de región')
+    await sleep(350)
+    const after = await session.evaluate(`document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region')?.getAttribute('data-region') ?? null`)
+    return { ok: after === 'assets', detail: `región=${after}` }
+  })
+
   /* 13. Resize desde el panel (span + columnas de región) */
   await guarded(13, 'Resize por control (span / columnas)', async () => {
     if (!await session.evaluate(`document.querySelector('.lgi-module.is-selected') !== null`)) {
       await setDesignerPanelOpen(session, false)
-      const clicked = await clickModule(session)
+      const clicked = await clickModule(session, '.lgi-module[data-module="buildings.grid"]')
       await setDesignerPanelOpen(session, true)
       if (!clicked) throw new Error('No se pudo volver a seleccionar el módulo antes de resize')
     }
@@ -734,6 +747,9 @@ async function runChecks(session) {
     await session.send('Page.reload', { ignoreCache: false })
     await sleep(1600)
     const state = await session.evaluate(engineState)
+    const all = await session.evaluate(JS.clickByTextExact('.lgi-workbench__deck', 'ALL'))
+    if (!all) throw new Error('No se encontró el deck ALL tras reload')
+    await sleep(500)
     const spans = await session.evaluate(
       `[...document.querySelectorAll('.lgi-module[data-module-span]')].map((m) => m.getAttribute('data-module') + ':' + m.getAttribute('data-module-span'))`,
     )
