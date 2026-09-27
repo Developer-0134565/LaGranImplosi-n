@@ -392,7 +392,23 @@ async function dragFrom(session, selector, targetSelector) {
       const hit = document.elementFromPoint(x, y)
       return hit && hit.closest('.lgi-region') === to
     })
-    if (!source || !target) return null
+    if (!source || !target) {
+      return {
+        error: !source && !target ? 'source+target' : !source ? 'source' : 'target',
+        sourceCandidates,
+        targetCandidates,
+        sourceHits: sourceCandidates.map(([x, y]) => {
+          const hit = document.elementFromPoint(x, y)
+          return { x, y, className: hit instanceof Element ? hit.className : null, grip: hit?.closest('.lgi-designer-grip')?.className ?? null }
+        }),
+        targetHits: targetCandidates.map(([x, y]) => {
+          const hit = document.elementFromPoint(x, y)
+          return { x, y, className: hit instanceof Element ? hit.className : null, region: hit?.closest('.lgi-region')?.getAttribute('data-region') ?? null }
+        }),
+        sourceRect: { left: a.left, top: a.top, width: a.width, height: a.height },
+        targetRect: { left: b.left, top: b.top, width: b.width, height: b.height },
+      }
+    }
     return { from: { x: source[0], y: source[1] }, to: { x: target[0], y: target[1] } }
   })()`)
   if (!points) return false
