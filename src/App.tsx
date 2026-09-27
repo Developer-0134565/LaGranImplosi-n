@@ -14,7 +14,7 @@ import GalaxyView from './GalaxyView'
 import BuildingDemolitionPanel from './BuildingDemolitionPanel'
 import OnboardingPanel from './OnboardingPanel'
 import UniverseEvolutionMonitor from './components/monitor/UniverseEvolutionMonitor'
-import { UIEngineScreen, type UIModuleMap } from './ui-engine'
+import { UIEngineScreen } from './ui-engine'
 import { FleetScreen } from './screens/fleet'
 
 // All RPCs below are typed against database.types.ts (the 2026-09-26 contract audit added the entries).
