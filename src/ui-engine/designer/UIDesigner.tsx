@@ -116,10 +116,15 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
   )
 
 
-  /** El template del Designer sigue al del engine (una sola verdad). */
+  /**
+   * El Designer es la autoridad del template. El provider sólo mantiene su
+   * propio estado/contexto sincronizado para consumidores que lo necesiten.
+   * Nunca copiamos el template del provider hacia el Designer, porque eso
+   * podría sobrescribir una preferencia persistida del Designer al montar.
+   */
   useEffect(() => {
     if (!engine) return
-    if (engine.templateId !== config.template) setUIDesignerTemplate(engine.templateId)
+    if (engine.templateId !== config.template) engine.setTemplateId(config.template)
   }, [engine, config.template])
 
   /**
