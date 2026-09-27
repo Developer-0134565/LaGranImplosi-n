@@ -1227,3 +1227,98 @@ html[data-lgi-preview-width] .lgi-engine {
     padding-inline: 6px;
   }
 }
+
+
+/* ============================================================================
+   LIVE GAME SHELL — UIEngineScreen is the actual page composition.
+   The legacy .neo-* components remain gameplay markup; the engine owns their
+   placement through the three shell modules.
+   ============================================================================ */
+.lgi-live-shell {
+  height: calc(100dvh - 54px);
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.lgi-live-shell > .lgi-layout {
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.lgi-live-shell .lgi-region[data-region] {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lgi-live-shell .lgi-module {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.lgi-live-shell .neo-sidebar,
+.lgi-live-shell .neo-owned-planets,
+.lgi-live-shell .neo-main {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.lgi-live-shell .neo-main {
+  display: block !important;
+  min-width: 0;
+  padding: 0 !important;
+}
+
+.lgi-live-shell .neo-main-content {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.lgi-live-shell .neo-owned-planets {
+  width: 100% !important;
+  min-width: 0 !important;
+  position: relative !important;
+  top: auto !important;
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-live-shell .lgi-region[data-region='status'] .neo-sidebar {
+  min-width: 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-live-shell .lgi-region[data-region='assets'] .neo-owned-planets {
+  border-left: 1px solid var(--line);
+}
+
+@media (max-width: 760px) {
+  .lgi-live-shell {
+    height: calc(100dvh - 54px);
+    overflow: auto;
+  }
+
+  .lgi-live-shell > .lgi-layout {
+    height: auto;
+    min-height: 0;
+  }
+
+  .lgi-live-shell .lgi-region[data-region],
+  .lgi-live-shell .lgi-module,
+  .lgi-live-shell .neo-main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .lgi-live-shell .neo-main-content {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
