@@ -29,6 +29,33 @@
 >   the lifecycle suite and from the frontend research queue filter. `research_queue_status_check` still
 >   allows only `RESEARCHING` / `COMPLETED` / `CANCELLED` — no enum change and no new status was
 >   invented, and the building / shipyard / defense status vocabularies were deliberately left untouched.
+> * **Research Laboratory + the 16 OGameX gates + IRN SHIPPED (2026-09-26).**
+>   `20260926180000_research_lab_gates_and_irn` (owner-approved, applied LIVE and present in the migration
+>   ledger) adds the `research_lab` building (200/400/200, factor 2, PLANET-only, no cap), fills
+>   `research_building_prerequisites` with the 16 OGameX `research_lab` gates and adds
+>   `get_research_network_lab_level(player, planet, research)` plus the four-argument
+>   `calculate_research_time(player, planet, research, level)` overload consumed by both dispatchers. Gameplay
+>   consequence (deliberate, not a defect): **every technology now requires a Research Laboratory on the planet
+>   that starts it**, so an empire without one is refused with `RESEARCH_REQUIREMENTS_NOT_MET` until it builds
+>   it; IRN is inert at level 0.
+> * **§13's `PRODUCT DECISION REQUIRED` classification and §14's "content intentionally EMPTY" paragraph are
+>   superseded by that shipment**: both describe the pre-decision state (2026-09-25) and are kept only as the
+>   audit record. The decision was taken by the owner on 2026-09-26.
+> * **Regression found and fixed (2026-09-27).** Activating the gates invalidated the *fixture precondition* of
+>   the two certified Research suites: `research_lifecycle.sql` ran on a planet without a laboratory and
+>   `research_building_prerequisites.sql` deletes every building before testing, so both were refused with
+>   `RESEARCH_REQUIREMENTS_NOT_MET` before exercising their logic. Both fixtures now install the level the
+>   contract itself requires (derived from `research_building_prerequisites`, never hardcoded) and the
+>   empty-mechanism assertions no longer claim that nothing is shipped. §16 records the audit and its evidence.
+> * **Both fixture-precondition defects and the OGameX interaction gap were closed on 2026-09-27** — all three
+>   Research fixtures now run **as files against LIVE** (Management-API query channel; the 2026-09-27 audit could
+>   not: no `psql`, Docker down, no DB URL/password). `research_lab_and_irn.sql` **14 PASS + 1 INFO**,
+>   `research_building_prerequisites.sql` **21 PASS + 1 INFO**, `research_lifecycle.sql` **27 gated + 12/12
+>   contract PASS**. Two *harness* defects that only surface on a file run were found and fixed (the universe tick
+>   requires the worker's `auth.uid() IS NULL` context; the contract assertion counted one prerequisite dimension
+>   where the contract exposes two) and the `researching while the Research Lab is upgrading` rule was verified
+>   in OGameX and classified — **LGI does not implement it and it is not a server rule in OGameX either**. Detail:
+>   §16.
 > Related: [`README_GAME_ENGINE_AUDIT.md`](README_GAME_ENGINE_AUDIT.md) (construction) ·
 > [`README_ECONOMY.md`](README_ECONOMY.md) · [`README_FUNCTIONAL_AUDIT.md`](README_FUNCTIONAL_AUDIT.md).
 
@@ -80,7 +107,11 @@ executable_action_candidates  filtered/derived layer on top of action_candidates
 ui_research_definitions()   SECURITY DEFINER, returns all research definitions (not used by the frontend)
 ```
 
-Grants: `start_research` → anon/authenticated/service_role · `can_research` → anon/authenticated ·
+Grants (RE-VERIFIED LIVE 2026-09-27; the P3 ACL sweep closed the old `anon` surface — this line replaces the
+2026-09-21 wording): `start_research`, `can_start_research`, `cancel_research`,
+`get_research_network_lab_level`, `calculate_research_time`, `ui_research_definitions` →
+authenticated/service_role (**no `anon`**) · `can_research` and the two dead helpers
+(`check_research_requirements`, `get_research_requirements`) → postgres/service_role (no client EXECUTE) ·
 `complete_research` + all `process_research_queue*` → **service_role only** ·
 `research_action_candidates` → anon/authenticated · `research_definitions`, `research_prerequisites`,
 `player_research`, `research_queue` → SELECT to anon/authenticated.
@@ -378,7 +409,11 @@ Already better in L.G.I.: authoritative SQL engine, populated prerequisites tabl
    (`postgres`/`service_role`) and the absolute UPSERT already makes a duplicate increment impossible.
 4. Duplicate `calculate_research_time(uuid,text,int)` overload — **OPEN, deliberately kept**: the two
    overloads agree (`(uuid,…)` delegates to the canonical one) and assertion 5 asserts their
-   equivalence, so it is a convenience wrapper rather than a divergence.
+   equivalence, so it is a convenience wrapper rather than a divergence. 2026-09-27: both legacy INVOKER
+   overloads and the canonical 3-argument one are now ENGINE-ONLY (`authenticated`/`anon` EXECUTE revoked by
+   `20260927130100`, `service_role` kept) — measured as failing closed for a client because they are INVOKER over
+   `universes`, which has no client grant; the equivalence assertion runs as the owner and is unaffected. The
+   4-argument DEFINER contract consumed by `can_start_research` / `start_research` keeps `authenticated`.
 5. ~~Client availability contract~~ — **DONE**: `can_start_research` is the single client contract and
    `research_action_candidates` was retired as a client contract (migration `20260921140925`); the
    wrong-answer helper path is closed because the three legacy helpers are internal-only.
@@ -518,4 +553,337 @@ identical before and after; the transaction ended in ROLLBACK with no persistent
 Status: the 24 existing assertions remain **unchanged and PASS** (verified: 24 result rows, same gate).
 The blind spot is now closed **as instrumentation**: any future run of this file reports PASS / DEFECT /
 PENDIENTE explicitly.
+
+## 13. Intergalactic Research Network (IRN) — dedicated audit 2026-09-25
+
+> **SUPERSEDED 2026-09-26/27.** The owner approved the adoption/adaptation of the verified OGameX model and it
+> shipped in `20260926180000_research_lab_gates_and_irn` — see «Research laboratory, the 16 OGameX gates and the
+> Intergalactic Research Network (2026-09-26)» and §16. Everything below is the audit record of the state
+> **before** that decision, including the classification line.
+
+Classification (2026-09-25, superseded): **PRODUCT DECISION REQUIRED — STOP** (audit only: no implementation,
+no migration, no function/RPC change, no test).
+
+Contract present in LGI (verified LIVE): definition 240 000 / 400 000 / 160 000, `cost_factor` **3**,
+`time_factor` 2, `max_level` NULL, `base_research_time_seconds` 60; prerequisites `computer_technology` 8
++ `hyperspace_technology` 8 (`research_prerequisites`); reachable through the generic Research view (the
+frontend lists all 16 `research_definitions` rows and contains **no** per-technology code). IRN is a
+prerequisite of nothing and has **0 readers**: no function body references it, no migration ever consumed
+it, and LIVE holds 0 `player_research` rows and 0 `research_queue` rows for it.
+
+Runtime reality: the canonical duration `calculate_research_time(id, target_level, universe)` is
+`base_research_time_seconds × time_factor^(level−1) ÷ (universes.research_speed × research_scale(E))` —
+its inputs are the research id, the level and the universe: **no planet, no player, no laboratory term**.
+`can_start_research` resolves prerequisites from `research_prerequisites` only, enforces one `RESEARCHING`
+job per player (`RESEARCH_QUEUE_ALREADY_ACTIVE`, asserted by assertion 13 of
+`supabase/tests/research_lifecycle.sql`) and applies the `research_speed_percent` item bonus. There is no
+research-lab building (0 of the 8 building definitions), no lab level anywhere (no `*lab*` function, no
+`prosrc` match for `research_lab`/`laborator`), no building-type research prerequisite
+(`research_prerequisites` is research→research only) and no research-slot subsystem. The generic reader
+`get_player_research_level(player, research_id)` *could* read IRN, but no caller passes it.
+
+OGameX (verified in source, `lanedirt/OGameX` @ `7c420ba`): definition in `ResearchObjects.php` 248-265 →
+id 123, `class_name 'researchNetworkTechnology'`, `GameObjectPrice(240000, 400000, 160000, 0, 2)`
+(**cost factor 2**, differs from LGI's 3), requirements `computer_technology 8` + **`research_lab 10`** +
+`hyperspace_technology 8`. Runtime:
+`PlanetService::getResearchNetworkLabLevel(string $machine_name): int` (1233-1272) starts from the current
+planet's own lab level (1236), reads `$player->getResearchLevel('intergalactic_research_network')` (1244) and
+only when it is `> 0` (1245) iterates the player's **other** planets, skipping every planet where
+`ObjectService::objectRequirementsMet($machine_name, $planet)` is false, collects their `research_lab` levels
+and adds the top `IRN` of them **sorted descending** (`rsort` 1265 → `array_sum(array_slice(..., 0,
+$irn_level))` 1269). Application point: `PlanetService::getTechnologyResearchTime(string $machine_name):
+float` (1189-1229), whose denominator (1207-1208) is
+`1000 × (1 + effective_lab) × (economySpeed × researchSpeed)`. Effect: IRN **shortens** research time; it does
+**not** grant parallel research (OGameX keeps one active research plus a multi-item queue). Sole runtime
+consumers: `ResearchQueueService.php:324` (stored duration) and `Http/Traits/ObjectAjaxTrait.php:90-91`
+(displayed duration). The behaviour is pinned by the existing test `tests/Feature/ResearchQueueTest.php:191-240`
+(effective lab 8 → 18 → 24 → 18 as IRN and the labs change). IRN registers **no** `CalculationType`: an
+exhaustive search finds exactly 3 `addCalculation` calls, all on `computer_technology` (`MAX_FLEET_SLOTS`,
+line 212) and `astrophysics` (`MAX_COLONIES` 238 / `MAX_EXPEDITION_SLOTS` 241) → Computer and IRN are
+independent mechanisms.
+
+Gap and why it is not an implementation task: adopting the OGameX contract would require introducing a
+research-lab building with per-planet levels, extending the research prerequisite model to building
+requirements, and changing the certified research-duration contract (or adding an IRN-aware overload), plus a
+participating-planets rule. That is a product decision, not an implementation detail.
+
+Nature of the pending decision (2026-09-25; **DECIDED and implemented 2026-09-26**): the decision is **not** how
+IRN should behave — OGameX's behaviour is already
+verified above. The decision is **whether LGI adopts/adapts that verified model** (which means building a
+research-laboratory subsystem) or rejects it. If it is ever approved, the implementation must be derived from
+OGameX and adapted to LGI, per the permanent rule `OGameX AS DESIGN SOURCE — GAMEPLAY` in
+`docs/PROJECT_CONTEXT_PROMPT.md`. This section is the canonical IRN record; `docs/PROJECT_CONTEXT_PROMPT.md`
+keeps only the compact status line.
+
+## 14. Building prerequisites for research — mechanism implemented 2026-09-25
+
+Mechanism (migration `20260925192948_research_building_prerequisites_mechanism`, forward-only, LIVE applied):
+
+- `research_building_prerequisites(research_id, building_id, required_level)` — PK `(research_id, building_id)`,
+  FKs to `research_definitions`/`building_definitions`, `required_level >= 1`, RLS enabled with the same
+  `deny_direct_api_access` policy and grants as the other prerequisite tables (SELECT granted, denied by the
+  policy; full access for `service_role`).
+- `check_research_building_prerequisites(planet_id, research_id)` — the single source of truth, evaluated on
+  the planet that **starts** the research (OGameX parity: `ObjectService::objectRequirementsMet($machine_name,
+  $planet)`). Internal helper: EXECUTE only for `postgres`/`service_role`.
+- `can_start_research` reports both dimensions in the same `prerequisites` jsonb (every entry now carries
+  `kind`, `required_level`, `current_level`, `satisfied`; research entries keep `research_id`, building entries
+  carry `building_id`) and `prerequisites_met` is derived from the whole array.
+- `start_research` — the only path that charges and enqueues — consults the same helper after the existing
+  `can_research` gate and rejects with `RESEARCH_REQUIREMENTS_NOT_MET`. No client-supplied identity is used,
+  so a foreign planet/building can never satisfy a requirement.
+- Authority split: `can_research` keeps the research-only dimension (definition, max level, target level,
+  `research_prerequisites`); the building dimension lives exclusively in the helper, consumed by both surfaces.
+
+**Content: ACTIVATED 2026-09-26** (this paragraph supersedes the 2026-09-25 "intentionally EMPTY" statement).
+The OGameX catalogue (`ResearchObjects.php`, exhaustive extraction) gives **16** technologies a `research_lab`
+requirement (energy 1, laser 1, computer 1, combustion 1, armour 2, impulse 2, espionage 3, astrophysics 3,
+ion 4, plasma 4, weapons 4, shielding 6, hyperspace 7, hyperspace_drive 7, graviton 12, IRN 10 — the text
+shipped on 2026-09-25 said "14" while listing these same 16 names; the count was an arithmetic slip and the
+migration inserted 16). The mechanism shipped **empty** on 2026-09-25 because LGI had no Research Laboratory and
+activating the gates would have blocked research for every existing player — a **PRODUCT DECISION**, which the
+owner took on **2026-09-26**: `20260926180000_research_lab_gates_and_irn` created the building and inserted the
+16 gates verbatim. No level was invented; the table above is the OGameX extraction, verified row by row against
+LIVE.
+
+Tests: `supabase/tests/research_building_prerequisites.sql` — **21/21 PASS + 1 INFO, LIVE 2026-09-25**, inside
+its rollback transaction, zero residue: missing building blocked, insufficient level blocked, satisfied
+requirement allowed, exact cost charged on success, empty-mechanism regression (payload unchanged and research
+still starts), multiple prerequisites combined with the research dimension, the research dimension still
+enforced on its own, foreign planet rejected by the ownership gate, unauthenticated actor rejected with no
+mutation, the shipped production content (16 laboratory gates, asserted against a pre-mutation snapshot), and
+the equivalence proof that all 16 researches report exactly their own prerequisite rows with unchanged values.
+LIMITATION: single-session harness (no true concurrency).
+**UPDATE 2026-09-27:** activating the gates invalidated this fixture's precondition — it deletes every building
+on the fixture planet, so the `allowed = true` assertions and the uncaught `start_research` of assertion 6 hit
+`RESEARCH_REQUIREMENTS_NOT_MET`. The fixture now installs the contract-derived laboratory level and restores the
+shipped table before the equivalence assertions (so 15a/15b are no longer vacuous); assertion 14 asserts the 16
+shipped gates instead of claiming that nothing is shipped. See §16.
+The frontend renders both kinds (`src/App.tsx`: `kind === 'building' ? building_id : research_id`).
+
+Remaining gap (2026-09-25, now CLOSED): the research laboratory itself (building definition, cost/time curve
+and the decision to activate the 16 gates) was a **PRODUCT DECISION**; the owner took it on 2026-09-26 and
+`20260926180000_research_lab_gates_and_irn` shipped both parts, so the requirements are pure data rows today.
+
+
+## 15. Queue cancellation and the single-authority audit (2026-09-26)
+
+**Audit (§4/§5/§7 of the BUILDINGS+RESEARCH mission).** There is ONE authoritative answer to "may this
+research start?": `start_research` is the only write path and it consults `can_research`
+(research dimension) plus `check_research_building_prerequisites` (building dimension, planet-scoped);
+`can_start_research` is the only client availability contract and reports both dimensions in one `prerequisites`
+jsonb. No parallel path exists (`research_action_candidates` is retired as a client contract, the three
+`process_research_queue*` orphans remain unused and untouched, `check_research_requirements` /
+`get_research_requirements` are still unreachable for clients). Nothing certified was reopened.
+
+**Research cancellation implemented** (migration `20260926082120`, ambiguity fixed by `20260926082529`):
+
+* `cancel_research(queue_id)` — SECURITY DEFINER, EXECUTE only for `authenticated`/`service_role`;
+* ownership `auth.uid()` → `players.user_id`; the refund is credited to `research_queue.planet_id` (the planet
+  that paid), and a row without a planet is refused instead of guessing one;
+* refund = **exactly the charged price**, recomputed with `calculate_research_cost` at the row's
+  `target_level` (OGameX `cancel()` refunds the stored price of an already-started item — 100 %, no penalty);
+* `RESEARCH_QUEUE_NOT_CANCELLABLE: COMPLETED` for a granted level, `RESEARCH_QUEUE_NOT_CANCELLABLE: CANCELLED`
+  for a second call, `Authentication required` without a session: all of them raised before any write;
+* the row keeps its `CANCELLED` status (never deleted) and the single research slot is free again.
+
+Refund policy provenance (no invented policy): `BuildingQueueService::cancel()` refunds exactly the price
+stored on the cancelled queue row, and `UnitQueueService` states that unit queue objects cannot be cancelled —
+hence shipyard/defence keep no cancellation path. Full contract table: `README_ECONOMY.md`, section
+«Queue cancellation contract».
+
+Tests: `supabase/tests/queue_cancellation.sql` — **13 PASS + 1 INFO, LIVE 2026-09-26** (valid building and
+research cancel with exact refund, queue released, double cancel, foreign caller for both RPCs, terminal
+`COMPLETED`, already-due item refused without double credit, unauthenticated actor, ACL and the
+`cancel_*`-count parity check), inside a rollback transaction with zero residue.
+
+
+## Research laboratory, the 16 OGameX gates and the Intergalactic Research Network (2026-09-26)
+
+`20260926180000_research_lab_gates_and_irn.sql` activates the content of the research-building gate mechanism
+that was already certified (and intentionally empty) and adds the first real research-time mechanic:
+
+* **Research Lab** (`building_definitions`): 200 metal / 400 crystal / 200 deuterium, cost factor 2,
+  `valid_kinds = {PLANET}` (OGameX `StationObjects` declares `valid_planet_types = [Planet]`), no level cap and
+  no prerequisites — available from the start, exactly like OGameX.
+* **The 16 gates** (`research_building_prerequisites`), verbatim from OGameX `ResearchObjects`: energy 1,
+  laser 1, ion 4, hyperspace 7, plasma 4, combustion 1, impulse 2, hyperspace drive 7, espionage 3,
+  computer 1, astrophysics 3, IRN 10, graviton 12, weapons 4, shielding 6 and armour 2 (OGameX
+  `armor_technology` ↔ LGI `armour_technology`). `start_research` and `can_start_research` already consumed
+  `check_research_building_prerequisites`, so filling the table activates the whole rule without touching the
+  certified mechanism.
+* **IRN** (`get_research_network_lab_level(player, planet, research)`): effective laboratory level = own lab
+  level + (when IRN > 0) the sum of the N highest lab levels among the player's **other planets that satisfy
+  the research's lab requirement** (N = IRN level), exactly as OGameX
+  `PlanetService::getResearchNetworkLabLevel`. Moons never contribute (labs are planet-only).
+* **Time wiring**: LGI's curve has no laboratory term (unlike OGame's `(metal+crystal)/(1000·(1+lab))`), so
+  OGameX's rule is ported as the equivalent divisor ratio `(1 + own_lab) / (1 + effective_lab)` inside a new
+  four-argument overload `calculate_research_time(player, planet, research, level)` that mirrors the certified
+  table shape (`final_time_seconds`). Both dispatchers were patched in isolation (`start_research` now selects
+  `crt.final_time_seconds`; `can_start_research` already consumed the table) and the certified 3-argument
+  overloads are untouched — `research_lifecycle.sql` keeps asserting their equivalence.
+  The ratio is exactly 1 when IRN = 0, so the mechanic is inert until the player owns the technology.
+* ACL: the two new contracts are `authenticated` + `service_role` only (no anon bypass).
+
+Ownership gate added 2026-09-27 (`20260927120000_harden_cross_owner_research_and_colony_reads`): both contracts take
+the target of the read from a CLIENT PARAMETER, and they had no ownership check at all — any signed-in player could
+read another empire's `research_lab` level (and its IRN level) without sending a probe, and could infer the same
+laboratory level from the returned duration. They now carry the certified identity gate used by
+`inspect_demolition` / `calculate_planet_storage` (`auth.uid() IS NOT NULL AND not owner` →
+`PLAYER_NOT_OWNED_BY_AUTH_USER`), and the planet-scoped pair additionally requires the planet to belong to that
+player (`PLANET_NOT_OWNED_BY_AUTH_USER`), so an own-player + foreign-planet call is refused as well. The
+engine/AI context (`auth.uid() IS NULL`, i.e. `start_research` from the AI service actor) is unchanged. Re-certified
+by `supabase/tests/cross_owner_research_and_colony_reads.sql` (6 PASS, LIVE) together with
+`research_lab_and_irn.sql`, which keeps asserting the IRN mechanics for the owner.
+
+Tests: `supabase/tests/research_lab_and_irn.sql` — **14 PASS + 1 INFO, LIVE 2026-09-27** (15 rows: the fixture
+carried 12 gated rows before the two added here — the previously documented "11 PASS" under-counted its own table,
+since label 5 is a comment and not an assertion), executed **as a file** through the project's
+Management-API query channel, transactional with `ROLLBACK` and zero residue: definition and the 16 gates,
+refusal without a laboratory, lab 1 → energy allowed, lab 3 → ion refused, lab 4 → ion allowed, the laboratory
+cannot be queued on a moon (`BUILDING_NOT_AVAILABLE_FOR_KIND`), a moon lab never joins the network, IRN 0 → own = 3
+and the time equals the canonical value (the certified overload included), IRN 2 → effective 12 with the time
+exactly 4/13 of it, IRN 1 → effective 8 with 4/9, the eligibility filter (graviton needs lab 12 so labs 5/4 stay
+out) and the dispatcher ratio (measured 19.3891 s at IRN 0 → 5.9659 s at IRN 2 = 4/13). LIMITATION: single-session
+harness, no cron and no concurrency.
+**Test list completed 2026-09-27 (assertions 9b and 9c).** The mission's required cases *"fewer planets than IRN"*
+and *ownership* were not covered by the 2026-09-26 fixture:
+* **9b — fewer planets than IRN**: IRN 10 with only two eligible other laboratories (5 and 4) yields effective
+  12, i.e. the levels that exist, exactly as OGameX `array_sum(array_slice($levels, 0, $irn_level))` returns
+  fewer elements than requested. Nothing is invented and no level is counted twice.
+* **9c — ownership**: a second player's planet carrying `research_lab` 20 does **not** join the network
+  (effective stays 12). The helper filters by `p_player_id`; it never uses a "first player"/"first planet"/guest
+  heuristic, so a foreign laboratory can never satisfy (or shorten) another player's research.
+* Regression at IRN 0 is assertion 6: the four-argument overload equals the canonical three-argument value
+  byte-for-byte, so no laboratory-independent result moved.
+
+## 16. RESEARCH gameplay completion audit — 2026-09-27
+
+Scope: the RESEARCH mechanic only (player → owned planet → availability → prerequisites → resource validation →
+cost → queue → processing → completion → level → new availability/effects). No new architecture; the certified
+chain was re-derived from LIVE and only real divergences were fixed.
+
+**Authority (verified LIVE 2026-09-27 against project `evtfsbntvuqmahiskekd`: functions, ACLs and
+`pg_get_functiondef`):**
+
+| Object | Role | Evidence |
+|---|---|---|
+| `can_start_research(player, planet, research)` — SECDEF, STABLE | **AUTHORITATIVE client availability contract** (`allowed`, `reason_code`, `reason`, current/target level, next-level cost, seconds, item bonus, both prerequisite dimensions, queue state). Read-only. | LIVE body + probe |
+| `start_research(player, planet, research)` — SECDEF | **AUTHORITATIVE and the only write path**: ownership, gates, single slot, atomic charge, `research_queue` INSERT. | LIVE body + probe |
+| `complete_research(queue)` — internal, not SECDEF | completion entrypoint; idempotent on `COMPLETED` (returns `false`, no re-settlement) | LIVE body + probe |
+| `process_planet_tick` → `complete_research`; `process_universe_*` chain | **REAL production path** | LIVE body + probe |
+| `process_research_queue`, `_for_player`, `_for_universe` | **UNUSED** — 0 callers, `service_role` only | LIVE ACL |
+| `can_research`, `check_research_requirements`, `get_research_requirements` | **LEGACY internal helpers** — no client EXECUTE | LIVE ACL |
+| `check_research_building_prerequisites(planet, research)` | internal single source of truth of the building dimension | LIVE body |
+| `get_research_network_lab_level`, `calculate_research_time(player,planet,research,level)` | IRN effective laboratory level + laboratory-aware duration (ratio = 1 while IRN = 0) | LIVE body + probe |
+| `get_player_research_lab_status()` — SECDEF, STABLE | **AUTHORITATIVE state contract of the OGameX laboratory interaction**: empire-wide `research_lab_upgrading` + `research_in_progress` plus the upgrading planet, target level and finish time. Read-only, **not** an enforcement. | LIVE body (`md5(prosrc)` = repo file) + `research_lab_upgrading_status.sql` |
+| `enforce_research_lab_research_interaction()` — BEFORE INSERT on `building_queue` | OGameX **queue enforcement** for the laboratory: neither an upgrade nor a downgrade is accepted while a research is running (pre-charge refusal, `BUILDING_BLOCKED_BY_ACTIVE_RESEARCH`). Availability declared in `evaluate_building_start_internal` and `inspect_demolition`. | LIVE trigger + fixture assertions 8/8b/8c |
+| `cancel_research(queue)` — SECDEF | owner-only cancellation with the exact refund, planet taken from the queue row | LIVE body |
+| `ui_research_definitions()` | **UNUSED** SECDEF wrapper | no caller |
+| `research_action_candidates` | **retired as a client contract (2026-09-21)** | §0 |
+
+**Contract re-verified through `start_research`:** `auth.uid()` ↔ `players.user_id` (NULL auth raises
+`Authentication required`; the only NULL-auth exception is the AI worker — `is_ai_actor_target` requires
+`lgi.ai_worker='on'`, the matching `lgi.ai_player` and an AI player with `user_id IS NULL`), player-row lock,
+planet ownership + `is_destroyed`, `RESEARCH_NOT_FOUND`, `target_level = current_level + 1`,
+`RESEARCH_MAX_LEVEL_REACHED`, `can_research` (research dimension), the building dimension, the single
+`RESEARCHING` slot, `calculate_research_cost(target_level)` (next level — single formula, no second cost path),
+`calculate_research_time(player, planet, research, target_level)`, `process_planet_tick`, the atomic deduction
+(`INSUFFICIENT_RESOURCES`) and the `research_queue` INSERT.
+
+**Regression found (demonstrated) and fixed.** `20260926180000` activated 16 gates, so *every* technology now
+needs a `research_lab`, but the two certified Research fixtures still ran on a planet without one:
+`research_lifecycle.sql` (happy path, assertions 10-27) and `research_building_prerequisites.sql` (assertion 5
+plus the uncaught `start_research` of assertion 6) were refused with `RESEARCH_REQUIREMENTS_NOT_MET` before
+exercising anything. LIVE evidence of the refusal (fixture planet `f35bd4b9…`, `research_lab` NULL, techs
+`armour_technology` lab 2 / `computer_technology` lab 1 / `astrophysics` lab 3): both `start_research` calls
+returned `RESEARCH_REQUIREMENTS_NOT_MET`. Both fixtures were corrected by installing the level the contract
+itself requires (`max(required_level)` from `research_building_prerequisites`, never a hardcoded product value)
+inside their rollback transaction. This is a **fixture-precondition defect**, not a gameplay defect: the
+laboratory rule is the owner-approved change.
+
+**Evidence executed in this audit (transactional `ROLLBACK`, zero residue) — LIVE contract probe, 11/11 PASS:**
+availability (`allowed`, 0→1, cost 1000, 4-arg time = canonical 19.405 s ⇒ IRN inert), building prerequisite
+blocked at lab 1 < 2 with the jsonb entry `{kind: building, building_id: research_lab, required_level: 2,
+current_level: 1, satisfied: false}` and no queue row, `INSUFFICIENT_RESOURCES` with the gate satisfied, owner
+start with the exact single charge, queue `RESEARCHING` `target_level = 1` on the starting planet, second active
+research refused (`RESEARCH_QUEUE_ALREADY_ACTIVE`), completion through `process_planet_tick` (`COMPLETED`,
+level 1), idempotent second processing (`complete_research` → `false`, status/level unchanged, one row), next
+level offered after completion (`allowed`, 1→2, cost 2000), foreign session rejected (`Player does not belong to
+authenticated user`) and NULL auth rejected (`Authentication required` / `AUTHENTICATION_REQUIRED`).
+
+**Remaining gaps (explicitly NOT converted into PASS):**
+- **Fixtures executed as files — CLOSED 2026-09-27.** A client-side SQL path to LIVE exists on this machine after
+  all: `supabase db query --linked` needs a login token the CLI has not stored here, but the project credential
+  carried by the repository's MCP configuration (`.vscode/mcp.json`, an `sbp_…` token, **not tracked by git**)
+  reaches the Management-API query channel directly, so the three fixtures were streamed from disk and executed
+  **verbatim** (each ends in `ROLLBACK`). Results: `research_lab_and_irn.sql` **14 PASS + 1 INFO**,
+  `research_building_prerequisites.sql` **21 PASS + 1 INFO**, `research_lifecycle.sql` **27 gated + 12/12
+  contract PASS**. Zero residue verified afterwards: 590 planets, 0 moons, 0 `research_lab` rows, 16 gate rows,
+  590 players, 589 IRN `player_research` rows and the pre-existing 5 `research_queue` / 3 `building_queue` rows.
+- **Two fixture-precondition defects found by the file run and fixed (2026-09-27, harness only).**
+  (a) `research_lifecycle.sql` assertions 26-27 called `process_universe_tick` while the fixture held an
+  `authenticated` claim; that tick is the **worker** path and iterates **every** planet in the universe, so
+  `calculate_planet_storage`'s ownership gate (SECURITY DEFINER, added 2026-09-26) raised `PLAYER_NOT_OWNED` on the
+  first foreign planet and the suite died before printing its own report. The fixture now reproduces the worker
+  context (`auth.uid() IS NULL`) around those two ticks only. **Not a production defect**: the tick chain is
+  `postgres`/`service_role` only (`has_function_privilege('authenticated','process_universe_tick')` = false) and
+  the worker authenticates without a `sub` claim, so the gate is skipped. (b) contract assertion 3
+  (`prerequisite detail count`) counted only `research_prerequisites` while `can_start_research` has exposed
+  **both** prerequisite dimensions since `20260925192948`; it now counts the rows declared by both tables. No
+  assertion semantics were weakened and no production contract was touched.
+- Browser certification of the Research view with the Laboratory gate active (the UI already renders both
+  prerequisite kinds and the backend reason) remains the user-side gate.
+- **`researching while the Research Lab is upgrading` — ADAPTED in OGameX's own layer (2026-09-27).** OGameX
+  resolves it as **state/UI**, so LGI reproduces it in the equivalent layer and adds **no server gate**:
+  * OGameX evidence (@ `7c420bad`): `ObjectAjaxTrait::ajaxHandler`, research branch →
+    `// Researching is disallowed when Research Lab is upgrading` /
+    `$research_lab_upgrading = $player->isBuildingObject('research_lab')` (plus `$research_in_progress =
+    $player->isResearching()` in the building/station branch); both travel in the ajax payload.
+    `ResearchController::index` passes the same flag to the view model (75/101/134), while
+    `ResearchController::addBuildRequest` (160-193) validates **vacation mode + CSRF only** and
+    `ResearchQueueService::add()` never looks at the laboratory — **OGameX does not block it server-side**. Its
+    only consumer is the UI mark in `resources/views/ingame/research/research-item.blade.php`:
+    `@elseif ($building->research_lab_upgrading) → data-status="disabled"`. `PlayerService::isBuildingObject`
+    loops over **every** planet, so the flag is **empire-wide**, not planet-scoped.
+  * LGI adaptation (`20260927014725_research_lab_upgrading_state_contract`, applied LIVE; repo ↔ LIVE proven by
+    `md5(prosrc) = 4fc9b572…`, 1805 bytes): the read-only, owner-scoped contract
+    `get_player_research_lab_status()` returns `research_lab_upgrading` (a `research_lab` row in `building_queue`
+    with `status = 'BUILDING'` **and not `is_downgrade`** — OGameX compares `object_level_target` with
+    `current_level + 1`, so a downgrade does not raise it), `research_in_progress` (an active `research_queue`
+    row) and the upgrading planet / target level / finish. Both React views consume it where OGameX does: the
+    Research view disables the investigation with the reason and a note carrying the finish time, and the
+    Buildings view does the same for the laboratory while a research is running. **`can_start_research`,
+    `start_research` and `start_building` are untouched** and still accept the action (assertions 6 and 8), so LGI
+    is not stricter than OGameX.
+  * **Queue enforcement IMPLEMENTED (2026-09-27, migration `20260927015502`)** — the server-side half of the OGameX
+    behaviour: `BuildingQueueService::addDowngrade` (207-210) refuses the laboratory downgrade while a research runs
+    and `start()` (398-401 / 416-421) cancels the not-yet-started laboratory item. LGI adaptation: since LGI charges
+    **and** starts in the same act, the equivalent of «cancel the item that has not begun» is a **pre-charge
+    refusal**, so the reachable state is identical without the charge → refund cycle. A BEFORE INSERT guard on
+    `building_queue` (`enforce_research_lab_research_interaction`, alongside the certified
+    `enforce_building_kind_and_research`) rejects `research_lab` upgrades **and** downgrades with
+    `BUILDING_BLOCKED_BY_ACTIVE_RESEARCH`; the same rule is declared in `evaluate_building_start_internal`
+    (client contract `can_start_building` + AI path) and in `inspect_demolition`, which now blocks **any**
+    laboratory demolition while a research runs — the blanket OGameX rule, not only when the removed level is still
+    required (reason `DEMOLITION_BLOCKED_BY_ACTIVE_RESEARCH`, unchanged UI vocabulary, so
+    `BuildingDemolitionPanel` shows it with no UI change).
+    `complete_building` and the queue processors are **untouched**: an upgrade already IN FLIGHT when the research
+    starts still completes, exactly like OGameX (`PlanetService::updateBuildingQueue` 1693-1740 never looks at
+    research). `start_research` keeps **no** server gate: OGameX does not enforce that direction either.
+  * Tests: `supabase/tests/research_lab_upgrading_status.sql` — **14 PASS + 1 INFO, LIVE 2026-09-27**: clean state ·
+    empire-wide flag from another owned planet · only the laboratory counts · a downgrade does not raise it ·
+    ownership (the foreign row is written through the declared AI-actor context, the only legitimate way past
+    `enforce_player_write_access`) · `start_research` accepted while the laboratory upgrades (no server gate) ·
+    `research_in_progress` with a real active research · **8: `start_building(research_lab)` refused while
+    researching with `BUILDING_BLOCKED_BY_ACTIVE_RESEARCH` and no charge** · 8b: another building is still allowed
+    (not stricter) · **8c: the laboratory demolition is blocked while researching (blanket rule)** · 8d-8e: an
+    upgrade already in flight is accepted and **completes untouched** while the research keeps running · ACL
+    without `anon` · anonymous session → 0 rows.
+- The P3 hygiene items recorded in `docs/PROJECT_CONTEXT_PROMPT.md` remain open (the three
+  `process_research_queue*` orphans, the two dead helpers, `ui_research_definitions`, unpurged `COMPLETED`
+  rows). Nothing was deleted and no grant was widened.
+- OGameX differences deliberately preserved (no balance was touched): LGI keeps `cost_factor 3` for IRN
+  (OGameX 2), keeps its own duration curve — the laboratory enters only through the IRN divisor ratio, not
+  through `(metal+crystal)/(1000·(1+lab))` — and keeps one research slot with its own cost/time factors.
 

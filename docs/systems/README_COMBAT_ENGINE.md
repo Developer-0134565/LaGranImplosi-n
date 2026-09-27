@@ -3959,12 +3959,13 @@ No client surface was widened: the settlement layer remains service_role only.
 
 ### 24.4 Tests
 
-New fixture `supabase/tests/combat_acs_settlement.sql` — **18/18 PASS** (rollback-safe, zero residue):
+New fixture `supabase/tests/combat_acs_settlement.sql` — **19/19 PASS** (rollback-safe, zero residue):
 
 | # | Assertion |
 |---|---|
 | H1 | a non-initiating participating fleet resolves to the SAME battle |
 | H2 | no second battle is created for it |
+| H3 | a non-initiating participant replay returns the existing battle |
 | A1 | the single-attacker path still settles and the fleet returns |
 | A2 | no phantom participants |
 | A3 | at most one debris generation per battle |
@@ -3994,9 +3995,9 @@ Full suite after the change (**all certified regressions green**):
 
 ```text
 attack 12/12 · expedition 11/11 · report 7/7 · worker 8/8 · debris 5/5 · collision 13/13 ·
-defender-fleet 17/17 · ACS settlement 18/18 (new) · fleet classes 23/23 · shipyard 25/25 ·
+defender-fleet 17/17 · ACS settlement 19/19 (new) · fleet classes 23/23 · shipyard 25/25 ·
 acs_hold 50/50 · support chain 13/13 · buildings gate PASSED · research 12/12
-                                                                          TOTAL 214 PASS / 0 FAIL
+                                                                          TOTAL 215 PASS / 0 FAIL
 npx tsc -b = 0 · npm run build = 0 · git diff --check clean · LIVE residue = NONE
 ```
 
@@ -4027,10 +4028,56 @@ participant shape it cannot attribute.
 · the certified report payload keeps its meaning
 ```
 
+### 24.7 Participant replay closeout
+
+`resolve_attack_arrival` now resolves the early-return path through the
+`ATTACKER/FLEET` participant row before using the historic
+`combat_battles.fleet_id` anchor. This closes the technical replay gap for a
+non-initiating participant after settlement has moved it to `RETURNING` or
+`COMPLETED`; it does not create participants, define ACS grouping, or change
+any ACS/DEFEND product rule. The ACS settlement fixture covers this path as
+H3.
 
 
 
 
+
+## 29. WRECK FIELDS / DEBRIS — end-to-end verification (2026-09-26)
+
+This section records the verification of the full debris lifecycle (the metal/crystal left by destroyed ships
+and defences, collected by recyclers). Nothing was changed: everything below was read from LIVE, and the
+existing combat/debris fixtures cover it.
+
+```text
+CREATION   combat → `create_combat_debris(battle_id)`:
+             · `pg_advisory_xact_lock(hashtextextended('combat_debris:'||battle_id, 0))` — one generator per battle
+             · `combat_debris_generations` (battle_id, debris_field_id, metal/crystal_generated) records provenance
+             · already generated → returns `out_already_generated = true` and credits NOTHING (replay-safe)
+             · the field is accumulated by `add_debris_field(...)` ON CONFLICT (universe, galaxy, system, position)
+               DO UPDATE SET metal = metal + EXCLUDED.metal (never overwritten, never duplicated)
+             · amounts come from `calculate_combat_ship_debris` / `calculate_combat_defense_debris`, which apply
+               `universes.fleet_debris_percentage` / `defense_debris_percentage`; zero debris → no field at all
+READING    `debris_fields` is `deny_direct_api_access`; the client-visible path is `can_recycle_debris` plus the
+             RECYCLE mission. (No galaxy-view read contract for debris exists — see GAPS.)
+COLLECTION RECYCLE arrival → `process_fleet_movements` calls `collect_debris(fleet, g,s,p)`:
+             · locks the field FOR UPDATE; requires a recycler (`calculate_recycler_capacity > 0`)
+             · splits capacity proportionally over metal/crystal, never collecting more than present
+             · UPDATE ... GREATEST(0, ...) then DELETE only when both resources reach 0
+             · stores the haul on the fleet (`fleet_movements.metal/crystal`) and sets status RETURNING,
+               guarded by `where id = fleet and status = 'ARRIVED'` → a replay cannot collect twice
+RETURN     the RETURNING leg of the same worker credits `fm.metal/crystal/deuterium` to `fm.origin_planet_id`,
+             returns the ships to `planet_ships`, zeroes the fleet cargo and sets status COMPLETED — inside
+             `where id = fleet and status = 'RETURNING'` (idempotent)
+```
+
+```text
+LGI vs OGameX   OGameX separates the classic debris field from `WreckFieldService` (a REPAIRABLE wreck tied to
+                a Space Dock). LGI implements the classic debris field end-to-end; the repairable wreck, the
+                Space Dock and debris decay are MISSING / OUT OF SCOPE (no space dock building exists and no
+                decay is configured).
+GAPS            no client read contract for `debris_fields` (a galaxy/system view cannot list fields) and no
+                debris decay/cleanup job. Neither is required by a current UI or mechanic.
+```
 
 
 

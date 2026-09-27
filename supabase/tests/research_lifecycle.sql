@@ -132,6 +132,21 @@ begin
 
     delete from public.research_queue where player_id = v_player;
 
+    /* ---------- PRECONDICIÓN DEL GATE DE LABORATORIO (migración 20260926180000)
+       Los 16 techs exigen `research_lab` N en el planeta que INICIA la investigación
+       (OGameX `ResearchObjects`), de modo que sin laboratorio `start_research` rechaza
+       con RESEARCH_REQUIREMENTS_NOT_MET antes de tocar el ciclo de vida. El fixture
+       instala el nivel EXIGIDO por el propio contrato (derivado de
+       `research_building_prerequisites`, nunca inventado) para los tres elementos que
+       ejercita, y así esta suite sigue midiendo el ciclo de vida, no el gate.
+       El nivel queda dentro de la transacción: el ROLLBACK no deja residuo. */
+    insert into public.planet_buildings(planet_id, building_id, level)
+    select v_planet, rbp.building_id, max(rbp.required_level)
+      from public.research_building_prerequisites rbp
+     where rbp.research_id in (v_research, v_research2, v_research_pre)
+     group by rbp.building_id
+    on conflict (planet_id, building_id) do update set level = excluded.level;
+
     insert into public.player_research(player_id, research_id, level)
     values (v_player, v_research, 0)
     on conflict (player_id, research_id) do update set level = 0;
@@ -499,6 +514,13 @@ begin
        set started_at = now() - interval '1 second',
            finishes_at = now()
      where id = v_queue2;
+
+    /* El tick universal es el camino del WORKER (service_role, sin `sub`): recorre TODO el universo y
+       `calculate_planet_storage` (SECURITY DEFINER, gate de ownership) rechaza con PLAYER_NOT_OWNED los
+       planetas que no pertenecen a la sesión autenticada. El harness reproduce el contexto real del
+       worker (auth.uid() IS NULL) sólo alrededor de estos dos ticks; `start_research` (línea anterior)
+       sí necesita la sesión del propietario. Es una precondición del fixture, no un cambio de contrato. */
+    perform set_config('request.jwt.claims', '{}', true);
     perform * from public.process_universe_tick(v_universe);
 
     select status into v_status from public.research_queue where id = v_queue2;
@@ -510,6 +532,8 @@ begin
             else 'FAIL: status=' || coalesce(v_status, 'null') || ' nivel=' || v_level end);
 
     perform * from public.process_universe_tick(v_universe);
+    perform set_config('request.jwt.claims',
+        json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
     select status into v_status from public.research_queue where id = v_queue2;
     select coalesce(max(level), 0) into v_active
       from public.player_research where player_id = v_player and research_id = v_research2;
@@ -675,9 +699,17 @@ SELECT
     LIMIT 1
   ),
   (
+    /* Aserción 3: el contrato expone las DOS dimensiones declaradas — research→research
+       (`research_prerequisites`) y research→building (`research_building_prerequisites`,
+       mecanismo 20260925192948, contenido activo desde 20260926180000). Antes de la activación
+       del laboratorio el conteo de una sola dimensión coincidía por casualidad. */
     SELECT count(*)
-    FROM public.research_prerequisites rp2
-    WHERE rp2.research_id = (
+    FROM (
+      SELECT rp2.research_id FROM public.research_prerequisites rp2
+      UNION ALL
+      SELECT rbp2.research_id FROM public.research_building_prerequisites rbp2
+    ) declared
+    WHERE declared.research_id = (
       SELECT rp.research_id
       FROM public.research_prerequisites rp
       GROUP BY rp.research_id

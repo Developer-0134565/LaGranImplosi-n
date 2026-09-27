@@ -25,6 +25,16 @@
 
 begin;
 
+/* FLEET SLOTS PREREQUISITE (2026-09-26): the engine now enforces 1 + computer_technology simultaneous fleets
+   on every fleet_movements insert (trigger trg_enforce_fleet_slots). This fixture needs several live
+   movements at once, so it grants a high computer_technology level to every player before exercising its
+   contract. See supabase/tests/fleet_slots_enforcement.sql for the enforcement fixture. */
+insert into public.player_research(player_id, research_id, level)
+select pl.id, 'computer_technology', 60
+from public.players pl
+on conflict (player_id, research_id) do update set level = greatest(public.player_research.level, excluded.level);
+
+
 drop table if exists t_acs_results;
 create temp table t_acs_results(orden serial, resultado text, prueba text);
 
@@ -163,6 +173,13 @@ begin
     v_ok := v_ret = v_b1 and v_status = 'RETURNING';
     v_lines := v_lines || case when v_ok then 'PASS|' else 'FAIL|' end
       || format('A1 single-attacker settlement returns its battle and the fleet returns (status=%s)', v_status) || E'\n';
+    v_fail := v_fail + case when v_ok then 0 else 1 end;
+
+    -- H3: replay through a non-initiating participant after settlement
+    v_ret2 := public.resolve_attack_arrival(v_f_t2);
+    v_ok := v_ret2 = v_b1;
+    v_lines := v_lines || case when v_ok then 'PASS|' else 'FAIL|' end
+      || 'H3 non-initiating participant replay returns the existing battle' || E'\n';
     v_fail := v_fail + case when v_ok then 0 else 1 end;
 
     select count(*) into v_rows from public.combat_battle_participants where battle_id = v_b1;

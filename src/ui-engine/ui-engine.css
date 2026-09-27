@@ -1,0 +1,1082 @@
+/* ============================================================================
+   LGI UI ENGINE — STRUCTURE
+
+   Jerarquía:
+     .lgi-engine            raíz (data-lgi-template / -theme / -density)
+       .lgi-screen          contenedor de medida (container-type: inline-size)
+         .lgi-layout        rejilla del template (grid-template-areas)
+           .lgi-region      contenedor de medida de módulo (container query)
+             .lgi-module    un módulo del registry
+
+   Ninguna regla de este archivo usa media queries de viewport para el
+   comportamiento de los componentes: el espacio disponible manda.
+   ========================================================================= */
+
+.lgi-engine {
+  display: block;
+  min-width: 0;
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-body);
+  font-size: var(--lgi-text-md);
+  line-height: var(--lgi-leading-normal);
+}
+
+.lgi-engine *,
+.lgi-engine *::before,
+.lgi-engine *::after {
+  box-sizing: border-box;
+}
+
+.lgi-screen {
+  container-type: inline-size;
+  container-name: lgi-screen;
+  min-width: 0;
+  padding-bottom: var(--lgi-space-4);
+}
+
+.lgi-layout {
+  display: grid;
+  gap: var(--lgi-gap);
+  min-width: 0;
+  align-items: start;
+}
+
+.lgi-region {
+  container-type: inline-size;
+  container-name: lgi-region;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lgi-gap);
+  min-width: 0;
+  min-height: 0;
+}
+
+.lgi-module {
+  container-type: inline-size;
+  container-name: lgi-module;
+  min-width: 0;
+}
+
+.lgi-note {
+  margin: 0;
+  color: var(--lgi-text-dim);
+  font-size: var(--lgi-text-sm);
+}
+
+.lgi-eyebrow {
+  display: block;
+  color: var(--lgi-accent);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--lgi-tracking-wider);
+  text-transform: uppercase;
+}
+
+/* ============================================================================
+   GEOMETRÍA POR TEMPLATE
+
+   El template decide dónde vive cada región. Los módulos no saben nada de
+   esto: sólo declaran su id.
+   ========================================================================= */
+
+/* ---- classic: rail operativo + contenido central + columna de imperio ---- */
+.lgi-engine[data-lgi-template='classic'] .lgi-layout {
+  grid-template-columns:
+    minmax(var(--lgi-track-rail-min, 176px), var(--lgi-track-rail-max, 214px))
+    minmax(0, 1fr)
+    minmax(var(--lgi-track-aside-min, 186px), var(--lgi-track-aside-max, 246px));
+  grid-template-areas: 'rail main aside';
+}
+
+.lgi-engine[data-lgi-template='classic'] .lgi-region[data-region='rail'] {
+  grid-area: rail;
+}
+
+.lgi-engine[data-lgi-template='classic'] .lgi-region[data-region='main'] {
+  grid-area: main;
+}
+
+.lgi-engine[data-lgi-template='classic'] .lgi-region[data-region='aside'] {
+  grid-area: aside;
+}
+
+/* ---- command: cabecera a todo el ancho + trabajo + panel contextual ---- */
+.lgi-engine[data-lgi-template='command'] .lgi-layout {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(var(--lgi-track-aside-min, 214px), var(--lgi-track-aside-max, 296px));
+  grid-template-areas:
+    'header header'
+    'main aside';
+}
+
+.lgi-engine[data-lgi-template='command'] .lgi-region[data-region='header'] {
+  grid-area: header;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.lgi-engine[data-lgi-template='command'] .lgi-region[data-region='header'] > .lgi-module {
+  flex: 1 1 min(260px, 100%);
+}
+
+.lgi-engine[data-lgi-template='command'] .lgi-region[data-region='main'] {
+  grid-area: main;
+}
+
+.lgi-engine[data-lgi-template='command'] .lgi-region[data-region='aside'] {
+  grid-area: aside;
+}
+
+/* ---- tactical: tira de estado + tres columnas + barra de acciones ---- */
+.lgi-engine[data-lgi-template='tactical'] .lgi-layout {
+  grid-template-columns:
+    minmax(
+      var(--lgi-track-ops-min, 0px),
+      var(--lgi-track-ops-max, 1.05fr)
+    )
+    minmax(
+      var(--lgi-track-assets-min, 0px),
+      var(--lgi-track-assets-max, 1fr)
+    )
+    minmax(
+      var(--lgi-track-log-min, 0px),
+      var(--lgi-track-log-max, .82fr)
+    );
+  grid-template-areas:
+    'status status status'
+    'ops assets log'
+    'actions actions actions';
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-region[data-region='status'] {
+  grid-area: status;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-region[data-region='status'] > .lgi-module {
+  flex: 1 1 min(240px, 100%);
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-region[data-region='ops'] {
+  grid-area: ops;
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-region[data-region='assets'] {
+  grid-area: assets;
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-region[data-region='log'] {
+  grid-area: log;
+}
+
+.lgi-engine[data-lgi-template='tactical'] .lgi-region[data-region='actions'] {
+  grid-area: actions;
+}
+
+/* ---- orbital: tira de estado + rail de mando + ventana central + activos ---- */
+.lgi-engine[data-lgi-template='orbital'] .lgi-layout {
+  grid-template-columns:
+    minmax(var(--lgi-track-rail-min, 180px), var(--lgi-track-rail-max, 230px))
+    minmax(0, 1fr)
+    minmax(var(--lgi-track-ops-min, 200px), var(--lgi-track-ops-max, 264px));
+  grid-template-areas:
+    'status status status'
+    'rail main ops'
+    'rail main assets'
+    'actions actions actions';
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='status'] {
+  grid-area: status;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='status'] > .lgi-module {
+  flex: 1 1 min(280px, 100%);
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='rail'] {
+  grid-area: rail;
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='main'] {
+  grid-area: main;
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='ops'] {
+  grid-area: ops;
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='assets'] {
+  grid-area: assets;
+}
+
+.lgi-engine[data-lgi-template='orbital'] .lgi-region[data-region='actions'] {
+  grid-area: actions;
+}
+
+/* ---- industrial: cabecera de imperio + planta + colas + registro al pie ---- */
+.lgi-engine[data-lgi-template='industrial'] .lgi-layout {
+  grid-template-columns:
+    minmax(var(--lgi-track-rail-min, 170px), var(--lgi-track-rail-max, 214px))
+    minmax(0, 1fr)
+    minmax(var(--lgi-track-aside-min, 210px), var(--lgi-track-aside-max, 280px));
+  grid-template-areas:
+    'header header header'
+    'rail main aside'
+    'log log log'
+    'actions actions actions';
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='header'] {
+  grid-area: header;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='header'] > .lgi-module {
+  flex: 1 1 min(260px, 100%);
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='rail'] {
+  grid-area: rail;
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='main'] {
+  grid-area: main;
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='aside'] {
+  grid-area: aside;
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='log'] {
+  grid-area: log;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='log'] > .lgi-module {
+  flex: 1 1 min(300px, 100%);
+}
+
+.lgi-engine[data-lgi-template='industrial'] .lgi-region[data-region='actions'] {
+  grid-area: actions;
+}
+
+/* ---- minimal: contenido principal + panel único ---- */
+.lgi-engine[data-lgi-template='minimal'] .lgi-layout {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(var(--lgi-track-aside-min, 230px), var(--lgi-track-aside-max, 320px));
+  grid-template-areas:
+    'header aside'
+    'main aside';
+}
+
+.lgi-engine[data-lgi-template='minimal'] .lgi-region[data-region='header'] {
+  grid-area: header;
+}
+
+.lgi-engine[data-lgi-template='minimal'] .lgi-region[data-region='main'] {
+  grid-area: main;
+}
+
+.lgi-engine[data-lgi-template='minimal'] .lgi-region[data-region='aside'] {
+  grid-area: aside;
+}
+
+
+/* ============================================================================
+   ADAPTABILIDAD DE LA REJILLA — CONTAINER QUERIES
+
+   El ancho que importa es el del contenedor de pantalla, no el del viewport:
+   el mismo template puede caer a una o dos columnas según el espacio real que
+   le dé la aplicación. Los overrides van con !important porque la capa
+   heredada del proyecto (template-*.css) fuerza geometrías con !important y
+   estas reglas deben ganarle sin reescribir esa capa.
+   ========================================================================= */
+
+@container lgi-screen (max-width: 1080px) {
+  .lgi-engine[data-lgi-template='classic'] .lgi-layout {
+    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) !important;
+    grid-template-areas: 'rail main' 'aside aside' !important;
+  }
+
+  .lgi-engine[data-lgi-template='orbital'] .lgi-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-areas:
+      'status status'
+      'rail main'
+      'ops ops'
+      'assets assets'
+      'actions actions' !important;
+  }
+
+  .lgi-engine[data-lgi-template='industrial'] .lgi-layout {
+    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) !important;
+    grid-template-areas:
+      'header header'
+      'rail main'
+      'aside aside'
+      'log log'
+      'actions actions' !important;
+  }
+}
+
+@container lgi-screen (max-width: 960px) {
+  .lgi-engine[data-lgi-template='minimal'] .lgi-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: 'header' 'main' 'aside' !important;
+  }
+}
+
+@container lgi-screen (max-width: 900px) {
+  .lgi-engine[data-lgi-template='command'] .lgi-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: 'header' 'main' 'aside' !important;
+  }
+
+  .lgi-engine[data-lgi-template='tactical'] .lgi-layout {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) !important;
+    grid-template-areas: 'status status' 'ops assets' 'log log' 'actions actions' !important;
+  }
+}
+
+@container lgi-screen (max-width: 760px) {
+  .lgi-engine[data-lgi-template] .lgi-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: none !important;
+  }
+
+  .lgi-engine[data-lgi-template] .lgi-region[data-region] {
+    grid-area: auto !important;
+  }
+
+  .lgi-engine[data-lgi-template] .lgi-region[data-region='header'],
+  .lgi-engine[data-lgi-template] .lgi-region[data-region='status'] {
+    flex-direction: column !important;
+  }
+}
+
+/* ============================================================================
+   REJILLA INTERNA DE REGIÓN — el "RESIZE" del UI Designer
+
+   Por defecto una región apila sus módulos (flex column), exactamente como
+   antes. Cuando el Designer asigna `data-region-columns` (> 1) la región pasa a
+   ser una rejilla CSS y cada módulo ocupa `--lgi-module-span` columnas.
+   No existe ni un solo píxel de posición: sólo nº de columnas y span.
+   ========================================================================= */
+
+.lgi-engine .lgi-region[data-region-columns]:not([data-region-columns='1']) {
+  display: grid;
+  grid-template-columns: repeat(var(--lgi-region-columns, 1), minmax(0, 1fr));
+  align-content: start;
+  align-items: start;
+}
+
+.lgi-engine .lgi-region[data-region-columns]:not([data-region-columns='1']) > .lgi-module {
+  grid-column: span var(--lgi-module-span, 1);
+  min-width: 0;
+}
+
+/* ============================================================================
+   MÓVIL — TAMAÑOS TÁCTILES Y SAFE AREAS
+
+   En anchos de contenedor móviles los controles del engine suben a 40 px de
+   alto: un `<select>` de 22 px no es usable con el dedo. La escala de UI sigue
+   mandando, así que el Designer puede comparar 80% / 100% / 130%.
+   `env(safe-area-inset-*)` vale 0 cuando no hay notch, de modo que estas reglas
+   no introducen huecos falsos en escritorio.
+   ========================================================================= */
+
+@container lgi-screen (max-width: 760px) {
+  .lgi-engine .lgi-layout {
+    --lgi-row-min: calc(40px * var(--lgi-ui-scale));
+    --lgi-touch-min: calc(40px * var(--lgi-ui-scale));
+  }
+
+  .lgi-engine .neo-button,
+  .lgi-engine :where(button, select, input, textarea) {
+    min-height: calc(40px * var(--lgi-ui-scale)) !important;
+  }
+}
+
+html[data-lgi-preview-mobile] .lgi-screen,
+.lgi-engine[data-lgi-safe-area='on'] .lgi-screen {
+  padding-inline:
+    max(var(--lgi-space-3), env(safe-area-inset-left))
+    max(var(--lgi-space-3), env(safe-area-inset-right));
+  padding-bottom: max(var(--lgi-space-4), env(safe-area-inset-bottom));
+}
+
+/* ============================================================================
+   DEVICE PREVIEW (UI Designer)
+
+   El perfil de dispositivo NO redimensiona el viewport del navegador: limita el
+   ancho del contenedor del engine. Como toda la adaptabilidad del engine son
+   container queries, el resultado es fiel al dispositivo elegido y no depende
+   de que el navegador simule hardware. Sólo lo activa el Designer.
+   ========================================================================= */
+
+html[data-lgi-preview-width] .lgi-engine {
+  max-width: var(--lgi-preview-width);
+  margin-inline: auto;
+  padding-top: env(safe-area-inset-top);
+}
+
+
+
+/* ============================================================================
+   PRIMITIVAS DEL ENGINE — 100% tokens (--lgi-*)
+   ========================================================================= */
+
+.lgi-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-m);
+  background: var(--lgi-surface);
+  box-shadow: var(--lgi-shadow-1);
+  overflow: hidden;
+  transition:
+    border-color var(--lgi-motion-base) var(--lgi-ease),
+    box-shadow var(--lgi-motion-base) var(--lgi-ease);
+}
+
+.lgi-panel--accent {
+  border-color: var(--lgi-line-strong);
+  box-shadow: var(--lgi-shadow-2);
+}
+
+.lgi-panel--quiet {
+  background: var(--lgi-surface-2);
+  box-shadow: var(--lgi-shadow-inset);
+}
+
+.lgi-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lgi-space-3);
+  min-height: var(--lgi-row-min);
+  padding: var(--lgi-panel-head-y) var(--lgi-panel-head-x);
+  border-bottom: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  background: var(--lgi-surface-2);
+}
+
+.lgi-panel__title {
+  margin: 0;
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-sm);
+  font-weight: 700;
+  letter-spacing: var(--lgi-tracking-wide);
+  text-transform: uppercase;
+}
+
+.lgi-panel__meta {
+  color: var(--lgi-accent);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lgi-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lgi-space-3);
+  min-width: 0;
+  padding: var(--lgi-panel-pad-y) var(--lgi-panel-pad-x);
+}
+
+.lgi-panel--flush .lgi-panel__body {
+  padding: 0;
+}
+
+/* ---- estadísticas ---- */
+.lgi-stats {
+  display: grid;
+  grid-template-columns: repeat(var(--lgi-stat-columns, 2), minmax(0, 1fr));
+  gap: var(--lgi-space-2);
+  margin: 0;
+}
+
+.lgi-stats[data-columns='1'] { --lgi-stat-columns: 1; }
+.lgi-stats[data-columns='3'] { --lgi-stat-columns: 3; }
+.lgi-stats[data-columns='4'] { --lgi-stat-columns: 4; }
+
+.lgi-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lgi-space-3);
+  min-width: 0;
+  padding: var(--lgi-space-2) var(--lgi-space-3);
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-s);
+  background: var(--lgi-surface-3);
+}
+
+.lgi-stat dt {
+  margin: 0;
+  overflow: hidden;
+  color: var(--lgi-text-dim);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lgi-stat dd {
+  margin: 0;
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.lgi-stat--accent dd { color: var(--lgi-accent); }
+.lgi-stat--ok dd { color: var(--lgi-ok); }
+.lgi-stat--warn dd { color: var(--lgi-warn); }
+.lgi-stat--danger dd { color: var(--lgi-danger); }
+
+/* ---- campos y controles ---- */
+.lgi-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--lgi-field-min, 120px), 1fr));
+  gap: var(--lgi-space-3);
+  min-width: 0;
+}
+
+.lgi-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lgi-space-1);
+  min-width: 0;
+}
+
+.lgi-field--wide {
+  grid-column: 1 / -1;
+}
+
+.lgi-field__label {
+  color: var(--lgi-text-dim);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+  text-transform: uppercase;
+}
+
+.lgi-field__hint {
+  color: var(--lgi-text-faint);
+  font-size: var(--lgi-text-2xs);
+  line-height: var(--lgi-leading-tight);
+}
+
+.lgi-engine :where(input, select, textarea) {
+  width: 100%;
+  min-height: var(--lgi-row-min);
+  padding: var(--lgi-space-2) var(--lgi-space-3);
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line-strong);
+  border-radius: var(--lgi-radius-s);
+  background: var(--lgi-surface-2);
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-body);
+  font-size: var(--lgi-text-sm);
+  transition: border-color var(--lgi-motion-fast) var(--lgi-ease);
+}
+
+.lgi-engine :where(input, select, textarea):focus-visible {
+  outline: none;
+  border-color: var(--lgi-accent);
+  box-shadow: 0 0 0 var(--lgi-focus-ring) var(--lgi-accent-soft);
+}
+
+.lgi-engine :where(input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.lgi-engine :where(input, select) :where(option) {
+  background: var(--lgi-bg);
+  color: var(--lgi-text);
+}
+
+.lgi-engine :where(input[type='number'], input[inputmode='numeric']) {
+  font-family: var(--lgi-font-number);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- tarjetas ---- */
+.lgi-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--lgi-card-min, 176px), 1fr));
+  gap: var(--lgi-space-3);
+  min-width: 0;
+}
+
+/* ---- acciones, avisos y etiquetas ---- */
+.lgi-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--lgi-space-4);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lgi-actions--end { justify-content: flex-end; }
+.lgi-actions--start { justify-content: flex-start; }
+.lgi-actions--between { justify-content: space-between; }
+
+.lgi-actions__content {
+  display: flex;
+  align-items: center;
+  gap: var(--lgi-space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lgi-actions__hint {
+  flex: 1 1 220px;
+  min-width: 0;
+  color: var(--lgi-warn);
+  font-size: var(--lgi-text-2xs);
+  line-height: var(--lgi-leading-tight);
+}
+
+.lgi-notice-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lgi-space-1);
+  min-width: 0;
+}
+
+.lgi-notice {
+  margin: 0;
+  padding: var(--lgi-space-2) var(--lgi-space-3);
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-s);
+  font-size: var(--lgi-text-xs);
+  line-height: var(--lgi-leading-normal);
+}
+
+.lgi-notice--ok {
+  border-color: var(--lgi-ok);
+  background: var(--lgi-accent-soft);
+  color: var(--lgi-ok);
+}
+
+.lgi-notice--error {
+  border-color: var(--lgi-danger);
+  color: var(--lgi-danger);
+}
+
+.lgi-notice-bar__dismiss {
+  position: absolute;
+  top: var(--lgi-space-1);
+  right: var(--lgi-space-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--lgi-text-md);
+  cursor: pointer;
+}
+
+.lgi-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lgi-space-1);
+  padding: 2px var(--lgi-space-2);
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-pill);
+  background: var(--lgi-surface-3);
+  color: var(--lgi-text-dim);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+  white-space: nowrap;
+}
+
+.lgi-pill--accent { border-color: var(--lgi-line-strong); color: var(--lgi-accent); }
+.lgi-pill--ok { border-color: var(--lgi-ok); color: var(--lgi-ok); }
+.lgi-pill--warn { border-color: var(--lgi-warn); color: var(--lgi-warn); }
+.lgi-pill--danger { border-color: var(--lgi-danger); color: var(--lgi-danger); }
+
+/* ---- cabecera de pantalla ---- */
+.lgi-screen-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--lgi-space-4);
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: var(--lgi-space-3) var(--lgi-space-4);
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-m);
+  background: var(--lgi-surface);
+  box-shadow: var(--lgi-shadow-1);
+}
+
+.lgi-screen-head__text {
+  min-width: 0;
+}
+
+.lgi-screen-head h1 {
+  margin: var(--lgi-space-1) 0 0;
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-title);
+  font-size: var(--lgi-text-xl);
+  font-weight: 800;
+  letter-spacing: var(--lgi-tracking-tight);
+  line-height: var(--lgi-leading-tight);
+}
+
+.lgi-screen-head p {
+  margin: var(--lgi-space-1) 0 0;
+  color: var(--lgi-text-dim);
+  font-size: var(--lgi-text-xs);
+}
+
+.lgi-screen-head__meta {
+  color: var(--lgi-accent);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-sm);
+  font-weight: 700;
+  letter-spacing: var(--lgi-tracking-wide);
+  white-space: nowrap;
+}
+
+.lgi-screen-head__extra {
+  display: flex;
+  align-items: center;
+  gap: var(--lgi-space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* ============================================================================
+   TOKENS PARA EL MARKUP DE LOS MÓDULOS MIGRADOS
+
+   Los módulos de Fleet conservan sus clases de contrato visual (`neo-*`,
+   `fleet-*`) para no reescribir el motor ni romper los datos; aquí sólo se
+   re-mapea su apariencia a tokens del engine. Todo queda acotado a
+   `.lgi-engine`, así que la vista de expediciones (no migrada) no cambia.
+   Los `!important` son necesarios porque template-*.css fija tamaños con
+   !important sobre estas mismas clases.
+   ========================================================================= */
+
+.lgi-engine .neo-button {
+  min-height: var(--lgi-row-min) !important;
+  padding: var(--lgi-space-2) var(--lgi-space-4) !important;
+  border: 0;
+  border-radius: var(--lgi-radius-s);
+  background: linear-gradient(120deg, var(--lgi-accent), var(--lgi-accent-2));
+  color: var(--lgi-accent-contrast);
+  font-family: var(--lgi-font-button);
+  font-size: var(--lgi-text-sm) !important;
+  font-weight: 800;
+  letter-spacing: var(--lgi-tracking-tight);
+  box-shadow: var(--lgi-shadow-1);
+  transition: filter var(--lgi-motion-fast) var(--lgi-ease);
+}
+
+.lgi-engine .neo-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: linear-gradient(120deg, var(--lgi-accent), var(--lgi-accent-2));
+}
+
+.lgi-engine .neo-button.secondary {
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line-strong);
+  background: var(--lgi-surface-2);
+  color: var(--lgi-text);
+  box-shadow: none;
+}
+
+.lgi-engine .neo-button.secondary:hover:not(:disabled) {
+  border-color: var(--lgi-accent);
+  background: var(--lgi-accent-soft);
+}
+
+.lgi-engine .fleet-group-head,
+.lgi-engine .fleet-launch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lgi-space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lgi-engine .fleet-group-head h2 {
+  margin: 0;
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-sm);
+  font-weight: 700;
+  letter-spacing: var(--lgi-tracking-wide);
+  text-transform: uppercase;
+}
+
+.lgi-engine .fleet-group-head > span,
+.lgi-engine .fleet-launch-head > small {
+  color: var(--lgi-accent);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+}
+
+.lgi-engine .fleet-launch-head > small {
+  color: var(--lgi-warn);
+  letter-spacing: 0;
+}
+
+.lgi-engine .fleet-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: var(--lgi-space-3);
+  align-items: end;
+  min-width: 0;
+}
+
+.lgi-engine .fleet-controls > label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lgi-space-1);
+  min-width: 0;
+}
+
+.lgi-engine .fleet-controls > label > span,
+.lgi-engine .fleet-controls > span {
+  color: var(--lgi-text-dim);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+  text-transform: uppercase;
+}
+
+.lgi-engine .fleet-controls > span {
+  grid-column: 1 / -1;
+}
+
+.lgi-engine .fleet-selection-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--lgi-space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lgi-engine .neo-definition-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lgi-space-2);
+}
+
+.lgi-engine .neo-definition-stats > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lgi-space-2);
+  min-width: 0;
+  padding: var(--lgi-space-2) var(--lgi-space-3);
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-s);
+  background: var(--lgi-surface-3);
+  color: var(--lgi-text-dim);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-2xs);
+  letter-spacing: var(--lgi-tracking-wide);
+  text-transform: uppercase;
+}
+
+.lgi-engine .neo-definition-stats b {
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-sm);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.lgi-engine .lgi-panel__body > p,
+.lgi-engine .lgi-panel__body > small {
+  margin: 0;
+  color: var(--lgi-text-faint);
+  font-size: var(--lgi-text-2xs);
+  line-height: var(--lgi-leading-normal);
+}
+
+.lgi-engine .lgi-panel__body > p b {
+  color: var(--lgi-text-dim);
+}
+
+.lgi-engine .neo-definition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lgi-space-3);
+  min-width: 0;
+  padding: var(--lgi-panel-pad-y) var(--lgi-panel-pad-x) !important;
+  border: var(--lgi-border-width) var(--lgi-border-style) var(--lgi-line);
+  border-radius: var(--lgi-radius-m);
+  background: var(--lgi-surface);
+  box-shadow: var(--lgi-shadow-1);
+}
+
+.lgi-engine .neo-definition .neo-panel-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lgi-space-2);
+}
+
+.lgi-engine .neo-definition .neo-panel-title strong {
+  display: block;
+  color: var(--lgi-text);
+  font-family: var(--lgi-font-heading);
+  font-size: var(--lgi-text-md);
+  letter-spacing: var(--lgi-tracking-tight);
+}
+
+.lgi-engine .neo-definition .neo-panel-title small {
+  display: block;
+  margin-top: var(--lgi-space-1);
+  color: var(--lgi-text-faint);
+  font-family: var(--lgi-font-number);
+  font-size: var(--lgi-text-2xs);
+  line-height: var(--lgi-leading-normal);
+}
+
+.lgi-engine .neo-definition .neo-button {
+  margin-top: 0 !important;
+  width: 100%;
+}
+
+.lgi-engine .neo-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--lgi-card-min, 176px), 1fr));
+  gap: var(--lgi-space-3);
+  min-width: 0;
+}
+
+.lgi-engine .neo-empty {
+  padding: var(--lgi-panel-pad-y) var(--lgi-panel-pad-x);
+  color: var(--lgi-text-dim);
+  font-size: var(--lgi-text-xs);
+  line-height: var(--lgi-leading-normal);
+}
+
+/* Las pantallas migradas no heredan la superficie del panel heredado: el
+   engine ya aporta la caja. Sin esto habría cajas dentro de cajas. */
+.lgi-engine .lgi-panel > .neo-panel,
+.lgi-engine .lgi-module > .neo-panel {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ============================================================================
+   COMPONENTES ADAPTATIVOS — container queries sobre el CONTENEDOR del módulo
+
+   El mismo componente se reorganiza según el espacio que le da el template:
+   multi-columna en contenedores anchos, apilado en contenedores estrechos.
+   Nunca depende del viewport, así que el mismo módulo se ve correcto tanto en
+   el rail estrecho de `classic` como en la columna ancha de `command`.
+   ========================================================================= */
+
+@container lgi-module (max-width: 470px) {
+  .lgi-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container lgi-module (max-width: 430px) {
+  .lgi-engine .fleet-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lgi-engine .neo-definition-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lgi-cards,
+  .lgi-engine .neo-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lgi-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lgi-screen-head {
+    align-items: flex-start;
+  }
+}
+
+@container lgi-module (max-width: 360px) {
+  .lgi-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .lgi-stat dt {
+    white-space: normal;
+  }
+}
+
+@container lgi-module (min-width: 560px) {
+  .lgi-engine .neo-definition-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .lgi-engine .neo-card-grid {
+    --lgi-card-min: 200px;
+  }
+}
+
+@container lgi-module (min-width: 820px) {
+  .lgi-engine .neo-definition-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Navegadores sin container queries: la rejilla cae a auto-fit, que sigue
+   siendo fluida y no deja el layout roto. */
+@supports not (container-type: inline-size) {
+  .lgi-layout {
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)) !important;
+    grid-template-areas: none !important;
+  }
+
+  .lgi-region[data-region] {
+    grid-area: auto !important;
+  }
+}
+
+
+/*
+  La herramienta DEV (UI Designer: switcher de templates, capas de rejilla y
+  límites, modo edición, device preview) vive en designer.css. Este archivo
+  describe ÚNICAMENTE la estructura del engine que ve el jugador.
+*/

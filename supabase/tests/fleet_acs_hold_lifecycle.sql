@@ -25,6 +25,16 @@
 
 begin;
 
+/* FLEET SLOTS PREREQUISITE (2026-09-26): the engine now enforces 1 + computer_technology simultaneous fleets
+   on every fleet_movements insert (trigger trg_enforce_fleet_slots). This fixture needs several live
+   movements at once, so it grants a high computer_technology level to every player before exercising its
+   contract. See supabase/tests/fleet_slots_enforcement.sql for the enforcement fixture. */
+insert into public.player_research(player_id, research_id, level)
+select pl.id, 'computer_technology', 60
+from public.players pl
+on conflict (player_id, research_id) do update set level = greatest(public.player_research.level, excluded.level);
+
+
 
 do $test$
 declare

@@ -26,8 +26,25 @@ import App from './App.tsx'
 import TemplateChrome from './TemplateChrome.tsx'
 import LoginPage from './LoginPage'
 import { supabase } from './lib/supabase'
+import { UIDesigner, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } from './ui-engine'
 
-function Root() {
+/*
+  Raíz de la aplicación.
+
+  Dos superficies, un único provider del engine:
+
+    * `#ui-designer` → BANCO DE PRUEBAS DEV (`UIWorkbench`): monta el engine, los
+      grids de referencia y el UI Designer sin sesión. No toca gameplay.
+    * resto         → aplicación real (login → juego). El `UIDesigner` es la
+      herramienta DEV del engine; vive dentro del gate de sesión, igual que
+      antes vivía el switcher de templates.
+
+  `UIEngineProvider` resuelve el template activo (React + localStorage). El
+  provider NO toca Supabase: ninguna preferencia visual se persiste en el
+  backend.
+*/
+
+function AuthenticatedApp() {
   const [session, setSession] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
 
@@ -74,6 +91,23 @@ function Root() {
       <TemplateChrome />
       <App />
     </div>
+  )
+}
+
+function Root() {
+  const workbench = useUIWorkbenchRequested()
+
+  return (
+    <UIEngineProvider>
+      {workbench ? (
+        <UIWorkbench />
+      ) : (
+        <>
+          <AuthenticatedApp />
+          <UIDesigner />
+        </>
+      )}
+    </UIEngineProvider>
   )
 }
 

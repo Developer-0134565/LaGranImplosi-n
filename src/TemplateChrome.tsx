@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 
-type NavTarget = 'OVERVIEW' | 'EDIFICIOS' | 'INVESTIGACIÓN' | 'HANGAR' | 'DEFENSAS' | 'FLOTA' | 'GALAXIA' | 'EXPEDICIONES' | 'MENSAJES'
+type NavTarget = 'OVERVIEW' | 'EDIFICIOS' | 'INVESTIGACIÓN' | 'HANGAR' | 'DEFENSAS' | 'FLOTA' | 'GALAXIA' | 'EXPEDICIONES' | 'LUNA' | 'MENSAJES'
 type PlanetChip = { name: string; coords: string }
 
 function clickExistingNav(label: string) {
@@ -140,7 +140,7 @@ export default function TemplateChrome() {
     <aside className="template-side" aria-label="Navegación del imperio">
       <section><h3>Imperio</h3><MenuButton label="Vista general" target="OVERVIEW" active={isActive('OVERVIEW')}/><MenuButton label="Recursos" target="OVERVIEW"/><MenuButton label="Instalaciones" target="EDIFICIOS" active={isActive('EDIFICIOS')}/></section>
       <section><h3>Progresión</h3><MenuButton label="Oficiales" gold/><MenuButton label="Academia"/><MenuButton label="Formas de vida" target="EXPEDICIONES"/><MenuButton label="Investigación FV" target="INVESTIGACIÓN"/><MenuButton label="Civilización"/><MenuButton label="Investigación" target="INVESTIGACIÓN" active={isActive('INVESTIGACIÓN')}/></section>
-      <section><h3>Espacio</h3><MenuButton label="Flota" target="FLOTA" active={isActive('FLOTA')}/><MenuButton label="Hangar" target="HANGAR" active={isActive('HANGAR')}/><MenuButton label="Defensa" target="DEFENSAS" active={isActive('DEFENSAS')}/><MenuButton label="Galaxia" target="GALAXIA" active={isActive('GALAXIA')}/><MenuButton label="Expediciones" target="EXPEDICIONES" active={isActive('EXPEDICIONES')}/><MenuButton label="Mensajes" target="MENSAJES" active={isActive('MENSAJES')}/></section>
+      <section><h3>Espacio</h3><MenuButton label="Flota" target="FLOTA" active={isActive('FLOTA')}/><MenuButton label="Hangar" target="HANGAR" active={isActive('HANGAR')}/><MenuButton label="Defensa" target="DEFENSAS" active={isActive('DEFENSAS')}/><MenuButton label="Luna" target="LUNA" active={isActive('LUNA')}/><MenuButton label="Galaxia" target="GALAXIA" active={isActive('GALAXIA')}/><MenuButton label="Expediciones" target="EXPEDICIONES" active={isActive('EXPEDICIONES')}/><MenuButton label="Mensajes" target="MENSAJES" active={isActive('MENSAJES')}/></section>
       <section><h3>Comerciar</h3><MenuButton label="Mercader" gold/><MenuButton label="Importación / Exportación" gold/></section>
       <section><h3>Cuenta</h3><MenuButton label="Perfil"/><MenuButton label="Opciones"/></section>
     </aside>

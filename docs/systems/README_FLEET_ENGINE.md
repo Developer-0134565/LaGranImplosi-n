@@ -7,6 +7,9 @@
 > **IMPLEMENTED / NOT BROWSER-CERTIFIED** (§22): single support dispatcher + explicit destination-owner
 > authorization + `OUTBOUND → ARRIVED → HOLDING → RETURNING → COMPLETED` lifecycle. `DEFEND` remains
 > **BLOCKED BY COMBAT ENGINE**, holding fuel and maximum holding duration remain **OPEN**, UI is not built.
+> Transversal audit 2026-09-25 (§27): the mission-modifier matrix was re-verified on the deployed bodies, three
+> client-reachable internal calculation helpers were **closed** (ACL only, no formula change), the cargo/HOLDING
+> integration was certified, and **recall was recorded as MISSING + PRODUCT DECISION** (not implemented).
 >
 > Canonical durable record for ship prerequisites, propulsion technology, mission speed classes, cargo,
 > fuel, distance, dispatch and the movement lifecycle. OGameX is a reference pattern; L.G.I. keeps its own
@@ -90,7 +93,7 @@ universes.fleet_speed            legacy fallback for unknown mission names only
 universal multiplier. Current live values for both universes are `1.0/1.0/1.0`, so existing behaviour is
 preserved while the single-speed architectural limitation is removed.
 
-## 5. Mission modifier pipeline (canonical, verified in the 3 dispatch RPCs)
+## 5. Mission modifier pipeline (canonical, verified in the 4 dispatch RPCs)
 
 ```text
 ship base speed
@@ -194,8 +197,8 @@ the live function no longer exists. The canonical helper is `calculate_player_fl
 
 | Effect key | Computed by | Summed by | Applied in | Times |
 |---|---|---|---|---|
-| `fleet_speed_percent` (research) | `get_active_lifeform_research_effect(player, key)` | dispatchers (inline) | `v_bonus` of the 3 dispatch RPCs | 1 |
-| `fleet_speed_percent` (item) | `get_active_expedition_item_effect(player, planet, key)` | dispatchers (inline) | `v_bonus` of the 3 dispatch RPCs | 1 |
+| `fleet_speed_percent` (research) | `get_active_lifeform_research_effect(player, key)` | dispatchers (inline) | `v_bonus` of the 4 dispatch RPCs | 1 |
+| `fleet_speed_percent` (item) | `get_active_expedition_item_effect(player, planet, key)` | dispatchers (inline) | `v_bonus` of the 4 dispatch RPCs | 1 |
 | `expedition_speed_percent` (research) | `get_active_lifeform_research_effect` | dispatchers (inline) | `v_bonus`, EXPEDITION only | 1 |
 | `fuel_reduction_percent` (lifeform) | `get_player_lifeform_effect(player, key)` | `calculate_player_fleet_fuel_for_distance` | after distance/time/mass consumption, clamped `0..30` | 1 |
 | `civilian_ship_speed_percent` (research) | — | — | **never applied** | 0 (dead key) |
@@ -205,9 +208,25 @@ the live function no longer exists. The canonical helper is `calculate_player_fl
 helper does not re-apply speed bonuses, and the fuel reduction is applied exactly once (assertion 8 counts a
 single occurrence of `fuel_reduction_percent` in the fuel helper).
 
-Architectural note: the three dispatchers inline the approved modifier sum. The former duplicate helper
+Measured occurrence counts per body (2026-09-20, `pg_get_functiondef`):
+
+```text
+start_fleet / start_fleet_mixed / start_colonize_fleet / start_support_fleet
+    fleet_speed_percent     2   = item source + lifeform source, summed ONCE into v_bonus
+                                  (two different sources, not the same modifier twice)
+    expedition_speed_percent 1   start_fleet / start_fleet_mixed only, gated by mission = EXPEDITION
+    expedition_speed_percent 0   start_colonize_fleet / start_support_fleet (correct: not expeditions)
+    fuel_reduction_percent  0   never applied in a dispatcher
+    classifier calls        1   exactly one classification per dispatch
+    calculate_player_ship_speed 1
+calculate_player_fleet_fuel_for_distance
+    fuel_reduction_percent  1   the only application in the whole schema, clamped 0..30
+    calculate_player_ship_speed 1  legitimate input (speed is re-derived from the flight time)
+```
+
+Architectural note: the four dispatchers inline the approved modifier sum. The former duplicate helper
 `get_player_fleet_speed_multiplier(player, planet)` was retired with the dead legacy cluster on 2026-09-19,
-so the dead parallel path no longer remains deployed.
+so the dead parallel path no longer remains deployed (re-confirmed absent from LIVE on 2026-09-20).
 
 ## 10. Dispatch entrypoints
 
@@ -240,7 +259,23 @@ All audited dispatch paths now select the mission-speed class **before** evoluti
 start_colonize_fleet            → PEACEFUL (COLONIZE)
 start_fleet (single ship)       → ATTACK/ESPIONAGE/RECYCLE = WAR · TRANSPORT/DEPLOY/EXPEDITION = PEACEFUL
 start_fleet_mixed               → same mapping as start_fleet
+start_support_fleet             → HOLDING  (ACS_HOLD; DEFEND and HOLDING are refused)
 ```
+
+Dispatcher mission allow-lists (LIVE, 2026-09-20) — the four dispatchers partition the ten mission names
+with no overlap and no gap:
+
+```text
+start_fleet          accepts TRANSPORT · DEPLOY · ESPIONAGE · RECYCLE · EXPEDITION · ATTACK   (6, no COLONIZE)
+start_fleet_mixed    accepts TRANSPORT · DEPLOY · ESPIONAGE · RECYCLE · EXPEDITION · ATTACK   (6, no COLONIZE)
+start_colonize_fleet accepts COLONIZE only (own RPC, own colony-ship requirement)
+start_support_fleet  accepts ACS_HOLD only; DEFEND -> COMBAT_SUPPORT_NOT_READY,
+                     HOLDING -> HOLDING_IS_INTERNAL_STATE, anything else -> Invalid support mission type
+```
+
+`COLONIZE` is therefore validated by its own dispatcher, not by `start_fleet`; calling `start_fleet` with
+`COLONIZE` is rejected by the allow-list before any speed math runs. `fleet_movements.mission_type` carries a
+CHECK constraint listing exactly those ten names.
 
 Mixed fleets are validated independently: existence, prerequisites (`check_ship_requirements`), quantity,
 effective speed and mission restrictions. Travel time uses the **slowest effective ship speed**; fuel is
@@ -315,12 +350,12 @@ EXPEDITION belongs to PEACEFUL). It now resolves the class with
 | Dispatch RPC | **IMPLEMENTED (Fase A)** | single `start_support_fleet(...)`; `ACS_HOLD` accepted, `DEFEND` → `COMBAT_SUPPORT_NOT_READY`, `HOLDING` → `HOLDING_IS_INTERNAL_STATE` |
 | Persistence | **IMPLEMENTED** | `fleet_movements` admits the three mission names, stores `holding_until` and `idempotency_key`; the legacy constraints that blocked them were removed (§22.1) |
 | Lifecycle worker | **IMPLEMENTED** | due support becomes `HOLDING` after validating the holding window; due `holding_until` becomes `RETURNING` reusing the outbound duration |
-| Player dispatch | **IMPLEMENTED (backend only)** | no frontend caller yet; the UI phase is separate |
+| Player dispatch | **IMPLEMENTED (backend + UI)** | CORRECTED 2026-09-26: `src/FleetCommandPanel.tsx` dispatches `ACS_HOLD` through `start_support_fleet` from the FLOTA view; the earlier "no frontend caller yet" note predates the fleet UI block (the read contract for authorizations exists since `20260926214030`) |
 | Destination semantics | **IMPLEMENTED (temporary explicit policy)** | `planet_support_authorizations`: the destination owner grants/revokes a planet-scoped authorization; planet existence is never authorization |
 | Combat integration | **NOT_IMPLEMENTED — BLOCKED BY COMBAT ENGINE** | `DEFEND` cannot be created and cannot enter `HOLDING` |
 | Holding fuel | **NOT_IMPLEMENTED (product decision pending)** | no deuterium tick is invented for the hold window |
 | Maximum holding duration | **OPEN (product decision)** | no arbitrary maximum is hardcoded; only `holding_until > arrives_at` and future-ness are enforced |
-| UI | **NOT_IMPLEMENTED** | no ACS selector; the future selector will be `ACS_HOLD` + `DEFEND` (DEFEND stays closed) |
+| UI | **IMPLEMENTED** | CORRECTED 2026-09-26: the FLOTA view offers `ACS_HOLD` (with the destination selector and a holding window) plus the `SupportAuthorizationPanel` (grant/revoke/received); `DEFEND` stays closed (`COMBAT_SUPPORT_NOT_READY`) and `HOLDING` stays a non-dispatchable internal state. The earlier "no ACS selector" note predates that block |
 
 Actual implemented pipeline (migration `20260919100000_add_acs_hold_support_dispatch`):
 
@@ -360,7 +395,7 @@ planet-scoped owner authorization instead (§22.3).
 | `calculate_player_ship_speed` | **CANONICAL** | the only propulsion→speed routing |
 | `calculate_player_ship_fuel_consumption` | **CANONICAL** | the only engine→consumption routing |
 | `calculate_player_fleet_fuel_for_distance` | **CANONICAL** | fuel ordering (lifeform reduction once) |
-| `start_fleet` / `start_fleet_mixed` / `start_colonize_fleet` | **LOCAL REPRODUCIBLE / LIVE OPEN** | Local classifier and colonize-speed convergence is bounded; full LIVE parity remains unverified |
+| `start_fleet` / `start_fleet_mixed` / `start_colonize_fleet` | **CANONICAL — LIVE VERIFIED (2026-09-20)** | All three call `calculate_mission_fleet_speed_multiplier` with their own mission (`v_mission_type` / `'COLONIZE'`). No `universes.fleet_speed` read anywhere in any dispatcher. §23 records the verification and the now-unexecutable local convergence migration |
 | `resolve_*_arrival` + `process_fleet_movements` | **CANONICAL** | return leg = outbound duration; no speed math |
 | `calculate_expedition_delay_seconds` | **CANONICAL (was PARALLEL)** | converged 2026-09-18 (§12) |
 | `calculate_universe_rates` | **PARALLEL / DISTINCT PURPOSE** | informational snapshot; still uses `fleet_speed` × `fleet_movement_scale` and ignores the three classes → §15.2 |
@@ -378,12 +413,35 @@ planet-scoped owner authorization instead (§22.3).
 1. **ACS / HOLDING / DEFEND gameplay not implemented** (§13) — the lifecycle contract is now in place, but dispatch,
    support semantics, combat integration and UI remain the domain-level gameplay OPEN item.
 2. **Browser fleet flow — OPEN**: backend correctness is not browser certification. Verify fleet selection, dispatch, persisted countdown, arrival, mission resolution and return in the browser.
+   *Progress 2026-09-26 (GAP B/GAP I closeout):* every RPC the browser calls exists in LIVE with `authenticated`
+   EXECUTE and the 13 read contracts (fleets, expedition slots/items, inbox, moons, authorizations, battle /
+   espionage / expedition reports, ranking, colony cap) answer for the authenticated owner; the mission surface now
+   covers all nine dispatchable missions. A full browser-driven certification run is still pending.
+3. **COLONIZE from a moon — OPEN PRODUCT DECISION (new, measured 2026-09-26).** `start_colonize_fleet` does not
+   validate the origin kind, so a moon origin is accepted, and the fleet UI offers moons in the origin selector.
+   Classic OGame forbids colonising from a moon. Not restricted (no rule invented); detail in §23.3 item 7.
 
 ### 15.2 Design / hygiene decisions left open
 
 3. `calculate_universe_rates` still builds the fleet rate from the legacy `universes.fleet_speed`; decide the canonical meaning of a general fleet-rate snapshot now that three mission-speed classes exist.
 4. Lifeform keys defined but never applied: `civilian_ship_speed_percent`, `recall_fuel_recovery_percent`.
 5. `universes.expedition_speed` survives in `calculate_universe_rates`; it is no longer used for expedition travel time.
+6. `universes.lifeform_speed` is a **lifeform build/research rate, not a fleet class**: its only readers are
+   `calculate_lifeform_building_time`, `calculate_lifeform_research_time` and `calculate_universe_rates`.
+   `calculate_mission_fleet_speed_multiplier` correctly never reads it. The name invites confusion with a
+   fourth fleet speed class; it is not one.
+7. `calculate_universe_rates` is not dead: it is the shared economy-rate projector called by nine functions
+   (`calculate_planet_production`, `get_current_planet_resources`, `get_planet_economic_rates[_snapshot]`,
+   `project_planet_resources`, `project_building_production`, `calculate_building_production_delta`,
+   `update_planet_resources[_until_raw]`). Its `fleet` and `expedition` columns are informational outputs with
+   no dispatch consumer. Decision 3 above is therefore about the *meaning* of those two columns only.
+8. **`20260920010000_converge_local_fleet_dispatch_classifiers.sql` can never execute (2026-09-20 finding).**
+   Its three patchers raise unless the legacy `SELECT u.fleet_speed INTO v_fleet_speed FROM public.universes …`
+   / `SELECT sd.speed INTO v_ship_speed …` fragments are present. All six target fragments are absent from LIVE
+   and all three dispatchers already call the canonical classifier, so the migration aborts on its first
+   target. Its intended end state is **already LIVE**; the artifact is obsolete rather than pending.
+   Zero runtime impact (never applied). Recommended bounded action: supersede it, or convert its three
+   `RAISE EXCEPTION … not found` guards into idempotent skips. Not changed by this audit (report-only).
 
 The 2026-09-18/19 directed Mission Modifiers / Technology / legacy audit found **no functional LIVE bug** in
 the seven implemented mission paths. Technology routing, mission class routing, modifier ordering, fuel
@@ -395,15 +453,44 @@ The remaining items above are browser certification or bounded architecture deci
 ## 16. Tests
 
 ```text
-supabase/tests/fleet_speed_classes.sql        transactional (BEGIN … ROLLBACK) · 22/22 PASS live 2026-09-18
-                                              + assertion 10/10c updated for ACS_HOLD Fase A (pending LIVE re-run)
+supabase/tests/fleet_speed_classes.sql        transactional (BEGIN … ROLLBACK) · 23/23 PASS live 2026-09-23
+                                              (re-run after ACS_HOLD Fase A: assertions 1–10c incl. 10b/10c, zero residue)
 supabase/tests/fleet_acs_hold_lifecycle.sql   transactional (BEGIN … ROLLBACK) · ACS_HOLD Fase A (pending LIVE run)
 ```
 
 Covers: single class authority · class matrix incl. HOLDING and the legacy fallback · invalid-class exception
-· 3/3 dispatch wiring · no parallel travel formula (`35000` appears only twice) · expedition hold resolves the
+· 4/4 dispatch wiring · no parallel travel formula (`35000` appears only twice) · expedition hold resolves the
 class · technology routing single authority · fuel reduction applied once without hyperspace · legacy cluster verified consumer-free before retirement · ACS/HOLDING not dispatchable while `holding_fleet_speed` is ready. The failure
 message lists the failing assertions, so a run without notice output is still self-diagnosing.
+
+**Execution status (2026-09-20): BLOCKED — requires a runtime transactional test.** Both suites run
+`INSERT`/`UPDATE`/`DELETE` inside `BEGIN … ROLLBACK`, so they cannot be executed under a read-only
+introspection window. They were **not** run and are **not** recorded as PASS. Their previous PASS records
+(2026-09-18) remain the last executed evidence.
+
+Their **structural** assertions were independently re-derived read-only against LIVE on 2026-09-20 by
+stripping SQL comments from `pg_get_functiondef` (the same technique the suite uses) and counting matches:
+
+```text
+single class authority            functions other than the classifier reading
+                                  peaceful_fleet_speed | war_fleet_speed | holding_fleet_speed  -> 0   PASS
+no parallel travel formula        functions containing 35000                                  -> 2   PASS
+                                  (calculate_fleet_travel_time, calculate_player_fleet_fuel_for_distance)
+single technology authority       functions reading combustion_drive | impulse_drive |
+                                  hyperspace_drive                                            -> 2   PASS
+                                  (calculate_player_ship_speed, calculate_player_ship_fuel_consumption)
+bare universes.fleet_speed read   functions reading the legacy column                          -> 2   PASS
+                                  (the classifier itself + calculate_universe_rates only)
+expedition_speed column readers   the universes.expedition_speed column                        -> 1   PASS
+                                  (calculate_universe_rates only; not a dispatch path)
+classifier callers                start_fleet, start_fleet_mixed, start_colonize_fleet,
+                                  start_support_fleet, calculate_expedition_delay_seconds,
+                                  the classifier itself                                        -> 6   INFO
+```
+
+The **discriminating** part of the class matrix (assertion 2) needs a probe universe whose four speed
+columns differ, which requires `INSERT` → **BLOCKED**. Its mapping was therefore verified structurally from
+the classifier body, not at runtime.
 
 Related regression coverage: `supabase/tests/buildings_lifecycle.sql` (13/13 PASS), `scripts/verify-buildings.mjs`,
 `scripts/verify-identity.mjs` and the research suite (`supabase/tests/research_lifecycle.sql`).
@@ -610,3 +697,1164 @@ behaviour (no second charge).
    executed in LIVE (SQL Editor / `execute_sql`). This environment had no database credentials and no local
    Postgres/Docker, so the SQL was validated structurally (balanced blocks, canonical-helper-only bodies) but not
    executed here.
+
+### 22.8 Descubrimiento de autorizaciones — cerrado 2026-09-26
+
+Fase de cierre del hueco funcional que quedaba en ACS_HOLD. **El motor no se tocó**: `start_support_fleet`, la
+política de autorización, `grant_planet_support_authorization`, `revoke_planet_support_authorization`, la tabla y la
+vida del movimiento siguen exactamente como estaban certificados.
+
+**Hueco demostrado LIVE** (antes de cambiar nada):
+
+```text
+planet_support_authorizations   RLS con `deny_direct_api_access` + sólo MAINTAIN para authenticated/anon
+                                → `permission denied for table planet_support_authorizations`
+players                         RLS (`player_type = 'AI' OR user_id = auth.uid()`) → un humano no ve a otro humano
+                                ni por id ni por nombre (0 filas en ambos casos)
+get_universe_ranking*           no expone a otros humanos (100 filas devueltas, el jugador ajeno ausente)
+contrato de lectura             NO existía (`get_player_support_authorizations()` no existía)
+```
+
+Consecuencia: conceder y enviar funcionaban, pero **ningún lado podía descubrir la autorización que le afecta**.
+
+**Lo que NO era un hueco** (y por eso no se creó ningún directorio): `planets.player_id` es público, así que el
+propietario identifica al invitado por **coordenadas** (la galaxia ya las publica) y el contrato de concesión valida
+el resto. No se añadió ninguna API de búsqueda de jugadores.
+
+**Contrato añadido** — `20260926214030_add_support_authorization_read_contract.sql`:
+
+```text
+get_player_support_authorizations()
+  SECURITY DEFINER · STABLE · search_path fijo · propiedad `players.user_id = auth.uid()`
+  devuelve SÓLO las autorizaciones NO revocadas en las que el llamante es owner o guest, con
+  dirección (GRANTED/RECEIVED), planeta destino (datos públicos), nombre del contraparte, fechas e `is_usable`
+  (mismo predicado que el despachador: revocada o caducada → no utilizable)
+  ACL: authenticated + service_role; NUNCA anon/PUBLIC · no se tocó ninguna ACL de tabla ni RLS
+  la autoridad sigue siendo `start_support_fleet`, que revalida la autorización al enviar
+```
+
+**Evidencia LIVE del flujo completo** (rol `authenticated`, transaccional con ROLLBACK, residuo 0):
+
+```text
+concesión (propietario humano real, alta por provision_player)     grant_planet_support_authorization → autorización creada
+pareja ajena (mismo planeta, otro invitado)                        creada y NO visible para el tercero
+descubrimiento del invitado                                        filas=1 · dirección=RECEIVED
+contenido expuesto                                                 destino [g:s:p] (PLANET) · propietario=AllyHuman ·
+                                                                   invitado=DevPlayer · usable=t
+concesión/petición ajena                                           PLANET_NOT_OWNED_BY_PLAYER ·
+                                                                   «Player does not belong to authenticated user»
+revoke sobre pareja ajena                                          devuelve false, 0 filas afectadas, fila intacta
+                                                                   (el contrato filtra por owner_player_id)
+acceso anónimo                                                     permission denied for function get_player_support_authorizations
+despacho con autorización válida                                   start_support_fleet → ACS_HOLD / OUTBOUND · holding_until persistido
+idempotencia                                                       misma clave → misma flota, idempotent_replay=t
+ciclo de vida (worker certificado)                                 OUTBOUND → HOLDING → RETURNING (returns_at calculado)
+revocación por el propietario                                      descubrimiento=0 filas · despacho → SUPPORT_AUTHORIZATION_REQUIRED
+autorización caducada                                              visible con is_usable=f · despacho → SUPPORT_AUTHORIZATION_REQUIRED
+```
+
+**Superficie** (mínima, sin pantalla nueva): `src/SupportAuthorizationPanel.tsx` (conceder por coordenadas, listar
+RECIBIDAS/CONCEDIDAS, retirar) montado en la vista FLOTA, y un selector de **autorizaciones recibidas** dentro de la
+misión `APOYO ACS` de `FleetCommandPanel` que rellena el destino. El panel no decide nada: muestra las respuestas y
+los rechazos del servidor.
+
+**Diferencia con OGameX (deliberada, sin cambios)**: OGameX restringe ACS a *buddies*/miembros de alianza
+(`FleetUnionService` + `FleetUnion`/`FleetUnionInvite`). LGI no tiene tablas de alianza/buddy, así que mantiene la
+autorización explícita y revocable por planeta, y el descubrimiento es por tanto un listado de autorizaciones, no un
+directorio de jugadores ni una lista de uniones.
+
+**Limitación del entorno**: el universo LIVE tiene un único humano, así que la certificación creó un segundo humano
+**dentro de la transacción** (`auth.users` + `provision_player`, revertido al final) para poder ejercer las dos
+posiciones del flujo; las reglas probadas son las mismas para cualquier par de humanos.
+
+
+## 23. Mission Modifiers closure — LIVE verification, 2026-09-20
+
+Directed read-only sweep of the fleet mission-modifier surface against LIVE project `evtfsbntvuqmahiskekd`.
+Method: `pg_get_functiondef` / `pg_proc` / `pg_constraint` introspection only. No DML, no fixtures, no writes.
+This record closes §15.2 decision 3 partially, §22.7 item 5, and the "3 dispatch RPCs" wording in §5 and §9.
+
+### 23.1 Mission → modifier matrix (extracted from LIVE, not invented)
+
+| Mission | Speed class column | Universe multiplier | Evolution | Tech | Lifeform | Item | Special formula |
+|---|---|---|---|---|---|---|---|
+| TRANSPORT | `peaceful_fleet_speed` | yes | E^(1/3) | `calculate_player_ship_speed` | `fleet_speed_percent` | `fleet_speed_percent` | — |
+| DEPLOY | `peaceful_fleet_speed` | yes | E^(1/3) | same | same | same | — |
+| COLONIZE | `peaceful_fleet_speed` | yes | E^(1/3) | same (`colony_ship`) | same | same | own dispatcher + colony-ship requirement |
+| EXPEDITION | `peaceful_fleet_speed` | yes | E^(1/3) | same | same **+ `expedition_speed_percent`** | same | expedition geometry helper for distance; delay event scales by the same class |
+| ATTACK | `war_fleet_speed` | yes | E^(1/3) | same | `fleet_speed_percent` | `fleet_speed_percent` | — |
+| ESPIONAGE | `war_fleet_speed` | yes | E^(1/3) | same | same | same | — |
+| RECYCLE | `war_fleet_speed` | yes | E^(1/3) | same | same | same | recycler-only composition rule (frontend + RPC) |
+| ACS_HOLD | `holding_fleet_speed` | yes | E^(1/3) | same (slowest ship) | same | same | `holding_until` window; idempotency key |
+| HOLDING | `holding_fleet_speed` | yes | E^(1/3) | — | — | — | **not dispatchable**: lifecycle state only |
+| DEFEND | `holding_fleet_speed` | yes | E^(1/3) | — | — | — | **not dispatchable**: `COMBAT_SUPPORT_NOT_READY` |
+
+`RECYCLE_ATTACK` and `HARVEST` also resolve to WAR inside the classifier; they are not in the
+`fleet_movements.mission_type` CHECK list, so they cannot be persisted as movements.
+
+### 23.2 What was proven, and how
+
+```text
+single class authority       only calculate_mission_fleet_speed_multiplier reads the three class columns
+                             (comments stripped, whole public schema, violators = 0)
+EXPEDITION is NOT a bypass   start_fleet / start_fleet_mixed never read universes.expedition_speed; they
+                             classify EXPEDITION as PEACEFUL and add expedition_speed_percent once
+expedition_speed column      consumed only by calculate_universe_rates (rate projector, no dispatch path)
+no parallel travel formula   35000 appears in exactly 2 bodies (travel time + fuel re-derivation)
+single tech authority        drives read by exactly 2 bodies (ship speed + engine consumption)
+                            -> a technology influences speed once and consumption once; never again
+fuel ordering                fuel_reduction_percent applied exactly once, in
+                            calculate_player_fleet_fuel_for_distance, clamped 0..30; hyperspace_technology
+                            never acts as a generic fuel reduction
+no double modifiers          per-body counts: fleet_speed_percent = 2 (item source + lifeform source,
+                            summed once), expedition_speed_percent <= 1 and EXPEDITION-gated,
+                            classifier calls = 1 per dispatch
+worker has no speed math     process_fleet_movements: zero references to the classifier, travel time,
+                            ship speed, fleet rate or fuel -> it only routes persisted state
+legacy cluster is gone       calculate_fleet_time, calculate_fleet_fuel, calculate_fleet_fuel_mixed,
+                            calculate_fleet_fuel_for_distance, calculate_expedition_time and
+                            get_player_fleet_speed_multiplier return zero rows from pg_proc
+expedition delay is canonical calculate_expedition_delay_seconds resolves EXPEDITION through the classifier
+                            and reads E^(1/3) as calculate_universe_scaling(E).fleet_movement_scale, defined
+                            as power(E, 1.0/3.0) -> numerically identical to the dispatchers' inline form
+```
+
+
+### 23.3 Findings recorded by this sweep
+
+1. **No functional bug found** in the seven implemented missions plus ACS_HOLD. Class routing, technology
+   routing, modifier ordering, fuel ordering, double-application and bypass checks all pass.
+2. **`20260920010000_converge_local_fleet_dispatch_classifiers.sql` can never be applied** (§15.2 item 8).
+   All six of its patch targets are absent from LIVE and the three dispatchers are already canonical, so it
+   raises on its first target. Report-only; the artifact was not modified.
+3. **Documentation precision**: §5/§9 said "3 dispatch RPCs"; ACS Fase A added a fourth
+   (`start_support_fleet`), which applies the same pipeline with `holding_fleet_speed`. Corrected.
+4. **`universes.lifeform_speed` is not a fleet class** (§15.2 item 6): it drives lifeform build/research
+   times and the rate snapshot only.
+5. **Four identical inline copies of the modifier sum** exist (one per dispatcher) — the same expression
+   with only whitespace differences, i.e. duplication **without divergence**. Classified as maintainability
+   risk, not a defect. Not refactored (no demonstrated bug; a shared helper would be a contract change).
+6. **`solar_satellite`** (`speed = 0`, `fuel_consumption = 0`) has no propulsion routing and falls to the
+   `else v_speed := v_base` branch, yielding `0`; dispatching it would raise
+   `'Ship speed must be greater than zero'` from `calculate_fleet_travel_time`. Legitimate stationary-unit
+   special case, not a gap — recorded so it is not mistaken for one.
+7. **Frontend reach — CORRECTED 2026-09-26 (GAP B closeout).** This item originally reported that
+   `start_colonize_fleet` and `start_support_fleet` had **no frontend caller** and that the browser selector exposed
+   six missions only. That is no longer the case: `src/FleetCommandPanel.tsx` (FLOTA view) renders every deployed
+   body — TRANSPORT · DEPLOY · COLONIZE · EXPEDITION · ATTACK · ESPIONAGE · RECYCLE · ACS_HOLD · MOON_DESTRUCTION —
+   with an origin selector (planets **and** moons), ship loading, `load_fleet_cargo`, `recall_fleet`,
+   `get_player_fleet_slots`, `get_player_expedition_slot_status` and `check_colony_cap`; `DEFEND` and `HOLDING` are
+   listed as deliberately non-dispatchable. `RECYCLE` and `EXPEDITION` intentionally pass a NULL
+   `destination_planet_id`: their backend dispatchers resolve the debris field or expedition coordinate from the
+   mission type, and the frontend preserves that contract instead of rejecting both missions before the RPC call.
+   OPEN PRODUCT DECISION recorded with this correction: with an identical fixture (shipyard 4 + impulse_drive 3 +
+   colony_ship) `start_colonize_fleet` is **accepted from a moon** — the dispatcher validates coordinates, origin
+   ownership + not destroyed, target occupancy, the colony cap, the colony ship, its prerequisites and the fuel, but
+   **not the origin kind**, and the origin selector offers moons. Classic OGame forbids colonising from a moon.
+   Measured LIVE 2026-09-26 (control from a planet accepted, moon origin accepted). Nothing was restricted.
+
+   **Fleet-slot + cargo surface — 2026-09-26 (GAMEPLAY COMPLETION PASS).** The launch button now derives its
+   enabled/disabled state exclusively from server contract values instead of only from `dispatchable`:
+   `get_player_fleet_slots().out_slots_available <= 0` → `FLEET_SLOTS_FULL` (measured LIVE: `FLEET_SLOTS_FULL: 1/1`
+   for EXPEDITION and for TRANSPORT — the guard is a BEFORE INSERT trigger on `fleet_movements`, so it covers every
+   dispatch path); `get_player_expedition_slot_status().available_slots <= 0` → `EXPEDITION_SLOTS_FULL` (the status
+   contract computes `used_slots` with `get_active_expedition_count` and `total_slots` with
+   `get_player_expedition_slots`, i.e. the very predicate the dispatchers compare, verified LIVE); and
+   `check_colony_cap().allowed = false` → `COLONY_CAP_REACHED`. If a contract has not loaded, nothing is blocked and
+   the server decides. The cargo block now also shows the origin body's available resources (owner RLS read of
+   `planet_resources`), the selection's advisory base capacity and the requested cargo; `load_fleet_cargo` remains
+   the only authority that embeds the load.
+8. **`calculate_fleet_travel_time` carries PUBLIC EXECUTE** (`=X/postgres` + anon + authenticated) while
+   being the canonical travel-time authority. It is a pure `IMMUTABLE` formula, non-`SECURITY DEFINER`, so it
+   leaks no data — noted against the "internal helper" convention of §4.
+   `calculate_mission_fleet_speed_multiplier` itself is correctly restricted to `postgres`/`service_role`.
+
+### 23.4 Status of this block
+
+```text
+Mission Modifiers / Technology / Lifeform / Item / Fuel ordering  -> CLOSED (no bug), re-verified LIVE
+EXPEDITION routing                                                 -> CLOSED (canonical, with its justified
+                                                                      expedition-specific modifier)
+ACS_HOLD dispatch + lifecycle                                      -> CLOSED (Fase A, LIVE verified)
+DEFEND                                                             -> OPEN — BLOCKED BY COMBAT ENGINE
+HOLDING gameplay                                                   -> OPEN — internal state, by design
+Browser fleet certification                                        -> OPEN
+Holding fuel + maximum holding duration                            -> OPEN — product decisions
+20260920010000 executable-or-not                                   -> OPEN — report-only finding (§15.2.8)
+```
+
+### 23.5 Distinction kept explicit
+
+`HOLDING` and `DEFEND` have a speed class assigned (`holding_fleet_speed`) and are refused by the only
+dispatcher that could create them. Having the class defined is **not** the same as having the gameplay
+implemented: no HOLDING or DEFEND movement can currently be created, and no ACS combination, combat
+integration, holding-fuel tick or UI exists. This block is **not** marked CLOSED on the strength of the
+lifecycle contract alone.
+
+## 24. Fleet cargo loading (bodega de flota) — implemented 2026-09-25
+
+Contract: `public.load_fleet_cargo(p_fleet_id uuid, p_metal numeric, p_crystal numeric, p_deuterium numeric)`
+(SECURITY DEFINER, one signature, unchanged result shape:
+`fleet_id, metal, crystal, deuterium, total_cargo, cargo_capacity`). Applied LIVE as the server-versioned
+migration `20260925154234_expose_fleet_cargo_loading_to_owner` (forward-only, no schema change).
+
+Model (LGI custom, deliberate): loading is POST-DISPATCH while the fleet is `OUTBOUND`. OGameX instead
+validates the resources at dispatch time (`GameMission::start` → `startMissionSanityChecks` →
+`deductResourcesAndUnitsAtomic`, capacity from `UnitCollection::getTotalCargoCapacity`) and carries them with
+the mission. The observable outcome is the same (the resources travel with the fleet, limited by total
+capacity and by planet availability), so LGI keeps its own loader instead of changing the certified
+dispatch RPCs.
+
+Authority (all server-side; the frontend is never authoritative):
+1. `auth.uid()` mandatory → `Authentication required`.
+2. The fleet's player must belong to that user → `Fleet does not belong to authenticated user`.
+3. The fleet's origin planet must belong to the same player → `CARGO_ORIGIN_NOT_OWNED`.
+4. Status must be `OUTBOUND` → `Cargo can only be loaded while fleet is OUTBOUND`.
+5. Mission whitelist `TRANSPORT | ESPIONAGE | ACS_HOLD | DEPLOY | COLONIZE | EXPEDITION` → otherwise
+   `CARGO_MISSION_NOT_SUPPORTED`. The three extra missions were admitted in migration
+   `20260925171816` **after** their handlers learned to deliver/preserve the cargo (see §25):
+   `DEPLOY` delivers it to the destination planet, `COLONIZE` seeds the new colony with it and
+   `EXPEDITION` adds the find to it instead of overwriting it.
+6. Capacity from `calculate_fleet_cargo_capacity` (per-ship `cargo_capacity` + hyperspace 5%/level) →
+   `Cargo exceeds fleet capacity: X / Y`; availability from `planet_resources` → `Insufficient <resource>`.
+
+Atomicity: one transaction, `FOR UPDATE` on the fleet row and on the origin planet's resources; the planet
+debit and the fleet credit are additive, so repeated calls add exactly what was requested (never a
+duplicate) and no rejected call mutates anything.
+
+Mission compatibility (derived from the arrival/return handlers, now complete — see §25):
+- `TRANSPORT` — delivered to the destination planet (`resolve_transport_arrival`).
+- `DEPLOY` — delivered to the destination planet, then the fleet completes unloaded
+  (`resolve_deploy_arrival`, migration `20260925171816`).
+- `COLONIZE` — seeds the newly created colony with the cargo (`resolve_colonize_arrival`, same
+  migration; the destination-occupied path returns the fleet so the cargo travels home instead).
+- `EXPEDITION` — the RESOURCES outcome ADDS the find to the cargo (`resolve_expedition_arrival`); every
+  other outcome leaves the cargo untouched and `resolve_expedition_return` credits it at the origin.
+- `ESPIONAGE`, `ACS_HOLD` — the return leg credits the cargo back to the origin
+  (`process_fleet_movements` RETURNING loop). Latent note: if ACS grouping ever draws a holding fleet into
+  a battle, the cargo-on-holding-fleet rule must be ratified in the combat domain.
+- Still NOT whitelisted: `RECYCLE` (its worker intentionally SETs the cargo to the harvested debris) and
+  `ATTACK` (LGI cargo is not part of the battle model: the certified PG-09 loot capacity ignores
+  pre-loaded cargo, while OGameX caps the return with surviving capacity → combat-domain product decision).
+
+Client: the `src/App.tsx` fleet view shows METAL / CRISTAL / DEUTERIO inputs only for the eligible missions
+(TRANSPORT, ESPIONAGE), calls `load_fleet_cargo` with the fleet id returned by `start_fleet_mixed`, and
+displays the capacity the SERVER returns (no capacity formula is duplicated in the client).
+
+Tests: `supabase/tests/fleet_cargo_loading.sql` — **18/18 PASS LIVE 2026-09-25** inside its rollback
+transaction, zero residue: ACL surface (authenticated only; `anon` revoked; `service_role` preserved),
+unauthenticated / foreign-fleet / foreign-origin / non-OUTBOUND / non-whitelisted / negative rejections with
+no mutation, valid multi-resource load, exact per-resource debit, insufficient resources, ESPIONAGE cargo,
+exact-capacity load, overflow rejection, additive repeated calls and the end-to-end conservation invariant.
+LIMITATION: the suite is single-session, so true concurrent loading is not executed (the `FOR UPDATE` locks
+and the capacity check are asserted on the sequential path).
+
+## 25. Cargo lifecycle completion — DEPLOY / COLONIZE / EXPEDITION (2026-09-25)
+
+Migrations (forward-only, LIVE applied, no schema change): `20260925171816` (handler fixes + whitelist),
+`20260925172115` and `20260925172311` (the two latent-defect fixes below).
+
+What changed (before → after):
+- `resolve_deploy_arrival`: ships only, then `COMPLETED` with the cargo still on the row (stranded) → the
+  destination economy is settled through the arrival event and credited with the carried cargo before the
+  ships are transferred; the fleet then completes with `metal/crystal/deuterium = 0`. OGameX reference:
+  `DeploymentMission:83-85` (`addResources` on arrival).
+- `resolve_colonize_arrival`: the colony was created with `planet_resources = 0/0/0` (cargo lost) → the new
+  colony is seeded with the carried cargo and the fleet completes unloaded. OGameX reference:
+  `ColonisationMission:125-126`.
+- `resolve_expedition_arrival` (outcome `RESOURCES`): `SET metal=<find>, crystal=…, deuterium=…` (destroyed
+  any carried cargo and forced the other two resources to 0) → additive
+  `metal=COALESCE(metal,0)+<find>, …`. The `expedition_results` row still records ONLY the find, so the
+  report, the reward tier and the weight accounting are unchanged. OGameX reference:
+  `ExpeditionMission:218-220` (`mission->metal + returnResources->metal`).
+- `load_fleet_cargo` mission whitelist widened to those three missions (their handlers now preserve the
+  cargo). `RECYCLE` and `ATTACK` stay excluded (§24).
+
+Two PRE-EXISTING latent defects found and fixed (both blocked paths this mission had to verify):
+1. `resolve_colonize_arrival` — `DELETE FROM fleet_movement_ships WHERE fleet_id=p_fleet_id` raised
+   `42702 column reference "fleet_id" is ambiguous`, because the function returns `TABLE(fleet_id, …)` so
+   `fleet_id` is also an OUT variable. Consequence: a colonisation arrival could never complete (LIVE had
+   0 planets named `Colony %` and 0 `COLONIZE` movements). Fixed in `20260925172115` by qualifying the
+   column (`fms.fleet_id`).
+2. `prepare_expedition_resource_reward` — `UPDATE expedition_reward_budgets … WHERE fleet_id=p_fleet_id`
+   raised the same `42702` (identical OUT-variable collision). Consequence: the `EXPEDITION → RESOURCES`
+   outcome could never resolve. Fixed in `20260925172311`. Detected systematically: of every public function
+   whose body contains an unqualified `fleet_id = …` reference, only this one also declares `fleet_id` as an
+   OUT parameter; the other occurrences resolve to the column and were deliberately left untouched.
+
+Idempotency and retries (verified, not assumed):
+- DEPLOY / COLONIZE keep their `ARRIVED → COMPLETED` state guard, so a replay raises and never credits twice.
+- EXPEDITION's `expedition_results` early return only protects a replay that still sees `ARRIVED`; after a
+  successful resolution the fleet is `RETURNING`, so a replay is rejected by the state guard instead. Both
+  paths prevent double-crediting, and no partial state can survive because every resolver is one transaction.
+
+Tests: `supabase/tests/fleet_cargo_lifecycle.sql` — **17/17 PASS LIVE 2026-09-25** (+3 INFO rows) inside its
+rollback transaction, zero residue (fleet tables empty, no colony left behind, `expedition_settings` back to
+its original single row, `planet_ships` / `planet_buildings` unchanged): `DEPLOY` exact delivery + unload +
+replay + zero-cargo (5), `COLONIZE` planet creation + exact seed + colony-ship consumption + unload + replay
++ zero-cargo (6), `EXPEDITION` deterministic RESOURCES selection + preserved cargo & added find +
+report-records-only-the-find + replay rejection + zero-cargo find (5), and the whitelist functional + static
+checks (2).
+Technique note: the RESOURCES outcome is deterministic per fleet id, so the fixture probes candidate fleets
+(`expedition_event_random(id,'outcome') × Σ weights → select_expedition_outcome`) instead of modifying any
+game setting to force it.
+LIMITATION: single-session harness — true concurrency is not executed; idempotency is covered by replays and
+the `FOR UPDATE` locks are asserted from the deployed bodies.
+
+Data finding (out of scope, OPEN): the universe of the human player (`cf021ece-…`) has **no**
+`expedition_settings` row, so `resolve_expedition_arrival` raises `Invalid expedition weights for universe`
+there and expeditions cannot resolve in that universe at all. The fixture creates a rollback-only copy of the
+configured weights to exercise the code; choosing the real weights for a universe is a configuration
+decision, so nothing was changed.
+
+**CLOSED 2026-09-25** — see §26: the row was replicated into the active universe from the project's own
+configured weights (same values, provenance in migration `20260925202506`) and the real resolution is now
+certified.
+
+## 26. Expeditions end-to-end — configuration, items, slots, read contracts and UI (2026-09-25)
+
+Migrations (forward-only, LIVE applied, no schema change): `20260925202506` (config + item activation + slots +
+read contracts) and `20260925202529` (ACL hygiene for the internal slots helper).
+
+**Configuration.** The ACTIVE universe (`cf021ece-…`) had no `expedition_settings` row, so
+`resolve_expedition_arrival` raised `Invalid expedition weights for universe` and **no expedition could resolve
+in the real universe** (the only configuration lived in the inactive `TEST - Universe 1`). The block
+replicated the weights the project itself had configured — provenance: `20260912092811` (seed),
+`20260912105222_restore_expedition_weights_after_timing_audit` (explicit restore) plus the DM / merchant /
+items migrations — into the active universe **without changing any value**; the weights remain product-tunable
+data. `expedition_resource_caps`, `expedition_ship_tiers` and `expedition_item_definitions` are global (no
+`universe_id`), so this row was the only missing per-universe configuration.
+
+**Items.** The activation logic already existed (consume the stack, create the `expedition_item_uses` row with
+`effect_snapshot = {effect_key, effect_value, expires_at, item_name, category}`), but `use_expedition_item` had
+**no ownership gate and no client grant**, so `get_active_expedition_item_effect` (which reads only
+`expedition_item_uses`) always returned 0: every item effect was inert while items accumulated. Now the
+function requires `auth.uid()` → `players.user_id` → the player, validates the optional planet ownership, keeps
+`FOR UPDATE` on the stack, and EXECUTE is granted to `authenticated` only (`anon` revoked).
+
+**Effects** (all pre-existing definitions — nothing invented): `production_percent`, `storage_percent`,
+`research_speed_percent`, `expedition_slots`, `fleet_speed_percent`, `building_speed_percent` and
+`expedition_reward_percent`, each expiring by `expires_at` from `expedition_item_definitions.duration_seconds`.
+
+**Slots.** `get_player_expedition_slots` = `1 + expedition_settings.bonus_expedition_slots + objetos activos`;
+the internal helper is now closed to client roles (it carried a PUBLIC grant before) and the client uses
+`get_player_expedition_slot_status()`.
+
+**Read contracts for the client** (every expedition table carries `deny_direct_api_access`, so the browser
+could not read results or items): `get_player_expedition_reports(p_limit)`,
+`get_player_expedition_item_status()` and `get_player_expedition_slot_status()` — SECURITY DEFINER,
+owner-scoped through `with me as (select pl.id … where pl.user_id = auth.uid())` (same pattern as
+`get_player_battle_reports`), EXECUTE only for `authenticated`/`service_role`.
+
+**UI** (`src/App.tsx`). The Expeditions view shows the slot breakdown (base / universe settings / items / total
+/ used / available), the owned items with a working ACTIVAR button and the active effects with remaining time;
+the Messages view consumes `get_player_expedition_reports` and distinguishes resources, ships, dark matter,
+items, merchant, combat (pirates/aliens), losses, delay and speed-up. The three new RPCs are invoked through a
+small typed cast (`rpcUntyped`) because `src/lib/database.types.ts` has not been regenerated yet (same
+precedent as `lib/identity.ts`).
+
+**Tests.** `supabase/tests/expedition_items_and_slots.sql` — **22/22 PASS + 1 INFO, LIVE 2026-09-25**, rollback,
+zero residue: active-universe configuration, real end-to-end resolution, slot base/bonus/expiry, activation and
+consumption, the six effects verified against their consumers, effect expiry, security (cross-player,
+unauthenticated, unknown item, foreign planet), state untouched after every rejection, the item reward path and
+replay without double award. Regression: `fleet_cargo_lifecycle.sql` **18/18 PASS** (now reporting the active
+universe as configured) and `research_building_prerequisites.sql` **21/21 PASS**. LIMITATION: single-session
+harness (no true concurrency; the RNG lottery is resolved with the deterministic per-fleet probe).
+
+## 27. Transversal Fleet Engine audit — modifier matrix, helper ACL, ACS/recall (2026-09-25)
+
+Single block covering dispatch · mission modifiers · speed · fuel · travel time · cargo · arrival · return ·
+recall · ACS_HOLD/support · mission-affecting technologies · **real consumers**. Migrations (forward-only,
+applied LIVE, **no schema change, no formula change**):
+`20260925211615_tighten_fleet_calculation_helper_acl` and
+`20260925211804_tighten_fleet_distance_helper_acl`.
+Regression: new `supabase/tests/fleet_helper_acl_and_holding_cargo.sql` **18/18 PASS + 1 INFO**, plus the
+certified `fleet_speed_classes.sql` re-run **23/23 PASS** — both LIVE, rollback, zero residue.
+
+### 27.1 Mission modifier × consumer matrix (read from the deployed bodies)
+
+| Mission | Speed source | Fuel | Travel time | Cargo | Modifiers | Consumer |
+|---|---|---|---|---|---|---|
+| TRANSPORT | slowest ship via `calculate_player_ship_speed` | `calculate_player_fleet_fuel_for_distance` (outbound time) | `calculate_fleet_travel_time` | delivered to destination, movement zeroed | peaceful class · `E^(1/3)` · item/lifeform `fleet_speed_percent` | `resolve_transport_arrival` + worker |
+| DEPLOY | idem | idem | idem | delivered to destination, movement zeroed | idem | `resolve_deploy_arrival` (COMPLETED, `returns_at = NULL`) |
+| COLONIZE | `colony_ship` via the same helper | idem (`start_colonize_fleet`) | idem | seeds the new colony, movement zeroed | idem | `resolve_colonize_arrival` (occupied target → cargo preserved home) |
+| EXPEDITION | slowest ship | idem | idem (+ hold/delay §12) | additive: prior cargo **+** find | peaceful · `expedition_speed_percent` (lifeform) added once | `resolve_expedition_arrival` / `resolve_expedition_return` |
+| ATTACK | slowest ship | idem | idem | **not loadable** (PG-09/PG-10 open) | war class | `resolve_attack_arrival` (untouched here) |
+| ESPIONAGE | `espionage_probe` | idem | idem | carried cargo returns home untouched | war class · `espionage_technology` read only in the report | `resolve_espionage_arrival` |
+| RECYCLE | `recycler` | idem | idem | **overwritten** by the debris find (`deuterium = 0`) | war class | `collect_debris` inside the worker |
+| ACS_HOLD | slowest ship | idem | idem (`holding_fleet_speed`) | kept through HOLDING, returned to the **origin** | holding class · item/lifeform `fleet_speed_percent` | `start_support_fleet` + worker HOLDING loop |
+| HOLDING | — (state) | — | — | idem | — | worker `HOLDING → RETURNING` |
+| DEFEND | — | — | — | — | — | refused by every dispatcher (`COMBAT_SUPPORT_NOT_READY`) |
+
+Audited invariants (each re-confirmed on the deployed `prosrc`, not on this document):
+
+```text
+single travel-time implementation ............ only calculate_fleet_travel_time carries 35000 (with the fuel helper): 2/2
+single fuel ordering ......................... fuel_reduction_percent applied exactly once, hyperspace never a generic reduction
+single mission→class authority ............... calculate_mission_fleet_speed_multiplier; no other function reads the three class columns
+single propulsion routing .................... only calculate_player_ship_speed / _fuel_consumption read combustion/impulse/hyperspace
+no dispatcher bypass ......................... no .speed read in start_fleet / _mixed / _colonize / _support
+legacy column ................................ universes.fleet_speed is read ONLY by calculate_universe_rates (informational snapshot)
+cargo is never double-credited ............... every delivering resolver zeroes the movement cargo before the RETURNING settlement
+expedition slots ............................. get_active_expedition_count filters mission_type = 'EXPEDITION' (ACS_HOLD never consumes a slot)
+ACS_HOLD eligibility ......................... planet existence is never authorization (planet_support_authorizations, revocable + expirable)
+```
+
+### 27.2 What was actually wrong: three internal helpers were still client-reachable
+
+A per-entry ACL probe (not a `LIKE` match — `postgres=X/postgres` also contains `=X/`) found that, of the
+canonical cluster, exactly three functions still carried the default `PUBLIC`/`anon`/`authenticated` grant:
+
+```text
+calculate_fleet_distance(uuid,uuid)                       PUBLIC + anon + authenticated   -> CLOSED by 20260925211615
+calculate_fleet_travel_time(numeric,numeric,numeric,numeric)  PUBLIC + anon + authenticated -> CLOSED by 20260925211615
+calculate_fleet_distance_to_coordinates(uuid,int,int,int)     PUBLIC                        -> CLOSED by 20260925211804
+```
+
+All three are internal (§7 distance model, §5 travel-time authority). Safety evidence before closing, verified
+LIVE: their only consumers are `start_fleet`, `start_fleet_mixed`, `start_colonize_fleet` and
+`start_support_fleet` — SECURITY DEFINER and owned by `postgres`, so they keep EXECUTE — and `src/**` never
+calls them (only the generated types mention two of them). This is the same treatment already given to
+`calculate_mission_fleet_speed_multiplier` (20260919) and to the expedition slots helper (20260925). §23.3
+item 8's report-only note about `calculate_fleet_travel_time` is therefore **closed**; the deliberate PUBLIC
+grant on the informational `calculate_universe_rates` snapshot is **not** touched (it is item 3 below).
+
+No gameplay value, ordering, signature or body was modified by this block.
+
+### 27.3 Recall — audit result: MISSING, and blocked by two product decisions
+
+Determined LIVE, exhaustively (not inferred from the docs):
+
+```text
+RPC / logic                  -> NONE. No recall_* / cancel_* function exists in public (only resolve_expedition_return,
+                                which is the expedition return leg, not a player recall).
+Lifecycle slot               -> fleet_movements.status admits 'CANCELLED', but nothing in the schema ever writes it
+                                (it is the same unreachable value already recorded for the four queues).
+Column/state                 -> no recalled_at / recall_requested_at; no partial index for a recall sweep.
+Frontend                     -> CORRECTED 2026-09-26: the recall surface exists — `ActiveFleetsPanel` offers
+                                `recall_fleet` for OUTBOUND/HOLDING movements and `FleetSlotsPanel` mirrors it; the
+                                earlier "no recall surface in src/**" note predates the fleet UI block.
+                                (The contract described in this section — `recall_fleet` — was implemented later;
+                                see the recall closeout block.)
+```
+
+What a recall therefore still needs before it can be implemented **without inventing**:
+
+1. **Fuel semantics — PRODUCT DECISION.** LGI already reserves a modifier for it
+   (`recall_fuel_recovery_percent`) and it is a documented dead key (§9). OGame's classic rule does not refund
+   fuel; whether LGI refunds part of it, nothing, or charges for the return leg is a balance decision, not a
+   technical gap. Implementing either option silently would be inventing a mechanic.
+2. **Return-leg duration for a partially-flown mission — PRODUCT DECISION.** Reusing the persisted outbound
+   duration (the worker's rule for every return leg, §11) would make a recalled fleet arrive *later* than the
+   target it never reached; OGame uses the elapsed time plus a turnaround. Both are defensible; the choice
+   changes player-visible timing and must be decided.
+3. **Recall of `ACS_HOLD`** (and of a fleet already in HOLDING) — whether a support fleet can be pulled back
+   before `holding_until`, and whether the authorization is consumed, depends on the same decisions.
+4. Cargo needs **no** new rule: a recalled fleet has not delivered anything, so its cargo simply returns home
+   through the existing RETURNING settlement (§27.4). Ownership needs no new rule either: the recall RPC must
+   reuse the established `auth.uid() → players.user_id → fleet.player_id` guard.
+
+Recall is therefore recorded as **MISSING + PRODUCT DECISION** (already classified that way in
+`README_OGAMEX_LGI_MAP` §F) and **not implemented** in this block. `CANCELLED` stays an unwritten value.
+
+### 27.4 Cargo / ACS_HOLD integration — verified, not changed
+
+The post-dispatch cargo contract (§24–§25) was **not** re-implemented. Only its integration with return,
+HOLDING and the generic settlement was verified:
+
+- `load_fleet_cargo` is owner-gated, requires `status = 'OUTBOUND'`, whitelists
+  `TRANSPORT · ESPIONAGE · ACS_HOLD · DEPLOY · COLONIZE · EXPEDITION` (RECYCLE/ATTACK stay excluded because
+  their handlers overwrite the cargo), and measures capacity through `calculate_fleet_cargo_capacity` →
+  `calculate_player_ship_cargo_capacity` (no duplicated formula).
+- **No double credit is possible.** Every delivering handler zeroes the movement cargo
+  (`resolve_transport_arrival`, `resolve_deploy_arrival`, `resolve_colonize_arrival`), so the single generic
+  RETURNING credit in `process_fleet_movements` (`pr.metal + fm.metal`) adds exactly 0 for them. Assertions
+  B1–B5 prove it end to end (destination credited once, origin credited 0, ships restored once).
+- **ACS_HOLD carries cargo correctly**: it survives OUTBOUND → HOLDING → RETURNING untouched and lands on the
+  **origin** exactly once at COMPLETED, while the supported planet is never credited (assertions C1–C5).
+  Holding fuel remains the product decision recorded in §13/§22 — no deuterium tick was invented.
+
+### 27.5 Remaining OPEN (unchanged by this block)
+
+1. **Recall** — MISSING, blocked by the two product decisions in §27.3.
+2. `calculate_universe_rates` still builds its `fleet`/`expedition` columns from the legacy `universes.fleet_speed`
+   and `expedition_speed`, and it keeps its deliberate PUBLIC grant. The columns are informational (no dispatch
+   consumer); deciding their canonical meaning is item §15.2.3.
+3. Dead lifeform keys: `civilian_ship_speed_percent` (no consumer) and `recall_fuel_recovery_percent`
+   (reserved for the recall decision).
+4. `20260920010000_converge_local_fleet_dispatch_classifiers.sql` still cannot execute (§15.2.8) — its end state
+   is already LIVE; report-only, not modified.
+5. Browser fleet certification and the ACS multi-attacker producer (combat engine) remain OPEN.
+6. Holding fuel and the maximum holding duration remain PRODUCT DECISIONS.
+7. Residual ACL note (reported, **not** changed — they belong to the closed expedition block): four
+   expedition-selection helpers still carry PUBLIC/anon/authenticated EXECUTE —
+   `calculate_expedition_speedup_seconds(uuid,numeric)`, `expedition_fleet_has_pathfinder(uuid)` and both
+   `select_expedition_speedup_percentage` overloads. All are SECURITY **INVOKER** over tables carrying
+   `deny_direct_api_access`, so a client role reads no rows (same accepted exception as
+   `get_active_expedition_item_effect`), and `src/**` never calls them. Closing them is a separate,
+
+## 30. Fleet slots — derivation contract (2026-09-26)
+
+`computer_technology` was unlock-only and LGI had **no** fleet-slot sub-system (no column, no counter, no
+reader). The map records the OGameX rule and lists the adoption of a cap as an open product question, so this
+block implemented the **derivation** and deliberately left the **enforcement** out.
+
+```text
+calculate_player_max_fleet_slots(player)     = 1 + computer_technology level     (OGameX parity; LGI has no officers)
+calculate_player_fleet_slots_in_use(player)  = count of the player's fleets whose status is
+                                               NOT IN (COMPLETED, CANCELLED)
+get_player_fleet_slots()                     = client read contract: one row per player owned by auth.uid()
+                                               (player, computer level, max, in use, available never negative)
+```
+
+```text
+ACL        the two calculators are postgres/service_role only; the read contract is authenticated/service_role.
+           Never anon, and no parameter can select a player.
+READ-ONLY  nothing is written; the fixture asserts fleet statuses are untouched.
+EXEMPTIONS every LGI mission holds a slot (OGameX exempts missile attacks; LGI has no missile mission).
+NOT DONE   the cap is NOT enforced in start_fleet / start_fleet_mixed / start_colonize_fleet or any other
+           dispatcher: adopting it would change what existing players may do → PRODUCT DECISION. No certified
+           dispatcher was modified by this block.
+```
+
+Tests: `supabase/tests/fleet_slots_derivation.sql` — **8 PASS + 1 INFO, LIVE 2026-09-26** (max = 1 + level, only
+live missions count, client contract + identity, available never negative, read-only proof, no session → no row,
+ACL). LIMITATION: single-session harness; no concurrency.
+
+```text
+GAPS             no UI and no dispatcher consumer (by design, see NOT DONE above).
+PRODUCT DECISION whether to adopt the cap (map: «¿Se adopta el límite de flotas (computer_technology)?») and, if
+                 adopted, which dispatchers are gated and whether an over-limit state is tolerated.
+```
+
+   expedition-scoped decision.
+
+## 29. FLEET SLOTS ENFORCEMENT + FLEET RECALL (2026-09-26)
+
+Both mechanics are LIVE and close the "PRODUCT DECISION" recorded above.
+
+```text
+ADOPTED PRODUCT RULE   maximum simultaneous fleets = 1 + computer_technology level, enforced SERVER-SIDE for every
+                       mission that puts a fleet in flight. The UI is never the authority.
+
+ENFORCEMENT  migration 20260926121000_fleet_slots_enforcement
+  assert_player_fleet_slot_available(player)   internal helper (postgres/service_role only)
+  enforce_fleet_slots_before_insert()          BEFORE INSERT trigger on fleet_movements (trg_enforce_fleet_slots)
+  Rationale (no-regression): the certified dispatchers (`start_fleet`, `start_fleet_mixed`, `start_support_fleet`,
+  `start_colonize_fleet`) are NOT modified; the rule cannot be bypassed by a future dispatcher or by a client
+  (`fleet_movements` refuses direct API access); and a rejection is an exception inside the caller's transaction, so
+  a refused dispatch writes no fuel, no ships and no movement.
+  Slot accounting: a mission holds its slot for its whole duration; only COMPLETED / CANCELLED release it, so
+  ACS_HOLD/HOLDING, expeditions, colonisation and returning fleets each occupy one slot.
+  Idempotency preserved: an insert whose `idempotency_key` was already used by the same player is NOT blocked by the
+  cap — it must reach the partial unique index so `start_support_fleet` can return the winner's durable movement.
+  Client read contract: `get_player_fleet_slots()` (already existed) returns max / in-use / available for the caller.
+
+RECALL  migration 20260926122000_fleet_recall_contract
+  recall_fleet(p_player_id, p_fleet_id)  authenticated/service_role (never anon), SECURITY DEFINER
+  Ownership    auth.uid() → players.user_id must own the fleet; a service-role call must state the owner and is
+               still cross-checked against `fleet_movements.player_id`. A client `p_player_id` is never trusted.
+  Timing       OUTBOUND → RETURNING with `returns_at = now + (now − started_at)`: the fleet turns around where it
+               is, so the return leg lasts exactly as long as the time already flown (nothing is teleported).
+               HOLDING → RETURNING with the FULL outbound duration (the fleet is at the destination).
+               Refused with FLEET_RECALL_TOO_LATE once `arrives_at <= now`, and with FLEET_NOT_RECALLABLE in any
+               other status, so a fleet can never be returned twice.
+  Cargo        the recall writes only `status` and `returns_at`; `metal`/`crystal`/`deuterium` and
+               `fleet_movement_ships` are preserved byte-for-byte and the worker's existing RETURNING branch
+               delivers them to the origin planet.
+  Lifecycle    the canonical RETURNING state is reused — no new status and no CANCELLED row, so the queue
+               cancellation contract stays untouched.
+  Notification the messaging engine produces "Fleet returning" for the fleet owner.
+
+TESTS (LIVE 2026-09-26, rolled back, zero residue)
+  supabase/tests/fleet_slots_enforcement.sql   6 PASS + 1 INFO
+  supabase/tests/fleet_recall.sql              7 PASS + 1 INFO
+  supabase/tests/fleet_slots_derivation.sql    unchanged assertions, still PASS (base level raised to 6)
+  LIMITATION   single-session harnesses: real concurrency is not executed.
+
+FIXTURE PREREQUISITE  fixtures that need several live movements for one player now grant a high
+  `computer_technology` level right after `begin;` (they would otherwise be refused by the new cap). Files touched:
+  combat_acs_settlement, combat_debris_idempotency, combat_defender_fleet_participant, combat_expedition_combat,
+  combat_participant_identity_collision, combat_participant_propagation, combat_report_contract,
+  combat_worker_isolation, expedition_items_and_slots, fleet_acs_hold_lifecycle, fleet_cargo_lifecycle,
+  fleet_cargo_loading, fleet_helper_acl_and_holding_cargo, fleet_speed_classes,
+  fleet_support_authorization_chain, owner_read_contracts.
+  They were NOT re-executed in this session; their only new constraint is the slot cap, which the prerequisite
+  removes.
+```
+
+UI: `src/GameplayEnginePanel.tsx` (`FleetSlotsPanel`) renders the slot counters from `get_player_fleet_slots` plus a
+`RETIRAR FLOTA` button per OUTBOUND/HOLDING fleet calling `recall_fleet`. No authority lives in the UI: it shows the
+contract's answer and the server's own error text (FLEET_SLOTS_FULL, FLEET_NOT_RECALLABLE).
+
+GAPS (unchanged by this block)
+
+```text
+* No recall entry point in the galaxy launch flow (recall is offered from the fleet view).
+* Holding has still no maximum duration and no fuel tick (pre-existing gaps).
+* Recalling an AI-owned fleet needs a service-role call (AI players have no session).
+```
+
+## Dedicated moon destruction mission (2026-09-26)
+
+`20260926190000_moon_destruction_mission.sql` adds the mission OGameX models as `MoonDestructionMission`:
+
+* `mission_type = 'MOON_DESTRUCTION'` (CHECK extended, original values untouched) classified as a **WAR fleet**
+  (`MoonDestructionMission::$fleetSpeedType = FleetSpeedType::war`); measured LIVE: identical travel time to an
+  equivalent ATTACK.
+* `start_moon_destruction(player, origin, destination, ships)` enforces the OGameX rules (at least one deathstar,
+  destination = alive foreign moon) and delegates to the certified `start_fleet_mixed`, so there is a single
+  dispatch authority (fuel, distance, fleet rows).
+* `resolve_attack_arrival` and `resolve_combat` accept the mission (two ATTACK-only guards widened) and
+  `process_fleet_movements` routes it to the same resolver. The destruction roll is **not duplicated**: the
+  certified hook `settle_moon_destruction_for_battle` keeps applying the OGameX rules (chance
+  `(100 - sqrt(diameter)) * sqrt(deathstars)`, deathstar-loss roll, ripple).
+* Two latent certified defects were found and fixed on the way: `start_fleet_mixed` deducted ships with an
+  ambiguous `ship_id` (collision with its own OUT parameter, so any mixed dispatch reaching that line failed)
+  and `resolve_combat` carried a second ATTACK-only guard with a Spanish message.
+* ACL: `authenticated` + `service_role` only (the AI service actor uses the certified contract).
+
+Tests: `supabase/tests/moon_destruction_mission.sql` — **6 PASS + 1 INFO, LIVE 2026-09-26**: rejections
+(no deathstar / planet target / own moon), dispatch to the target moon, war speed class with duration parity
+against ATTACK, worker routing, full resolution (battle created, attempt row with the OGameX chance,
+`destroyed = roll <= chance`, attacker RETURNING) and ACL. Transactional with ROLLBACK and zero residue.
+LIMITATION: single-session harness; the global worker is asserted statically and the destruction roll is random.
+
+## Colony cap by astrophysics (2026-09-26)
+
+`20260926210000_colony_cap_astrophysics.sql` implements the OGameX `MAX_COLONIES` calculation
+(`ResearchObjects.php`: `round($level / 2)`) with an explicit, balanced base:
+
+```text
+max PLANETS = 1 (homeworld) + max(1, round(astrophysics / 2))
+```
+
+So every player can always found one colony (playable from turn one) and Astrophysics is the growth lever:
+astro 0 -> 2 slots, 4 -> 3, 8 -> 5, 10 -> 6, 20 -> 11. **Moons never count against the cap** and destroyed
+planets never count. OGameX publishes the calculation without its base count, so the base is stated here
+explicitly instead of guessed.
+
+* `calculate_max_colony_slots(player)` — the cap; `check_colony_cap(player)` — the read contract
+  (`allowed`, `reason`, `max_slots`, `current_planets`, `astrophysics_level`, reason `COLONY_CAP_REACHED`).
+* Enforcement in **two** places, so the rule can not be bypassed by fleets already in flight:
+  `start_colonize_fleet()` (dispatch gate, the OGameX `ColonyEstablishFailAstrophysics` outcome) and
+  `resolve_colonize_arrival()` (authoritative creation gate, defensive).
+* ACL: `authenticated` + `service_role` (the AI actor included); no anon bypass.
+
+Tests: `supabase/tests/colony_cap.sql` — **7 PASS + 1 INFO, LIVE 2026-09-26**: the 2/3/6 curve at astro 0/4/10,
+a single-planet player allowed, the moon excluded from the count while 2 planets hit the cap
+(`COLONY_CAP_REACHED`), the dispatch refusal, astro 4 lifting the cap, ACL and the presence of the creation gate.
+Transactional with ROLLBACK and zero residue. LIMITATION: single-session harness; the arrival gate is asserted
+by source inspection (the defensive one).
+
+## Wreck field + Space Dock (2026-09-26)
+
+`20260926230000_wreck_field_space_dock.sql` closes the last approved sweep block. OGameX reference:
+`WreckFieldService` (`loadOrCreateForCoordinates`, `canCreateWreckField`, `calculateShipsForWreckField`,
+`extendWreckField`, `startRepairs`, `completeRepairs`, `burn`) plus its `CleanupWreckFields` scheduled command.
+
+| State | Meaning |
+|---|---|
+| `ACTIVE` | the field holds recoverable ships; a new battle over the same coordinate **extends** it and refreshes the 72 h decay timer |
+| `REPAIRING` | repairs started; `repair_finishes_at` = now + ceil(total / (5 * Space Dock level)) hours |
+| `BLOCKED` | repairs asked for but the coordinate has no Space Dock (`blocked_reason = NO_SPACE_DOCK`) |
+
+LGI decisions (explicit, because OGameX only ships the service and not the building curve):
+
+* **Space Dock** (`space_dock`) is LGI-defined and balanced: 400 / 200 / 100, cost factor 2, time factor 2,
+  max level 10, valid on **planets and moons**.
+* recoverable share of the destroyed ships = `least(100, 20 + 8 * level) %` (level 0 -> 20 %, level 10 -> 100 %).
+* repair rate = `5 * level` ships per hour; **repairs are free** (they only cost time), which is the OGS behaviour.
+* decay: a field nobody repairs for 72 h is **burned** by the worker; a fresh battle refreshes the timer.
+* the field pools the destroyed **ship** units of both sides at that coordinate; defences can never enter it
+  (they are not rows of `ship_definitions`, so the join excludes them by construction).
+
+### Contracts (ACL: `service_role` only)
+
+```text
+create_or_extend_wreck_field(planet_id, ships jsonb, space_dock_level default null) -> uuid
+start_wreck_field_repairs(wreck_field_id)                      -> status/result/total/finishes_at
+complete_wreck_field_repairs(wreck_field_id)                   -> result/ships_repaired
+run_wreck_field_worker(limit)                                   -> per-field outcome (COMPLETED | DECAYED)
+settle_wreck_field_for_battle(battle_id)                        -> uuid   (called by the battle hook)
+```
+
+**Producer:** the additive trigger `trg_on_combat_battle_finished_wreck_field` (AFTER UPDATE on
+`combat_battles`, `old.finished_at is null and new.finished_at is not null`) - the same hook pattern already
+used by the moon destruction settlement. No certified combat function is modified, and the trigger swallows
+its own errors (`raise warning`) so a wreck-field problem can never break a battle settlement. The per-type
+losses are read from the certified `combat_unit_state` snapshot of the final round
+(`quantity - quantity_alive`), which also excludes defences naturally.
+
+**Scheduling:** pg_cron `lagranimplosion-wreck-field-worker` every 10 minutes (`*/10 * * * *`).
+
+Tests: `supabase/tests/wreck_field_space_dock.sql` - **9/9 PASS, LIVE 2026-09-26**, transactional (ROLLBACK,
+zero residue): building definition, 20 % recovery at level 0, extension of an existing field, BLOCKED without
+a Space Dock, REPAIRING at level 10 with the exact 6 h estimate for 300 ships at 50/h, completion returning
+the ships to `planet_ships`, decay of an expired field by the worker, producer trigger + ACL + cron, and the
+safe no-op path for an unknown battle.
+
+Pending (declared, not part of this block): the client panel for the wreck field (the tables are ready to be
+read directly from the UI, in the same way the other panels read their tables).
+
+## P0 fixed 2026-09-26 — `start_fleet` OUT-parameter/column ambiguity (all single-ship dispatch)
+
+Found by the integral Supabase↔frontend contract audit. The galaxy view's two dispatch buttons
+(`ENVIAR FLOTA` for ATTACK/TRANSPORT/ESPIONAGE and `ENVIAR EXPEDICIÓN`, which sends `p_destination_planet_id = NULL`)
+called a contract that **failed for every mission**:
+
+```text
+start_fleet(<player>, <planet>, <dest|null>, <ship>, <qty>, <mission>) -> ERROR 42702: column reference "ship_id" is ambiguous
+start_fleet_mixed(...)                                                     -> OK   (already qualified)
+```
+
+Cause: `start_fleet` declares OUT parameters through `RETURNS TABLE (fleet_id, ship_id, quantity, …)` and its
+ship-consumption statement referenced the `planet_ships` columns unqualified, so `ship_id`/`quantity` resolved
+ambiguously between the OUT parameter and the column. Because `App.tsx` drives the main fleet view through
+`start_fleet_mixed`, the defect stayed hidden until the contract audit exercised every frontend call path.
+
+Fix (`20260926250000_fix_start_fleet_out_param_column_ambiguity.sql`, idempotent, patches the LIVE definition from
+its own text and refuses to touch anything unexpected):
+
+```sql
+-- before
+UPDATE public.planet_ships SET quantity=quantity-p_quantity WHERE planet_id=p_origin_planet_id AND ship_id=p_ship_id;
+-- after
+UPDATE public.planet_ships AS ps SET quantity = ps.quantity - p_quantity WHERE ps.planet_id = p_origin_planet_id AND ps.ship_id = p_ship_id;
+```
+
+Tests: `supabase/tests/fleet_dispatch_contract.sql` — **9/9 PASS, transactional (ROLLBACK, zero residue)**: fleet slots
+derived from computer technology (5 → 6 slots), TRANSPORT dispatch creates the fleet, EXPEDITION with a NULL
+destination is accepted, ship consumption (20−3−2=15) and fuel charging are booked, the function text is qualified
+(regression guard), the business refusals still fire (over-quantity, invalid mission, unknown ship), a foreign actor is
+refused, and `start_fleet_mixed` still works.
+
+Related findings already recorded for this session: the same ambiguity class was fixed earlier in `start_fleet_mixed`;
+an OUT-parameter scan over every public function now reports no further unqualified references on live paths.
+
+## H2 CLOSED 2026-09-26 — `process_fleet_movements` OUT-parameter/column ambiguity (battle branch)
+
+Same defect class as the `start_fleet` P0 of the same day (see the section above). The worker declares
+`RETURNS TABLE (fleet_id, previous_status, new_status, processed_at)`, and the battle/recycle branch of its loop
+referenced the `fleet_movement_ships` column unqualified:
+
+```sql
+-- before
+  delete from public.fleet_movement_ships where fleet_id=v.id;
+-- after (20260926260000_fix_process_fleet_movements_out_param_column_ambiguity.sql)
+  delete from public.fleet_movement_ships as fms where fms.fleet_id = v.id;
+```
+
+The ambiguity class was **proven** with a local reproducer: a temporary function with an OUT parameter named
+`fleet_id` and the same statement raises `column reference "fleet_id" is ambiguous`. The patch is idempotent and
+verifies the exact pre-state statement before touching anything.
+
+### RESOLVED — the harness was at fault, not the worker (see "H4 CLOSED" below)
+
+While verifying the patch, the worker returned **zero rows** for a fleet that was clearly due
+(`status='OUTBOUND'`, `arrives_at = now() - 1 minute`) and for a fleet due on the return leg
+(`status='RETURNING'`, `returns_at` in the past), leaving the status untouched. The per-fleet error isolation
+(`begin … exception when others then continue`) swallows whatever fails, so the error never surfaces.
+
+Established evidence:
+
+* LIVE has **no fleets at all** right now, which is why this never showed up in production traffic.
+* Dispatching works after the `start_fleet` fix (fleet created, ships consumed, fuel charged).
+* `resolve_transport_arrival` works when called directly with the fleet in `ARRIVED` state (it returns `RETURNING`).
+* The worker's first loop statement (`update public.fleet_movements set status='ARRIVED' where id=v.id and status='OUTBOUND'`)
+  contains no OUT-parameter collision, so the swallowed failure lies later in the loop body or in another helper it calls.
+
+Next session must isolate it (temporarily surface the swallowed error, or replicate the loop body statement by statement).
+Until then, treat **fleet arrival processing as unverified**: the contract is dispatched correctly, but no end-to-end
+arrival/return could be observed in a real transaction.
+
+## H4 CLOSED 2026-09-26 — the worker drives the whole lifecycle (the earlier harness was insufficient)
+
+`process_fleet_movements` was **never broken**. The two failures seen by the first audit harness were harness artifacts:
+
+1. **Resource-timeline coherence.** `update_planet_resources_until` / `update_planet_resources_until_raw` raise
+   `INVALID_RESOURCE_TIMESTAMP` (P0001) when asked to write a planet before `planet_resources.last_calculated_at`.
+   The harness fast-forwarded the fleet two hours back while the ledger was at `now()`, so the engine refused — correctly.
+   A fixture that time-travels must first move the ledger back (`last_calculated_at = now() - interval '4 hours'`)
+   for the planets involved.
+2. **A hand-made `ARRIVED` row leaves the worker's loops.** The worker itself performs `OUTBOUND → ARRIVED`; setting
+   `ARRIVED` manually (as the first harness did) removes the fleet from the only loop that would process it, which is
+   exactly why the worker returned zero rows. Fixtures must leave the fleet `OUTBOUND` and let the worker work.
+
+The worker also already self-instruments failures: `raise warning 'FLEET_RESOLUTION_FAILED fleet=% mission=% sqlstate=% error=%'`.
+It is the first thing to look at when a fleet stalls (note: this project''s log stream does not surface WARNING level, so
+an isolated harness is the practical way to read it).
+
+### Observed state machine (TRANSPORT, end to end, LIVE)
+
+```text
+start_fleet            -> OUTBOUND   (ships and fuel leave the origin; fleet_movement_ships row created)
+worker (arrival leg)   -> ARRIVED    (internal)  -> resolve_transport_arrival -> RETURNING   [rows returned: 1]
+worker (return leg)    -> COMPLETED  (ships come home: 6 - 2 dispatched + 2 returned = 6)
+messages               -> 'Fleet arrived', 'Fleet returning', 'Fleet returned' (dedupe_key fleet_arrived/returning/returned:<id>)
+idempotence            -> two extra worker passes return zero rows and change nothing
+```
+
+Tests: `supabase/tests/fleet_worker_contract.sql` — **8/8 PASS, transactional (ROLLBACK, zero residue)**.
+
+## H5 CLOSED 2026-09-26 — wreck-field helpers are internal
+
+`wreck_field_space_dock_level` / `wreck_field_recover_percent` were executable by `anon` and `authenticated`, and the
+former (SECURITY DEFINER over the RLS-hidden `planet_buildings`) let a foreign actor read another player''s Space Dock
+level — reproduced LIVE (level 7). Confirmed before the change: no frontend reference of any kind, and the only callers
+are wreck-field internals. `20260926270000_harden_wreck_field_helper_acl.sql` revokes both from `public`, `anon` and
+`authenticated` and keeps `service_role`. Verified LIVE: a foreign authenticated actor now gets
+`42501 permission denied for function wreck_field_space_dock_level`, `service_role` still gets the value, and
+`has_function_privilege('authenticated', …)` is false for both.
+
+## Superficie jugable de flotas — BLOQUE A (dispatch) + BLOQUE B (movimientos activos), 2026-09-26
+
+Primer bloque de la fase **superficie jugable**: las mecánicas de flota ya certificadas se convierten en pantalla
+sin crear ningún contrato nuevo (0 RPC nuevas, 0 cambios de ACL, 0 cambios de esquema, 0 cambios en los
+despachadores certificados).
+
+### Implementado
+
+```text
+src/FleetCommandPanel.tsx            (nuevo) FleetDispatchPanel + ActiveFleetsPanel
+src/GameplayEnginePanel.tsx          FleetSlotsPanel.fleets ahora opcional; ExpeditionReportsPanel (nueva)
+src/App.tsx                          vista FLOTA = slots + despacho + flotas activas; vista EXPEDICIONES = slots +
+                                     objetos + despacho EXPEDITION + flotas activas + resultados
+eslint.config.js                     la misma excepción deliberada que GalaxyView para la carga asíncrona en effect
+```
+
+Contratos usados (todos LIVE, leídos de los cuerpos desplegados):
+
+```text
+start_fleet_mixed · start_colonize_fleet · start_support_fleet · load_fleet_cargo · recall_fleet
+get_player_fleet_slots · get_player_expedition_slot_status · check_colony_cap
+lecturas directas permitidas por RLS: fleet_movements · fleet_movement_ships · planet_ships · planets · ship_definitions
+```
+
+Clases de misión expuestas tal cual están en el backend: `PEACEFUL` (TRANSPORT, DEPLOY, COLONIZE, EXPEDITION),
+`WAR` (ATTACK, ESPIONAGE, RECYCLE), `HOLDING` (ACS_HOLD despachable; DEFEND y HOLDING se muestran **no
+disponibles** con la puerta del backend en pantalla). La autoridad de slots, cap de colonias, capacidad de carga,
+velocidad, combustible y estados sigue siendo exclusivamente del servidor: la UI no reproduce ninguna fórmula.
+
+
+### Verificación LIVE (transaccional, ROLLBACK, residuo 0)
+
+Ejecutada con `set local role authenticated` + `request.jwt.claims` de un jugador real (el mismo camino del
+navegador). Evidencia literal:
+
+```text
+A0 get_player_fleet_slots (antes)                  max=6 in_use=0 available=6
+A1 start_fleet_mixed EXPEDITION                    mission=EXPEDITION status=OUTBOUND destino=[1:1:16] hold=3600s
+A2 lectura RLS del movimiento propio               filas visibles=1
+A3 get_player_expedition_slot_status (en vuelo)    total=1 used=1 available=0
+A4 segunda expedición (esperado rechazo)           EXPEDITION_SLOTS_FULL: 1/1
+A5 recall_fleet expedición                         status=RETURNING
+B1 start_fleet_mixed TRANSPORT                     status=OUTBOUND destino=<id resuelto desde coordenadas>
+B2 load_fleet_cargo 10/20/15                       total=45 capacidad=50.00
+   y el mismo intento con 100/200/300              Cargo exceeds fleet capacity: 600 / 50.00
+B3 fleet_movement_ships                            light_fighter×1
+B4 recall_fleet TRANSPORT                          status=RETURNING carga=10/20/15 naves={"light_fighter":1}
+C1 start_colonize_fleet (destino ocupado)          COLONIZE_TARGET_OCCUPIED
+D1 start_support_fleet ACS_HOLD sin autorización   SUPPORT_AUTHORIZATION_REQUIRED: the destination owner has not authorised …
+D2 start_support_fleet DEFEND                      COMBAT_SUPPORT_NOT_READY: DEFEND requires the ACS combat engine
+E1 load_fleet_cargo sobre ATTACK                   CARGO_MISSION_NOT_SUPPORTED: mission ATTACK cannot carry loaded cargo
+E2 start_fleet_mixed RECYCLE con cazas             No debris field available for RECYCLE
+F1 slots con 3 flotas vivas                        in_use=3 available=3 filas_movimiento_nave=3
+residuo tras ROLLBACK                              fleets=0 fleet_ships=0 computer_level=null fighters=1 deuterio=98900
+                                                   messages=0 wreck_fields=0
+```
+
+Frontend: `npx tsc -b` 0 errores · `npx vite build` OK (bundle emitido) · `git diff --check` limpio ·
+`npx eslint src` vuelve al recuento previo (5 errores preexistentes en App.tsx, GameplayEnginePanel.tsx y
+main.tsx; el archivo nuevo aporta 0).
+
+Bugs de compilación preexistentes corregidos (bloqueaban `tsc -b`; no causados por este bloque):
+`src/lib/identity.ts` conservaba dos líneas huérfanas de un cast retirado y `BuildingDemolitionPanel` perdía el
+estrechamiento de tipos dentro de una función anidada.
+
+
+
+### Hallazgos de este bloque (no implementados, deliberadamente)
+
+```text
+BUG (latente, §H6)         p_building_id inexistente → "structure of query does not match function result type".
+                           No se ha tocado: no impide ninguna pantalla de este bloque.
+BACKEND GAP (ACS_HOLD)     No existe contrato público que liste autorizaciones de apoyo y `planet_support_authorizations`
+                           sólo concede MAINTAIN a authenticated (probado LIVE: 42501 permission denied). El envío
+                           ACS_HOLD sí funciona por coordenadas y el servidor valida la autorización; lo que no puede
+                           construirse es la pantalla de concesión/descubrimiento (además `players` oculta a los demás
+                           humanos, así que el propietario tampoco puede resolver un invitado por nombre).
+                           → No se abrió ninguna ACL ni se creó una RPC.
+BACKEND GAP (wreck field)  La nota del bloque de wreck field («the tables are ready to be read directly from the UI»)
+                           no se sostiene en LIVE: `planet_wreck_fields` y `planet_wreck_field_ships` no conceden SELECT
+                           a authenticated (sólo MAINTAIN, sin RLS). El panel del BLOQUE F necesita un contrato de
+                           lectura owner-scoped; no se ha creado.
+BY DESIGN                  No hay contrato público de previsualización de vuelo (velocidad/combustible/tiempo): los
+                           helpers `calculate_player_ship_speed`, `calculate_mission_fleet_speed_multiplier`,
+                           `calculate_fleet_travel_time` y `calculate_fleet_cargo_capacity` son internos. La UI muestra
+                           la respuesta del despacho (`arrives_at`) y la capacidad que devuelve `load_fleet_cargo`.
+FUTURE UI                  CORRECTED 2026-09-26: MOON_DESTRUCTION (`start_moon_destruction`) and the moon actions
+                           (phalanx, jump gate) ARE now part of the surface — the fleet selector offers
+                           MOON_DESTRUCTION with a foreign-moon destination and `MoonServicesPanel` drives
+                           `scan_with_phalanx` / `execute_jump_gate`; the active-body selector (planet/moon) exists
+                           in the shell. Nothing in this row is pending any more.
+```
+
+### Estado del panel activo y siguientes bloques
+
+`ActiveFleetsPanel` muestra misión, origen, destino, estado, salida, llegada, espera (`holding_until`), regreso,
+carga, combustible y composición, con recuento descendente local sobre las marcas del servidor, refresco cada 20 s
+mientras existan flotas vivas, y las acciones disponibles según el contrato: `recall_fleet` en `OUTBOUND`/`HOLDING`
+y bodega (`load_fleet_cargo`) en `OUTBOUND` con misión de la whitelist. La capacidad de la bodega se lee por el
+propio contrato con una carga de 0 (no muta nada).
+
+Siguiente bloque listo para implementar: **E (superficie lunar)** —la información de luna ya se muestra en
+`MoonsPanel`, pero edificios lunares, falange, puerta de salto y destrucción necesitan antes el selector de planeta
+activo—, seguido de **F (wreck field)**, bloqueado por el BACKEND GAP del contrato de lectura, y **G (informes)**,
+que ya se apoya en los contratos certificados. Los bloques C (Expedición) y D (Colonización) quedan cubiertos en
+esta misma entrega dentro de la vista EXPEDICIONES y del selector COLONIZE.
+
+## 25. Beginner protection (human targets) — implemented 2026-09-26
+
+### 25.1 What existed before (evidence, not assumption)
+
+* **LGI had no beginner/newbie protection.** A repo-wide search for
+  `beginner|newbie|novice|newcomer|protection_until|protected_until|attack_protection|immunity` returns only
+  documentation notes, and LIVE introspection over `pg_proc.prosrc` and `information_schema.columns` for the same
+  terms returns **zero rows**: no function, no column, no duration, no enforcement.
+* **OGameX @ 7c420bad has none either.** `app/GameMissions/AttackMission.php::isMissionPossible` validates target
+  existence, the destroyed-moon rule, own-planet, `checkTargetVacationMode($targetPlanet)` and
+  `checkAdminProtection($targetPlanet, …)` — no protection window, no account-age rule, no points-ratio rule.
+  `EspionageMission` blocks only the admin planet, and `start_support_fleet` (ACS defend) is support, not attack.
+
+### 25.2 The rule implemented (an LGI-owned window, reused — not invented)
+
+```text
+window      players.created_at + 24 hours
+authority   public.get_player_attack_protection(player_id, at default now())
+            -> (out_protected boolean, out_protected_until timestamptz, out_reason text)
+               reasons: BEGINNER_PROTECTION_24H | EXPIRED | NOT_HUMAN_TARGET | PLAYER_NOT_FOUND
+scope       a HUMAN target (players.user_id IS NOT NULL) inside its first 24 h
+guard       BEFORE INSERT trigger trg_enforce_beginner_protection on public.fleet_movements
+            raises TARGET_BEGINNER_PROTECTED: player <id> is protected until <ts>
+```
+
+Neither the duration nor the anchor is new: they are the 24-hour window the owner already approved for the AI
+attacker gate of `20260926291000` ("no attack during the AI's first 24 h"), reused on the DEFENDING side. The
+`at` parameter exists so the frontier case is testable and a replayed tick stays deterministic.
+
+### 25.3 Scope, decided by the evidence
+
+| Mission / path | Blocked? | Why |
+|---|---|---|
+| ATTACK — `start_fleet`, `start_fleet_mixed` | **yes** | the only attack paths; the trigger covers every dispatcher, present and future, by construction |
+| ESPIONAGE | no | OGameX restricts only the admin planet; espionage is information, not aggression |
+| TRANSPORT / RECYCLE / COLONIZE | no | none of them is an attack |
+| ACS defend / support — `start_support_fleet` | no | support, not attack |
+| AI targets | no | declared scope: an AI already has the symmetric attacker-side 24 h gate; a target-side rule for AI empires would be a new product decision |
+| attacker side for humans | no | OGameX has no such rule; inventing it is a product decision |
+
+A client cannot bypass it: the guard runs server-side on the INSERT of the movement, so no parameter — including
+a hand-crafted RPC call — can create an ATTACK against a protected player.
+
+### 25.4 How it was verified
+
+`supabase/tests/ai_normalization_and_beginner_protection.sql` — 14 PASS + 1 INFO (LIVE, rolled back): a freshly
+provisioned human is protected until `created_at + 24 h`; the frontier case (protected one second before expiry,
+released exactly at expiry); a real ATTACK dispatch from an armed AI is refused with `TARGET_BEGINNER_PROTECTED`
+and creates no movement; the same attack succeeds once the human is out of protection; espionage against the
+protected human is allowed; an AI target reports `NOT_HUMAN_TARGET`; the trigger exists and acts only on
+`mission_type = 'ATTACK'`. Regression: `ai_behaviour_policy.sql` 20/20 PASS (including a real attack dispatch)
+and `ai_player_policy.sql` 6/6 PASS.
+
+**Remaining product decisions (declared, not implemented):** a target-side rule for AI empires, an attacker-side
+restriction for humans, a points-based (rather than time-based) novice band, and a visible UI hint of the
+remaining protection time (it would need a new client read contract).
+
+## 26. Espionage reports — level gating (certified 2026-09-27)
+
+### 26.1 Authority and contract
+
+The single writer is `public.resolve_espionage_arrival(fleet_id)` (SECURITY DEFINER, service_role only). The report
+is stored **already filtered**: a category that is not revealed is persisted as `{}`, never as the real data, so a
+client cannot mine more by reading the row. The single reader is `public.get_player_espionage_reports(limit)`
+(SECURITY DEFINER, authenticated only), scoped to the players owned by `auth.uid()`; `public.espionage_reports`
+itself carries `deny_direct_api_access` (using/check false) for `anon` and `authenticated`, so a direct SELECT
+returns zero rows.
+
+```text
+level_gap       = greatest(0, target_espionage_level - attacker_espionage_level)
+remaining       = greatest(0, probes_sent - level_gap ^ 2)
+reveal_ships    = remaining >= 2  or  attacker_level - 1 >= target_level
+reveal_defenses = remaining >= 3  or  attacker_level - 2 >= target_level
+resources       metal / crystal / deuterium: stored unconditionally (no gate)
+```
+
+That is OGameX `7c420bad` verbatim: `canRevealData($remaining, $attacker, $defender, 2, 1)` for ships and
+`(…, 3, 2)` for defense, with `$extraProbesRequired = pow($levelDifference, 2)`.
+
+### 26.2 visible_at_level (measured; defender at level 0, one probe)
+
+| category | visible at | authority | stored complete? | returned to client? |
+|---|---|---|---|---|
+| resources (metal/crystal/deuterium) | always | `resolve_espionage_arrival` | yes (synced target values) | yes (`out_metal/out_crystal/out_deuterium`) |
+| ships (`fleet`) | level 1 (level path) or 2 remaining probes | same | **filtered at write time** | yes, as stored (`{}` when hidden) |
+| defenses (`defenses`) | level 2 (level path) or 3 remaining probes | same | **filtered at write time** | yes, as stored (`{}` when hidden) |
+| buildings | — | no column, no reveal path, no client contract | n/a | **never** |
+| research | — | same (retired by `20260921140925_retire_research_action_candidates_client_contract`) | n/a | **never** |
+| `energy` column | always | same | yes | yes (`out_energy`) — **deviation**: LGI stores the target's total ship attack (`sum(quantity × attack)`), OGameX stores the planet energy; pinned by the fixture, change = product decision (DEFERRED) |
+
+A stored report is a **snapshot**: raising the attacker's espionage level afterwards does not upgrade it.
+
+### 26.3 What was proven and how
+
+`supabase/tests/espionage_report_gating.sql` (LIVE, rolled back): the level ladder 0…4, the probe-budget frontier
+(gap 2 with 1/6/8 probes), the mixed case (level 3 vs 2 → ships visible, defenses hidden, counter-espionage chance
+0 and no battle), a moon target, resources ungated, the `energy` aggregate, a direct SELECT as `authenticated` and
+`anon` returning 0 rows, the owner RPC returning the hidden report with empty categories and no foreign row, a
+snapshot that does not gain information at level 7, and the ACL invariants. `counter_espionage.sql` keeps covering
+the OGameX chance formula and the battle.
+
+**Harness note:** the fleet *insert* needs a session (`AUTHENTICATION_REQUIRED` without it) while
+`resolve_espionage_arrival` must run **without** a JWT — `calculate_planet_storage` refuses a foreign planet when
+`auth.uid()` is set (`PLAYER_NOT_OWNED`), which is exactly how the cron worker resolves fleets in production.
+
+## 27. Browser certification of the fleet flow — BLOCKED (2026-09-27)
+
+A real UI → Supabase client → RPC → engine → worker certification was requested. It could NOT be executed and is
+reported as BLOCKED, never as PASS:
+
+```text
+start_fleet          = BLOCKED
+start_fleet_mixed    = BLOCKED
+start_colonize_fleet = BLOCKED
+start_support_fleet  = BLOCKED
+```
+
+Causes, all verified in this environment:
+
+1. **No browser automation dependency.** `package.json` lists no Playwright/Puppeteer/Cypress and neither exists in
+   `node_modules` (`@playwright`, `playwright`, `playwright-core`, `puppeteer` all absent); Vite is the only
+   runner. Chrome/Edge binaries exist, but there is no driver, and installing one would modify the dependency tree.
+2. **No human session credential.** `.env.local` exposes only `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_PUBLISHABLE_KEY`; the only human player in LIVE cannot be authenticated without its password, and
+   minting a JWT by hand was rejected as fabrication.
+3. **No fixture may fake ownership** (mission rule) and creating a throw-away account would mutate LIVE.
+
+Done instead, explicitly **not** a substitute: the static UI→RPC inventory (`supabase.rpc('…')` over `src/**`, 32
+RPCs) that feeds the ACL allow-list, plus the backend contracts the browser would drive (dispatchers, ownership
+guards, fleet slots, the beginner-protection gate, the espionage gating), each certified by its own SQL fixture.
+The browser step remains OPEN.
+
+## 28. Expedition merchant (`GainMerchantTrade`) — reachable from the client (2026-09-27)
+
+### 28.1 The hole (measured LIVE, 2026-09-27)
+
+LGI adopted the OGameX `ExpeditionOutcomeType::GainMerchantTrade` outcome: `expedition_settings.weight_merchant`
+is `0.4` in the universe that actually has planets (`cf021ece`), `resolve_expedition_arrival` calls
+`resolve_expedition_merchant`, that function writes (or IMPROVES) the active row of
+`player_expedition_merchants`, and the report (`expedition_results.merchant_*`) and the message announce it.
+
+Nothing could consume it:
+
+```text
+read    player_expedition_merchants carries the policy `deny_direct_api_access` (USING/WITH CHECK false for anon
+        and authenticated) → the client cannot read the offer at all
+write   `execute_expedition_merchant_trade` is EXECUTE = service_role only, has ZERO callers in `pg_proc`, the
+        Worker has no RPC path and there are no Edge Functions
+UI      the expedition report printed `comerciante <resource>` and stopped there
+```
+
+Consequence: a reward that can never be used and a state row that stays `active = true` forever (further merchant
+outcomes only raise its rates). The rules themselves were never missing — they were unreachable.
+
+### 28.2 What was implemented (no new rule, no new formula, no parallel engine)
+
+```text
+20260927024948_expedition_merchant_trade_contract
+  get_player_expedition_merchant()
+      read contract, owner-scoped: one row with `has_merchant`, `offered_resource` (what the merchant GIVES —
+      the trade's `bought_resource`) and the three rates. One row always, so the UI has a stable shape.
+  trade_with_expedition_merchant(p_planet_id, p_sell_resource, p_sell_amount)
+      identity from `auth.uid()` → `players.user_id` (NEVER a client-supplied player id), ownership of the body
+      verified (owned and not destroyed), then the RULE is delegated to the already-LIVE
+      `execute_expedition_merchant_trade`; it returns the same four columns (`sold`, `bought`, `bought_resource`,
+      `remaining_merchant`) so the client never recomputes the exchange.
+  ACL: both = EXECUTE `authenticated` + `service_role`, never `anon`, never PUBLIC (the DDL guard trigger
+      enforces it). The delegated internal function stays `service_role`-only on purpose: the AI actor /
+      service_role must keep passing its own `p_player_id` and must NOT be forced through `auth.uid()`.
+UI   src/GameplayEnginePanel.tsx `ExpeditionMerchantPanel` (mounted in the Expeditions view): shows the
+     resource the merchant gives and the rates, offers only the OTHER two resources as payment, and displays the
+     server's answer. No price is recomputed in React and no player id is sent.
+```
+
+### 28.3 Verification
+
+```text
+supabase/tests/expedition_merchant_trade.sql — 15 PASS + 2 INFO, LIVE, ROLLBACK, residue 0
+   1   ACL: authenticated yes, anon no, PUBLIC revoked, delegated function still closed
+   2   no session: trade refused ('Authentication required'), read returns 0 rows
+   3   no active offer: refused ('No active merchant for player …'), resources untouched
+  4/5  a foreign body, and an authenticated stranger, refused with PLANET_NOT_FOUND_OR_NOT_OWNED; nothing moved
+   6   the owner reads the offer (resource + rates)
+   7   100 crystal → 150 metal at 3/2/1 exactly; offer deactivated; remaining_merchant = false
+  8/9  the second trade is refused (no double reward); the read reports has_merchant = false
+  10   paying with the resource the merchant gives is refused BY THE RULE, offer untouched
+  11   insufficient resources refused, resources untouched
+  12   storage clamp: 1000 crystal requested → sold 20 / bought 10, metal == capacity (never overflows)
+  13   another player's offer is not usable by me; his row stays active
+ 14a/b a non-positive amount and an unknown resource are refused before any mutation
+```
+
+Scope boundary kept explicit: this is only the **expedition** variant. The general merchant, the shop and the
+premium economy (spending Dark Matter) remain out of scope and untouched.
+
+## 29. Debris fields are visible to the player (2026-09-27)
+
+### 29.1 The hole (measured LIVE, 2026-09-27)
+
+`public.debris_fields` carries the `deny_direct_api_access` policy (USING/WITH CHECK `false` for `anon` and
+`authenticated`) and **no contract exposed it**, so the client could not see debris anywhere: the only mentions of
+`debris` in `src/**` are report texts. The RECYCLE mission itself works — `start_fleet_mixed` selects the
+**nearest** field for the caller — which is precisely why the blind spot mattered: the player recycled without
+ever knowing that a field existed, how big it was, or how far the recyclers would fly.
+
+### 29.2 What was implemented
+
+```text
+20260927035703_universe_debris_read_contract
+  get_universe_debris(universe, galaxy, system) → out_position, out_metal, out_crystal, out_updated_at
+      · the universe is VALIDATED against the identity (auth.uid() → players.user_id must have a player in that
+        universe); otherwise 0 rows — no cross-universe leak, no client-supplied authority
+      · only fields with metal > 0 OR crystal > 0 are announced
+      · ACL: EXECUTE authenticated + service_role, never anon, never PUBLIC
+      · the table remains closed: producers (create_combat_debris, add_debris_field) and the collector
+        (collect_debris) stay internal
+UI   src/GalaxyView.tsx — each slot of the system view shows its debris (RESTOS <metal> M / <crystal> C) next to
+     the planet/empty label, plus a "N CAMPO(S) DE RESTOS" counter in the status line
+```
+
+Visibility rationale (recorded): debris is public game state, exactly like the planets the galaxy view already
+lists with their foreign owners, and `can_recycle_debris` never checked who owned the debris. No new rule, no
+new reward, no write path.
+
+Not done on purpose: a coordinate-targeted RECYCLE dispatch from the galaxy view is **not** possible today —
+`start_fleet_mixed` has no coordinate parameters and the certified contract chooses the nearest field
+server-side. Adding it would need a new dispatch contract/rule and was **not invented**; the debris display and
+the existing RECYCLE mission are enough to act on the information.
+
+### 29.3 Verification
+
+```text
+supabase/tests/universe_debris_read_contract.sql — 10 PASS + 1 INFO, LIVE, ROLLBACK, residue 0
+  1  ACL: authenticated yes, anon no, PUBLIC revoked
+  2  the debris_fields policy is still deny_direct_api_access (the table is NOT opened)
+  3  without a session → 0 rows
+  4  a foreign universe → 0 rows (no cross-universe leak)
+  5  the own system returns exactly the inserted field (12345 M / 6789 C at the position)
+  6  another system of the same universe → 0 rows
+  7  a zero-amount field is not announced
+  8  updated_at is returned
+  9  as `authenticated` the contract returns the row
+ 10  as `authenticated` a direct read of debris_fields still returns 0 rows
+```

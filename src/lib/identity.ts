@@ -63,12 +63,9 @@ export async function resolveIdentity(): Promise<{ player: PlayerIdentity | null
  * y nunca reclama un jugador existente.
  */
 export async function provisionPlayer(p_username: string, p_country_code = 'XX'): Promise<ProvisionedEmpire> {
-  // `provision_player` se tipará al regenerar database.types.ts tras la reconciliación LIVE.
-  const rpc = supabase.rpc as unknown as (
-    fn: string,
-    args?: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>
-  const { data, error } = await rpc('provision_player', { p_username, p_country_code })
+  // `provision_player` está tipada en database.types.ts desde la reconciliación LIVE:
+  // la llamada va directa, sin casts que oculten incompatibilidades.
+  const { data, error } = await supabase.rpc('provision_player', { p_username, p_country_code })
   if (error) throw new Error(error.message)
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined
   if (!row) throw new Error('PROVISION_FAILED')

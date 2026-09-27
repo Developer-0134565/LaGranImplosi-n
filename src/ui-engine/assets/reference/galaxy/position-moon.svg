@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="REFERENCE PLACEHOLDER — Position with moon (galaxy)">
+  <title>REFERENCE PLACEHOLDER — Position with moon</title>
+  <desc>Placeholder generado por scripts/generate-reference-assets.mjs. No es arte definitivo ni material de terceros.</desc>
+  <defs>
+    <pattern id="lgi-grid-galaxy-position-moon" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M0 10 L10 0" stroke="rgba(126, 180, 255, 0.10)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="160" height="120" fill="#0a0f18"/>
+  <rect width="160" height="120" fill="url(#lgi-grid-galaxy-position-moon)"/>
+  <rect x="0.5" y="0.5" width="159" height="119" fill="none" stroke="rgba(126, 180, 255, 0.38)" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="8" y="16" font-family="monospace" font-size="7" letter-spacing="1" fill="#35d0ff">REFERENCE</text>
+  <text x="8" y="26" font-family="monospace" font-size="7" letter-spacing="1" fill="#ffd75e">PLACEHOLDER</text>
+  <circle cx="80" cy="58" r="6" fill="#35d0ff"/>
+    <circle cx="46" cy="42" r="3" fill="#7fb8ff"/>
+    <circle cx="114" cy="74" r="3" fill="#7fb8ff"/>
+    <circle cx="60" cy="82" r="3" fill="#7fb8ff"/>
+    <circle cx="110" cy="40" r="3" fill="#7fb8ff"/>
+  <text x="8" y="103" font-family="monospace" font-size="8" fill="#7fb8ff">POSITION WITH MOON</text>
+  <text x="8" y="114" font-family="monospace" font-size="7" fill="#5c6f88">galaxy.position-moon</text>
+</svg>

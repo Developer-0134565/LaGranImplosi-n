@@ -58,5 +58,15 @@ body::after{background:linear-gradient(90deg,rgba(3,7,12,.72),transparent 28%,tr
 .neo-list-row{padding:9px 10px!important;border-bottom-color:rgba(135,171,207,.1)!important}
 .status-pill{border-radius:2px!important}
 
+
+/* Selector del cuerpo activo (planeta o luna propia) y chip del cuerpo activo leído por TemplateChrome. */
+.owned-body-group{padding:7px 10px;font:700 7px var(--font-number);letter-spacing:1.1px;color:var(--neo-faint);background:rgba(11,18,28,.72);border-bottom:1px solid rgba(135,171,207,.09)}
+.owned-planet.active{background:rgba(79,195,247,.13)!important;box-shadow:inset 2px 0 #4fc3f7!important}
+.owned-planet.moon .owned-planet-orb{color:#a9cfea;background:radial-gradient(circle at 38% 30%,#e8f4ff 0 4%,transparent 9%),linear-gradient(135deg,#22384e,#060c12)!important}
+.owned-planet.moon strong{font-size:8.5px!important}
+.neo-active-body{color:var(--neo-accent);font:700 8px var(--font-number);letter-spacing:.7px}
+/* Fuente del nombre del cuerpo activo para el chrome de plantilla: presente en el DOM, sin ocupar layout. */
+.neo-planetbar{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
 @media(max-width:900px){.neo-shell{grid-template-columns:154px minmax(0,1fr)!important}.neo-main{grid-template-columns:minmax(0,1fr) 190px!important}.neo-owned-planets{width:190px!important;min-width:190px!important}.neo-list-row{grid-template-columns:minmax(130px,1fr) 80px 90px 90px!important}}
 @media(max-width:760px){.neo-shell{display:block!important}.neo-sidebar{display:flex!important;overflow-x:auto!important;border-right:0!important;border-bottom:1px solid var(--template-line)!important}.neo-main{display:block!important;padding:5px!important}.neo-owned-planets{position:relative!important;top:auto!important;width:100%!important;min-width:0!important;max-height:180px!important;margin:0 0 6px!important}.owned-planets-head{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important}.owned-planet{display:inline-flex!important;width:180px!important;margin:4px!important;border:1px solid rgba(135,171,207,.1)!important;border-radius:2px!important}.neo-owned-planets{white-space:nowrap!important}.neo-list-row{grid-template-columns:1fr 80px!important}.neo-list-row>div:nth-last-child(-n+2){display:none!important}.neo-expedition-launch{align-items:flex-start!important;flex-direction:column!important}.message-row{grid-template-columns:34px minmax(0,1fr)!important}.message-row time{grid-column:2!important;text-align:left!important}}

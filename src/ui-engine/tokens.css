@@ -1,0 +1,317 @@
+/* ============================================================================
+   LGI UI ENGINE — DESIGN TOKENS  (single source of visual truth)
+
+   Reglas de la capa:
+     * Todo componente del UI Engine consume SOLO estas variables.
+     * Ningún componente define colores, radios, sombras o spacing propios.
+     * Los templates eligen TEMA y DENSIDAD; ambos son overrides de tokens,
+       nunca reestructuran un componente.
+
+   Namespace: --lgi-* (capa de presentación). Las variables heredadas
+   (--bg/--surface/--accent/--font-*) quedan intactas para que las pantallas
+   aún no migradas sigan renderizando exactamente igual.
+   ========================================================================= */
+
+:root {
+  /* ---- ESCALAS GLOBALES DEL UI DESIGNER ----------------------------------
+     Las inyecta `.lgi-engine` inline (sliders del Designer). Todas las medidas
+     del engine derivan de ellas, así que cambiar una escala no obliga a tocar
+     ningún componente:
+
+       --lgi-font-scale  → sólo tamaños de texto (80% … 130%)
+       --lgi-ui-scale    → espaciado, alto de fila y cajas (80% … 130%)
+       --lgi-touch-min   → tamaño táctil mínimo (0 en escritorio; se eleva en
+                           anchos móviles, ver ui-engine.css)
+
+     --lgi-font-family es el punto de entrada de la tipografía del engine: si
+     está definida (la define el Designer cuando se elige una familia) manda
+     sobre las cinco familias; si NO está definida, cada rol cae a su variable
+     heredada del proyecto (--font-title/--font-heading/…), que es el
+     comportamiento por defecto de la capa ya existente.
+     ---------------------------------------------------------------------- */
+  --lgi-font-scale: 1;
+  --lgi-ui-scale: 1;
+  --lgi-touch-min: 0px;
+
+  /* ---- tipografía: familias ---- */
+  --lgi-font-title: var(--lgi-font-family, var(--font-title, Arial, sans-serif));
+  --lgi-font-heading: var(--lgi-font-family, var(--font-heading, Arial, sans-serif));
+  --lgi-font-body: var(--lgi-font-family, var(--font-body, Arial, sans-serif));
+  --lgi-font-number: var(--lgi-font-family, var(--font-number, ui-monospace, monospace));
+  --lgi-font-button: var(--lgi-font-family, var(--font-button, Arial, sans-serif));
+
+  /* ---- tipografía: tamaño base (la densidad la sobreescribe) ---- */
+  --lgi-text-2xs-base: 7px;
+  --lgi-text-xs-base: 8px;
+  --lgi-text-sm-base: 9px;
+  --lgi-text-md-base: 11px;
+  --lgi-text-lg-base: 13px;
+  --lgi-text-xl-base: 17px;
+  --lgi-text-2xl-base: 22px;
+
+  /* ---- tipografía: tamaño efectivo (escala tipográfica) ---- */
+  --lgi-text-2xs: calc(var(--lgi-text-2xs-base) * var(--lgi-font-scale));
+  --lgi-text-xs: calc(var(--lgi-text-xs-base) * var(--lgi-font-scale));
+  --lgi-text-sm: calc(var(--lgi-text-sm-base) * var(--lgi-font-scale));
+  --lgi-text-md: calc(var(--lgi-text-md-base) * var(--lgi-font-scale));
+  --lgi-text-lg: calc(var(--lgi-text-lg-base) * var(--lgi-font-scale));
+  --lgi-text-xl: calc(var(--lgi-text-xl-base) * var(--lgi-font-scale));
+  --lgi-text-2xl: calc(var(--lgi-text-2xl-base) * var(--lgi-font-scale));
+
+  --lgi-leading-tight: 1.15;
+  --lgi-leading-normal: 1.42;
+  --lgi-leading-relaxed: 1.6;
+
+  --lgi-tracking-tight: .02em;
+  --lgi-tracking-wide: .08em;
+  --lgi-tracking-wider: .16em;
+
+  /* ---- spacing base (la densidad la sobreescribe) ---- */
+  --lgi-space-0: 0px;
+  --lgi-space-1-base: 4px;
+  --lgi-space-2-base: 6px;
+  --lgi-space-3-base: 8px;
+  --lgi-space-4-base: 10px;
+  --lgi-space-5-base: 14px;
+  --lgi-space-6-base: 18px;
+  --lgi-space-7-base: 24px;
+  --lgi-space-8-base: 32px;
+
+  /* ---- spacing efectivo (escala de UI) ---- */
+  --lgi-space-1: calc(var(--lgi-space-1-base) * var(--lgi-ui-scale));
+  --lgi-space-2: calc(var(--lgi-space-2-base) * var(--lgi-ui-scale));
+  --lgi-space-3: calc(var(--lgi-space-3-base) * var(--lgi-ui-scale));
+  --lgi-space-4: calc(var(--lgi-space-4-base) * var(--lgi-ui-scale));
+  --lgi-space-5: calc(var(--lgi-space-5-base) * var(--lgi-ui-scale));
+  --lgi-space-6: calc(var(--lgi-space-6-base) * var(--lgi-ui-scale));
+  --lgi-space-7: calc(var(--lgi-space-7-base) * var(--lgi-ui-scale));
+  --lgi-space-8: calc(var(--lgi-space-8-base) * var(--lgi-ui-scale));
+
+  /* ---- métricas de layout ---- */
+  --lgi-gap: var(--lgi-space-4);
+  --lgi-panel-pad-y: var(--lgi-space-4);
+  --lgi-panel-pad-x: var(--lgi-space-5);
+  --lgi-panel-head-y: var(--lgi-space-2);
+  --lgi-panel-head-x: var(--lgi-space-4);
+  --lgi-row-min-base: 30px;
+  --lgi-row-min: calc(var(--lgi-row-min-base) * var(--lgi-ui-scale));
+  --lgi-region-min: calc(190px * var(--lgi-ui-scale));
+  --lgi-card-min-base: 176px;
+  --lgi-card-min: calc(var(--lgi-card-min-base) * var(--lgi-ui-scale));
+
+  /* ---- bordes y radios (el radio lo controla el tema) ---- */
+  --lgi-border-width: 1px;
+  --lgi-border-style: solid;
+  --lgi-radius-s: 6px;
+  --lgi-radius-m: 10px;
+  --lgi-radius-l: 14px;
+  --lgi-radius-pill: 999px;
+
+  /* ---- sombras ---- */
+  --lgi-shadow-1: 0 4px 14px rgba(0, 0, 0, .34);
+  --lgi-shadow-2: 0 10px 30px rgba(0, 0, 0, .5);
+  --lgi-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .04);
+
+  /* ---- motion ---- */
+  --lgi-motion-fast: 120ms;
+  --lgi-motion-base: 200ms;
+  --lgi-motion-slow: 320ms;
+  --lgi-ease: cubic-bezier(.22, .61, .36, 1);
+
+  /* ---- foco ---- */
+  --lgi-focus-ring: 2px;
+
+  /* ---- tema por defecto: nebula (cian, compatible con lo heredado) ---- */
+  --lgi-bg: #05070c;
+  --lgi-surface: rgba(13, 19, 29, .86);
+  --lgi-surface-2: rgba(20, 28, 42, .62);
+  --lgi-surface-3: rgba(27, 37, 54, .5);
+  --lgi-line: rgba(126, 180, 255, .14);
+  --lgi-line-strong: rgba(126, 180, 255, .3);
+  --lgi-text: #d7e3f4;
+  --lgi-text-dim: #8fa3bd;
+  --lgi-text-faint: #5c6f88;
+  --lgi-accent: #35d0ff;
+  --lgi-accent-2: #2ab3ff;
+  --lgi-accent-soft: rgba(53, 208, 255, .12);
+  --lgi-accent-contrast: #04121c;
+  --lgi-ok: #5dd88a;
+  --lgi-warn: #ffd75e;
+  --lgi-danger: #ff6b6b;
+  --lgi-gold: #ffd75e;
+  --lgi-resource-metal: #d29a5a;
+  --lgi-resource-crystal: #7fb8ff;
+  --lgi-resource-deuterium: #2fe0c4;
+}
+
+
+/* ============================================================================
+   TEMAS — sólo color, radio y sombra. Nunca estructura.
+   ========================================================================= */
+
+.lgi-engine[data-lgi-theme='aurora'] {
+  --lgi-bg: #06110f;
+  --lgi-surface: rgba(12, 26, 26, .9);
+  --lgi-surface-2: rgba(19, 39, 40, .66);
+  --lgi-surface-3: rgba(26, 52, 53, .52);
+  --lgi-line: rgba(120, 226, 205, .16);
+  --lgi-line-strong: rgba(120, 226, 205, .34);
+  --lgi-text: #dcefea;
+  --lgi-text-dim: #8fb3ad;
+  --lgi-text-faint: #5d7f7d;
+  --lgi-accent: #45e6c0;
+  --lgi-accent-2: #63c9ff;
+  --lgi-accent-soft: rgba(69, 230, 192, .13);
+  --lgi-accent-contrast: #04211c;
+  --lgi-ok: #6ee39a;
+  --lgi-warn: #ffd98a;
+  --lgi-danger: #ff7f7f;
+  --lgi-gold: #ffd98a;
+  --lgi-radius-s: 10px;
+  --lgi-radius-m: 16px;
+  --lgi-radius-l: 22px;
+  --lgi-shadow-1: 0 6px 18px rgba(0, 0, 0, .3);
+  --lgi-shadow-2: 0 18px 44px rgba(0, 0, 0, .42);
+}
+
+.lgi-engine[data-lgi-theme='tactical'] {
+  --lgi-bg: #0a0906;
+  --lgi-surface: rgba(24, 21, 13, .92);
+  --lgi-surface-2: rgba(34, 30, 18, .68);
+  --lgi-surface-3: rgba(46, 40, 24, .5);
+  --lgi-line: rgba(255, 196, 92, .18);
+  --lgi-line-strong: rgba(255, 196, 92, .38);
+  --lgi-text: #f2ead6;
+  --lgi-text-dim: #b9ab8c;
+  --lgi-text-faint: #7d7159;
+  --lgi-accent: #ffc45c;
+  --lgi-accent-2: #ff9d3d;
+  --lgi-accent-soft: rgba(255, 196, 92, .14);
+  --lgi-accent-contrast: #231703;
+  --lgi-ok: #9ede7a;
+  --lgi-warn: #ffd75e;
+  --lgi-danger: #ff7a5c;
+  --lgi-gold: #ffc45c;
+  --lgi-radius-s: 2px;
+  --lgi-radius-m: 3px;
+  --lgi-radius-l: 4px;
+  --lgi-shadow-1: 0 2px 8px rgba(0, 0, 0, .46);
+  --lgi-shadow-2: 0 8px 22px rgba(0, 0, 0, .58);
+}
+
+/* Tema industrial: hierro, óxido y tungsteno. Acento cálido, esquinas suaves. */
+.lgi-engine[data-lgi-theme='industrial'] {
+  --lgi-bg: #0b0d10;
+  --lgi-surface: rgba(24, 25, 28, .9);
+  --lgi-surface-2: rgba(36, 37, 41, .66);
+  --lgi-surface-3: rgba(50, 50, 54, .5);
+  --lgi-line: rgba(214, 168, 106, .16);
+  --lgi-line-strong: rgba(214, 168, 106, .34);
+  --lgi-text: #e8e2d8;
+  --lgi-text-dim: #b0a596;
+  --lgi-text-faint: #7c7469;
+  --lgi-accent: #e2a45f;
+  --lgi-accent-2: #c9762f;
+  --lgi-accent-soft: rgba(226, 164, 95, .13);
+  --lgi-accent-contrast: #201304;
+  --lgi-ok: #86c98a;
+  --lgi-warn: #f0c76b;
+  --lgi-danger: #e4786a;
+  --lgi-gold: #e2a45f;
+  --lgi-radius-s: 4px;
+  --lgi-radius-m: 7px;
+  --lgi-radius-l: 10px;
+  --lgi-shadow-1: 0 3px 10px rgba(0, 0, 0, .4);
+  --lgi-shadow-2: 0 12px 26px rgba(0, 0, 0, .52);
+}
+
+/* Tema monocromo: sin acento cromático. El contenido manda; el color informa. */
+.lgi-engine[data-lgi-theme='monochrome'] {
+  --lgi-bg: #08090b;
+  --lgi-surface: rgba(19, 20, 23, .9);
+  --lgi-surface-2: rgba(28, 29, 33, .66);
+  --lgi-surface-3: rgba(38, 39, 44, .5);
+  --lgi-line: rgba(226, 232, 240, .12);
+  --lgi-line-strong: rgba(226, 232, 240, .26);
+  --lgi-text: #e9ecf1;
+  --lgi-text-dim: #a2a9b4;
+  --lgi-text-faint: #6b727d;
+  --lgi-accent: #e9ecf1;
+  --lgi-accent-2: #c7ccd4;
+  --lgi-accent-soft: rgba(233, 236, 241, .1);
+  --lgi-accent-contrast: #0b0c0e;
+  --lgi-ok: #9fd3a8;
+  --lgi-warn: #ddc68a;
+  --lgi-danger: #e29292;
+  --lgi-gold: #ddc68a;
+  --lgi-radius-s: 8px;
+  --lgi-radius-m: 13px;
+  --lgi-radius-l: 18px;
+  --lgi-shadow-1: 0 2px 10px rgba(0, 0, 0, .32);
+  --lgi-shadow-2: 0 12px 30px rgba(0, 0, 0, .44);
+}
+
+/* ============================================================================
+   DENSIDAD — spacing + escala tipográfica. Nunca color, nunca estructura.
+   ========================================================================= */
+
+.lgi-engine[data-lgi-density='comfortable'] {
+  --lgi-space-1-base: 6px;
+  --lgi-space-2-base: 9px;
+  --lgi-space-3-base: 12px;
+  --lgi-space-4-base: 15px;
+  --lgi-space-5-base: 20px;
+  --lgi-space-6-base: 26px;
+  --lgi-space-7-base: 34px;
+  --lgi-space-8-base: 44px;
+  --lgi-gap: var(--lgi-space-5);
+  --lgi-panel-pad-y: var(--lgi-space-5);
+  --lgi-panel-pad-x: var(--lgi-space-6);
+  --lgi-panel-head-y: var(--lgi-space-4);
+  --lgi-panel-head-x: var(--lgi-space-5);
+  --lgi-row-min-base: 38px;
+  --lgi-card-min-base: 210px;
+  --lgi-text-2xs-base: 8px;
+  --lgi-text-xs-base: 10px;
+  --lgi-text-sm-base: 11px;
+  --lgi-text-md-base: 13px;
+  --lgi-text-lg-base: 15px;
+  --lgi-text-xl-base: 20px;
+  --lgi-text-2xl-base: 26px;
+  --lgi-leading-normal: 1.5;
+}
+
+.lgi-engine[data-lgi-density='dense'] {
+  --lgi-space-1-base: 2px;
+  --lgi-space-2-base: 4px;
+  --lgi-space-3-base: 6px;
+  --lgi-space-4-base: 7px;
+  --lgi-space-5-base: 10px;
+  --lgi-space-6-base: 13px;
+  --lgi-space-7-base: 18px;
+  --lgi-space-8-base: 24px;
+  --lgi-gap: var(--lgi-space-3);
+  --lgi-panel-pad-y: var(--lgi-space-3);
+  --lgi-panel-pad-x: var(--lgi-space-4);
+  --lgi-panel-head-y: var(--lgi-space-1);
+  --lgi-panel-head-x: var(--lgi-space-3);
+  --lgi-row-min-base: 22px;
+  --lgi-card-min-base: 152px;
+  --lgi-text-2xs-base: 6px;
+  --lgi-text-xs-base: 7px;
+  --lgi-text-sm-base: 8px;
+  --lgi-text-md-base: 9px;
+  --lgi-text-lg-base: 11px;
+  --lgi-text-xl-base: 14px;
+  --lgi-text-2xl-base: 18px;
+  --lgi-leading-normal: 1.3;
+}
+
+/* Accesibilidad: el movimiento es un token, no un adorno. */
+@media (prefers-reduced-motion: reduce) {
+  .lgi-engine {
+    --lgi-motion-fast: 0ms;
+    --lgi-motion-base: 0ms;
+    --lgi-motion-slow: 0ms;
+  }
+}

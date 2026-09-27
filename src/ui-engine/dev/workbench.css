@@ -1,0 +1,182 @@
+/* ============================================================================
+   LGI UI ENGINE — BANCO DE PRUEBAS + MARCO DE DISPOSITIVO (DEV)
+
+   Superficie de previsualizacion del Designer: barra del banco de pruebas,
+   marco de dispositivo y navegacion inferior de ejemplo. El panel del Designer
+   y las capas DEV viven en designer/designer.css, que tambien define la
+   paleta --lgi-dev-*.
+   ========================================================================= */
+
+/* ============================================================================
+   BANCO DE PRUEBAS (`.lgi-workbench`) — superficie DEV sin sesión
+
+   Monta el mismo `UIEngine` y los mismos módulos de referencia dentro de un
+   marco de dispositivo. No usa Supabase: sólo presentación.
+   ========================================================================= */
+
+.lgi-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100vh;
+  padding: 14px 14px 40px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(53, 208, 255, .07), transparent 55%),
+    var(--lgi-bg, #05070c);
+  color: var(--lgi-text, #d7e3f4);
+  font-family: var(--font-body, Arial, sans-serif);
+}
+
+.lgi-workbench__bar {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 11px 13px;
+  border: 1px solid var(--lgi-dev-line);
+  border-radius: var(--lgi-dev-radius);
+  background: rgba(6, 11, 18, .86);
+}
+
+.lgi-workbench__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lgi-workbench__title strong {
+  font-family: var(--font-heading, Arial, sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: var(--lgi-dev-accent);
+}
+
+.lgi-workbench__title span {
+  color: var(--lgi-dev-dim);
+  font-size: 10px;
+}
+
+.lgi-workbench__decks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.lgi-workbench__deck {
+  min-height: 24px;
+  padding: 3px 9px;
+  border: 1px solid var(--lgi-dev-line);
+  border-radius: 6px;
+  background: rgba(20, 28, 42, .6);
+  color: var(--lgi-dev-dim);
+  font-family: var(--font-button, Arial, sans-serif);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.lgi-workbench__deck:hover {
+  border-color: var(--lgi-dev-accent);
+  color: var(--lgi-dev-text);
+}
+
+.lgi-workbench__deck.active {
+  border-color: var(--lgi-dev-accent);
+  background: var(--lgi-dev-accent-soft);
+  color: var(--lgi-dev-accent);
+}
+
+.lgi-workbench__stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ---- marco de dispositivo ---- */
+.lgi-device-frame {
+  position: relative;
+  width: var(--lgi-device-width, 100%);
+  flex: 0 0 auto;
+  padding: 12px;
+  border: 1px solid var(--lgi-dev-line-strong);
+  border-radius: 24px;
+  background: #04070c;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .03);
+}
+
+.lgi-device-frame--native {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lgi-device-frame__notch {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 74px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #02040a;
+}
+
+.lgi-device-frame__screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: var(--lgi-device-height, 0px);
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--lgi-bg, #05070c);
+  overflow: hidden;
+}
+
+.lgi-device-frame--native .lgi-device-frame__screen {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lgi-device-frame__nav {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+  min-height: 46px;
+  padding: 4px 8px max(4px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--lgi-dev-line);
+  background: rgba(4, 7, 12, .92);
+  color: var(--lgi-dev-faint);
+  font-family: var(--font-button, Arial, sans-serif);
+  font-size: 9px;
+  letter-spacing: .06em;
+}
+
+.lgi-device-frame__nav b {
+  color: var(--lgi-dev-accent);
+}
+
+.lgi-workbench__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--lgi-dev-faint);
+  font-family: var(--font-number, monospace);
+  font-size: 9px;
+
+.lgi-workbench__meta b {
+  color: var(--lgi-dev-dim);
+}

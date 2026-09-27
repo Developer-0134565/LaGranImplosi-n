@@ -39,7 +39,11 @@ This table is an index, not proof that every OGameX component has a direct L.G.I
 
 The detailed structural comparison is maintained separately so this README remains a compact index:
 
-[`OGAMEX_LGI_MAP.md`](OGAMEX_LGI_MAP.md)
+[`OGAMEX_LGI_MAP.md`](OGAMEX_LGI_MAP.md) — first-pass structural bridge (2026-09-17).
+
+[`README_OGAMEX_LGI_MAP.md`](README_OGAMEX_LGI_MAP.md) — **systematic per-domain map** (states, classifications,
+gap register, next candidates) produced 2026-09-25. Use it for gap analysis; the first-pass file remains the
+method note.
 
 The first pass identifies **fleet mission lifecycle, temporal events, combat boundaries and deferred processing** as the highest-value areas for deeper comparison. It does not indicate that L.G.I. needs an OGameX-style rewrite.
 

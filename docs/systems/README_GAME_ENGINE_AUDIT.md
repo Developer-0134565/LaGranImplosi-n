@@ -226,7 +226,9 @@ Research now uses the authoritative `can_start_research(p_player_id, p_planet_id
 
 The regression contract battery passed **12/12** assertions, including ownership, prerequisite details, server-side target level, grants/ACL closure of legacy helpers, read-only behavior, foreign-player rejection and NULL-auth rejection. A valid `start_research` call was also exercised transactionally, and the prerequisite-invalid path was rejected correctly.
 
-The browser flow was subsequently validated by the user: research levels increased correctly and resources were deducted correctly. No further Research backend changes are required for the current contract.
+The browser flow was subsequently validated by the user: research levels increased correctly and resources were deducted correctly.
+
+**Update 2026-09-26/27.** `20260926180000_research_lab_gates_and_irn` (owner-approved) ships the Research Laboratory building (200/400/200, factor 2, PLANET-only), the 16 OGameX `research_lab` gates and the laboratory-aware IRN duration overload, so **every technology now requires a Laboratory on the planet that starts it** (`RESEARCH_REQUIREMENTS_NOT_MET` until it is built) — a deliberate contract change, not a defect. The 2026-09-27 audit fixed the fixture precondition that activation had invalidated in `research_lifecycle.sql` and `research_building_prerequisites.sql`, and re-verified the complete lifecycle LIVE — availability, prerequisites, resource validation, next-level cost, queue, production completion, level increment, next level, ownership, NULL auth and idempotency — with **11/11 PASS** (transactional probe, zero residue). Backend status: **CLOSED with the Laboratory gate active**; the only remaining gate is the user's browser re-validation of the Research view. Detail: [`README_RESEARCH.md`](README_RESEARCH.md) §16.
 
 The UI intentionally reads definition metadata (`id`, name, description, max level) for presentation but obtains actionable cost/time/availability from `can_start_research()`. A bulk availability RPC remains deferred as an optimization; the current one-RPC-per-definition approach is the certified path.
 

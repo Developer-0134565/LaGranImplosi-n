@@ -27,6 +27,7 @@ export type Database = {
           max_level: number | null
           name: string
           time_factor: number | null
+          valid_kinds: string[]
         }
         Insert: {
           base_build_time_seconds?: number
@@ -40,6 +41,7 @@ export type Database = {
           max_level?: number | null
           name: string
           time_factor?: number | null
+          valid_kinds?: string[]
         }
         Update: {
           base_build_time_seconds?: number
@@ -53,6 +55,7 @@ export type Database = {
           max_level?: number | null
           name?: string
           time_factor?: number | null
+          valid_kinds?: string[]
         }
         Relationships: []
       }
@@ -145,6 +148,7 @@ export type Database = {
           created_at: string
           finishes_at: string
           id: string
+          is_downgrade: boolean
           planet_id: string
           started_at: string
           status: string
@@ -155,6 +159,7 @@ export type Database = {
           created_at?: string
           finishes_at: string
           id?: string
+          is_downgrade?: boolean
           planet_id: string
           started_at: string
           status?: string
@@ -165,6 +170,7 @@ export type Database = {
           created_at?: string
           finishes_at?: string
           id?: string
+          is_downgrade?: boolean
           planet_id?: string
           started_at?: string
           status?: string
@@ -1681,7 +1687,9 @@ export type Database = {
           deuterium: number
           expedition_hold_seconds: number
           fuel_consumed: number
+          holding_until: string | null
           id: string
+          idempotency_key: string | null
           metal: number
           mission_type: string
           origin_planet_id: string
@@ -1701,7 +1709,9 @@ export type Database = {
           deuterium?: number
           expedition_hold_seconds?: number
           fuel_consumed?: number
+          holding_until?: string | null
           id?: string
+          idempotency_key?: string | null
           metal?: number
           mission_type: string
           origin_planet_id: string
@@ -1721,7 +1731,9 @@ export type Database = {
           deuterium?: number
           expedition_hold_seconds?: number
           fuel_consumed?: number
+          holding_until?: string | null
           id?: string
+          idempotency_key?: string | null
           metal?: number
           mission_type?: string
           origin_planet_id?: string
@@ -2446,7 +2458,11 @@ export type Database = {
           id: string
           is_destroyed: boolean
           is_homeworld: boolean
+          jump_gate_cooldown_until: string | null
+          kind: string
+          moon_diameter_km: number | null
           name: string
+          parent_planet_id: string | null
           player_id: string | null
           position: number
           system: number
@@ -2462,7 +2478,11 @@ export type Database = {
           id?: string
           is_destroyed?: boolean
           is_homeworld?: boolean
+          jump_gate_cooldown_until?: string | null
+          kind?: string
+          moon_diameter_km?: number | null
           name?: string
+          parent_planet_id?: string | null
           player_id?: string | null
           position: number
           system: number
@@ -2478,7 +2498,11 @@ export type Database = {
           id?: string
           is_destroyed?: boolean
           is_homeworld?: boolean
+          jump_gate_cooldown_until?: string | null
+          kind?: string
+          moon_diameter_km?: number | null
           name?: string
+          parent_planet_id?: string | null
           player_id?: string | null
           position?: number
           system?: number
@@ -3053,6 +3077,7 @@ export type Database = {
           shield: number
           ship_type: string
           speed: number
+          valid_kinds: string[]
         }
         Insert: {
           attack?: number
@@ -3070,6 +3095,7 @@ export type Database = {
           shield?: number
           ship_type: string
           speed?: number
+          valid_kinds?: string[]
         }
         Update: {
           attack?: number
@@ -3087,6 +3113,7 @@ export type Database = {
           shield?: number
           ship_type?: string
           speed?: number
+          valid_kinds?: string[]
         }
         Relationships: []
       }
@@ -4075,6 +4102,344 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_building: {
+        Args: { p_queue_id: string }
+        Returns: {
+          queue_id: string
+          planet_id: string
+          building_id: string
+          target_level: number
+          refund_metal: number
+          refund_crystal: number
+          refund_deuterium: number
+          status: string
+        }[]
+      }
+      cancel_research: {
+        Args: { p_queue_id: string }
+        Returns: {
+          queue_id: string
+          player_id: string
+          planet_id: string
+          research_id: string
+          target_level: number
+          refund_metal: number
+          refund_crystal: number
+          refund_deuterium: number
+          status: string
+        }[]
+      }
+      can_start_demolition: {
+        Args: { p_player_id: string; p_planet_id: string; p_building_id: string }
+        Returns: {
+          allowed: boolean
+          reason: string
+          current_level: number
+          target_level: number
+          ion_technology_level: number
+          cost_metal: number
+          cost_crystal: number
+          cost_deuterium: number
+          duration_seconds: number
+          available_metal: number
+          available_crystal: number
+          available_deuterium: number
+          dependents_met: boolean
+          research_idle: boolean
+          unit_queue_idle: boolean
+          queue_available: boolean
+          is_downgrade: boolean
+        }[]
+      }
+      check_colony_cap: {
+        Args: { p_player_id: string }
+        Returns: {
+          allowed: boolean
+          reason: string
+          max_slots: number
+          current_planets: number
+          astrophysics_level: number
+        }[]
+      }
+      get_player_expedition_item_status: {
+        Args: never
+        Returns: {
+          kind: string
+          item_id: string
+          item_name: string | null
+          category: string | null
+          effect_key: string | null
+          effect_value: number | null
+          quantity: number
+          expires_at: string | null
+          remaining_seconds: number | null
+        }[]
+      }
+      get_player_expedition_merchant: {
+        Args: never
+        Returns: {
+          has_merchant: boolean
+          offered_resource: string | null
+          metal_rate: number | null
+          crystal_rate: number | null
+          deuterium_rate: number | null
+          source: string | null
+          created_at: string | null
+          updated_at: string | null
+        }[]
+      }
+      get_player_expedition_reports: {
+        Args: { p_limit?: number }
+        Returns: {
+          fleet_id: string
+          created_at: string
+          resolved_at: string | null
+          outcome: string | null
+          event_type: string | null
+          metal: number | null
+          crystal: number | null
+          deuterium: number | null
+          dark_matter: number | null
+          ships: Json
+          item_id: string | null
+          item_name: string | null
+          item_quantity: number | null
+          merchant_resource: string | null
+          merchant_metal_rate: number | null
+          merchant_crystal_rate: number | null
+          merchant_deuterium_rate: number | null
+          battle_id: string | null
+          enemy_ships: Json
+          delay_seconds: number | null
+          speedup_seconds: number | null
+          lost_ships: Json
+          loss_percentage: number | null
+          reward_tier: string | null
+          reward_multiplier: number | null
+          cargo_capacity: number | null
+          max_resource_find: number | null
+          scaled_resource_find: number | null
+        }[]
+      }
+      get_player_expedition_slot_status: {
+        Args: never
+        Returns: {
+          base_slots: number
+          settings_bonus: number
+          item_bonus: number
+          total_slots: number
+          used_slots: number
+          available_slots: number
+        }[]
+      }
+      get_player_support_authorizations: {
+        Args: never
+        Returns: {
+          out_authorization_id: string
+          out_direction: string
+          out_destination_planet_id: string
+          out_destination_name: string
+          out_destination_kind: string
+          out_galaxy: number
+          out_system: number
+          out_position: number
+          out_owner_player_id: string
+          out_owner_username: string
+          out_guest_player_id: string
+          out_guest_username: string
+          out_authorized_at: string
+          out_expires_at: string | null
+          out_is_usable: boolean
+        }[]
+      }
+      get_universe_debris: {
+        Args: { p_universe_id: string; p_galaxy: number; p_system: number }
+        Returns: {
+          out_position: number
+          out_metal: number
+          out_crystal: number
+          out_updated_at: string
+        }[]
+      }
+      get_universe_evolution_monitor_public: {
+        Args: { p_universe_id: string }
+        Returns: {
+          universe_id: string | null
+          universe_name: string | null
+          is_active: boolean | null
+          status: string | null
+          clock_last_tick_at: string | null
+          clock_next_tick_at: string | null
+          clock_interval_seconds: number | null
+          clock_is_processing: boolean | null
+          clock_lag_seconds: number | null
+          clock_ticks_due: number | null
+          galaxy_count: number | null
+          normal_galaxy_count: number | null
+          special_galaxy_count: number | null
+          system_count: number | null
+          unlocked_positions: number | null
+          expansion_pending_galaxies: number | null
+          expansion_oldest_lag_seconds: number | null
+          next_galaxy_roll_at: string | null
+          galaxy_rolls_due: number | null
+          ai_planets_count: number | null
+          ai_density: number | null
+          ai_density_target: number | null
+          ai_density_tolerance: number | null
+          ai_density_lower_bound: number | null
+          ai_density_upper_bound: number | null
+          ai_deficit: number | null
+          ai_generation_batch: number | null
+          ai_estimated_batches: number | null
+          next_ai_reconciliation_at: string | null
+        }[]
+      }
+      get_universe_ranking_by_category: {
+        Args: { p_universe_id: string; p_category: string; p_limit?: number }
+        Returns: {
+          out_rank: number
+          out_player_id: string
+          out_username: string
+          out_player_type: string
+          out_points: number
+          out_is_current_player: boolean
+        }[]
+      }
+      provision_player: {
+        Args: { p_username: string; p_country_code?: string }
+        Returns: {
+          player_id: string
+          planet_id: string | null
+          username: string
+          galaxy: number | null
+          system: number | null
+          planet_position: number | null
+        }[]
+      }
+      start_demolition: {
+        Args: { p_player_id: string; p_planet_id: string; p_building_id: string }
+        Returns: string
+      }
+      get_player_espionage_reports: {
+        Args: { p_limit?: number }
+        Returns: {
+          out_report_id: string
+          out_player_id: string
+          out_fleet_id: string
+          out_target_planet_id: string
+          out_target_name: string | null
+          out_galaxy: number
+          out_system: number
+          out_position: number
+          out_espionage_level: number
+          out_target_espionage_level: number
+          out_metal: number
+          out_crystal: number
+          out_deuterium: number
+          out_energy: number
+          out_fleet: Json
+          out_defenses: Json
+          out_buildings: Json
+          out_research: Json
+          out_counter_espionage_chance: number
+          out_counter_espionage_triggered: boolean
+          out_probes_sent: number
+          out_probes_lost: number
+          out_created_at: string
+          out_ships_revealed: boolean
+          out_defenses_revealed: boolean
+          out_buildings_revealed: boolean
+          out_research_revealed: boolean
+        }[]
+      }
+      get_player_fleet_slots: {
+        Args: never
+        Returns: {
+          out_player_id: string
+          out_computer_technology_level: number
+          out_max_slots: number
+          out_slots_in_use: number
+          out_slots_available: number
+        }[]
+      }
+      get_player_messages: {
+        Args: { p_limit?: number; p_unread_only?: boolean }
+        Returns: {
+          out_message_id: string
+          out_sender_player_id: string | null
+          out_sender_username: string | null
+          out_subject: string
+          out_body: string | null
+          out_read_at: string | null
+          out_created_at: string
+          out_is_read: boolean
+        }[]
+      }
+      get_player_moons: {
+        Args: never
+        Returns: {
+          out_moon_id: string
+          out_parent_planet_id: string
+          out_parent_name: string | null
+          out_name: string
+          out_galaxy: number
+          out_system: number
+          out_position: number
+          out_diameter_km: number
+          out_fields_total: number
+          out_fields_used: number
+          out_cooldown_until: string | null
+          out_metal: number
+          out_crystal: number
+          out_deuterium: number
+          out_buildings: Json
+        }[]
+      }
+      get_player_research_lab_status: {
+        Args: never
+        Returns: {
+          research_lab_upgrading: boolean
+          research_in_progress: boolean
+          upgrading_planet_id: string | null
+          upgrading_target_level: number | null
+          upgrading_finishes_at: string | null
+        }[]
+      }
+      get_universe_ranking: {
+        Args: { p_limit?: number; p_universe_id: string }
+        Returns: {
+          out_rank: number
+          out_player_id: string
+          out_username: string
+          out_player_type: string
+          out_points: number
+          out_is_current_player: boolean
+        }[]
+      }
+      mark_message_read: {
+        Args: { p_message_id: string }
+        Returns: {
+          out_message_id: string
+          out_read_at: string
+          out_already_read: boolean
+        }[]
+      }
+      recall_fleet: {
+        Args: { p_player_id: string; p_fleet_id: string }
+        Returns: {
+          out_fleet_id: string
+          out_status: string
+          out_mission_type: string
+          out_origin_planet_id: string
+          out_returns_at: string
+          out_seconds_remaining: number
+          out_cargo_metal: number
+          out_cargo_crystal: number
+          out_cargo_deuterium: number
+          out_ships: Json
+        }[]
+      }
       add_debris_field: {
         Args: {
           p_crystal: number
@@ -4398,14 +4763,6 @@ export type Database = {
         Args: { p_fleet_id: string; p_percentage: number }
         Returns: number
       }
-      calculate_expedition_time: {
-        Args: {
-          p_origin_planet_id: string
-          p_quantity?: number
-          p_ship_id: string
-        }
-        Returns: number
-      }
       calculate_expedition_total_hold_seconds: {
         Args: { p_fleet_id: string; p_multiplier: number }
         Returns: number
@@ -4416,36 +4773,6 @@ export type Database = {
       }
       calculate_fleet_distance: {
         Args: { p_destination_planet_id: string; p_origin_planet_id: string }
-        Returns: number
-      }
-      calculate_fleet_fuel: {
-        Args: {
-          p_destination_planet_id: string
-          p_origin_planet_id: string
-          p_quantity: number
-          p_ship_id: string
-        }
-        Returns: number
-      }
-      calculate_fleet_fuel_for_distance: {
-        Args: { p_distance: number; p_quantity: number; p_ship_id: string }
-        Returns: number
-      }
-      calculate_fleet_fuel_mixed: {
-        Args: {
-          p_destination_planet_id: string
-          p_origin_planet_id: string
-          p_ships: Json
-        }
-        Returns: number
-      }
-      calculate_fleet_time: {
-        Args: {
-          p_destination_planet_id: string
-          p_origin_planet_id: string
-          p_quantity?: number
-          p_ship_id: string
-        }
         Returns: number
       }
       calculate_lifeform_building_cost: {
@@ -4983,6 +5310,21 @@ export type Database = {
           shots_created: number
         }[]
       }
+      execute_jump_gate: {
+        Args: {
+          p_player_id: string
+          p_ships: Json
+          p_source_moon_id: string
+          p_target_moon_id: string
+        }
+        Returns: {
+          out_cooldown_seconds: number
+          out_cooldown_until: string
+          out_ships: Json
+          out_source_moon_id: string
+          out_target_moon_id: string
+        }[]
+      }
       get_active_expedition_count: {
         Args: { p_player_id: string }
         Returns: number
@@ -5088,6 +5430,16 @@ export type Database = {
         Args: { p_slot: number }
         Returns: number
       }
+      get_planet_building_preview: {
+        Args: { p_planet_id: string }
+        Returns: {
+          building_id: string
+          current_level: number
+          target_level: number
+          duration_seconds: number
+          energy_delta_per_hour: number | null
+        }[]
+      }
       get_planet_economic_rates: {
         Args: { p_planet_id: string }
         Returns: {
@@ -5115,6 +5467,21 @@ export type Database = {
           universe_id: string
         }[]
       }
+      get_planet_economy_overview: {
+        Args: { p_planet_id: string }
+        Returns: {
+          metal_per_hour: number
+          crystal_per_hour: number
+          deuterium_per_hour: number
+          energy_per_hour: number
+          energy_production_per_hour: number
+          energy_consumption_per_hour: number
+          energy_balance_per_hour: number
+          metal_capacity: number
+          crystal_capacity: number
+          deuterium_capacity: number
+        }[]
+      }
       get_planet_lifeform_building_effect: {
         Args: { p_effect_key: string; p_planet_id: string }
         Returns: number
@@ -5134,10 +5501,6 @@ export type Database = {
       }
       get_player_expedition_slots: {
         Args: { p_player_id: string }
-        Returns: number
-      }
-      get_player_fleet_speed_multiplier: {
-        Args: { p_planet_id: string; p_player_id: string }
         Returns: number
       }
       get_player_lifeform_effect: {
@@ -5194,6 +5557,22 @@ export type Database = {
       get_universe_top1_points: {
         Args: { p_universe_id: string }
         Returns: number
+      }
+      grant_planet_support_authorization: {
+        Args: {
+          p_expires_at?: string | null
+          p_guest_player_id: string
+          p_planet_id: string
+          p_player_id: string
+        }
+        Returns: {
+          authorization_id: string
+          destination_planet_id: string
+          owner_player_id: string
+          guest_player_id: string
+          authorized_at: string
+          expires_at: string | null
+        }[]
       }
       initialize_combat_unit_state: {
         Args: { p_battle_id: string }
@@ -5557,20 +5936,6 @@ export type Database = {
           target_ai: number
         }[]
       }
-      register_guest_player: {
-        Args: { p_country_code: string; p_ip_hash: string; p_username: string }
-        Returns: {
-          achievement_awarded: boolean
-          country_code: string
-          galaxy: number
-          planet_id: string
-          planet_position: number
-          player_id: string
-          system: number
-          tester_number: number
-          username: string
-        }[]
-      }
       repair_defenses_after_combat: {
         Args: { p_battle_id: string }
         Returns: {
@@ -5698,6 +6063,10 @@ export type Database = {
           status: string
         }[]
       }
+      revoke_planet_support_authorization: {
+        Args: { p_player_id: string; p_planet_id: string; p_guest_player_id: string }
+        Returns: boolean
+      }
       run_expedition_combat: {
         Args: { p_battle_id: string }
         Returns: {
@@ -5711,6 +6080,27 @@ export type Database = {
         Args: never
         Returns: {
           processed_fleets: number
+        }[]
+      }
+      scan_with_phalanx: {
+        Args: {
+          p_galaxy: number
+          p_moon_id: string
+          p_player_id: string
+          p_system: number
+        }
+        Returns: {
+          out_arrives_at: string
+          out_destination_galaxy: number
+          out_destination_position: number
+          out_destination_system: number
+          out_fleet_id: string
+          out_mission_type: string
+          out_owner_name: string | null
+          out_player_id: string
+          out_returns_at: string | null
+          out_ships: Json
+          out_status: string
         }[]
       }
       select_expedition_delay_multiplier:
@@ -6065,7 +6455,7 @@ export type Database = {
       }
       start_fleet_mixed: {
         Args: {
-          p_destination_planet_id: string
+          p_destination_planet_id: string | null
           p_mission_type?: string
           p_origin_planet_id: string
           p_player_id: string
@@ -6073,7 +6463,7 @@ export type Database = {
         }
         Returns: {
           arrives_at: string
-          destination_planet_id: string
+          destination_planet_id: string | null
           fleet_id: string
           mission_type: string
           origin_planet_id: string
@@ -6089,6 +6479,15 @@ export type Database = {
       start_lifeform_research: {
         Args: { p_planet_id: string; p_research_id: string }
         Returns: Json
+      }
+      start_moon_destruction: {
+        Args: {
+          p_destination_planet_id: string
+          p_origin_planet_id: string
+          p_player_id: string
+          p_ships: Json
+        }
+        Returns: string
       }
       start_research: {
         Args: {
@@ -6116,6 +6515,31 @@ export type Database = {
           started_at: string
         }[]
       }
+      start_support_fleet: {
+        Args: {
+          p_destination_planet_id: string
+          p_holding_until: string
+          p_idempotency_key: string
+          p_origin_planet_id: string
+          p_player_id: string
+          p_ships: Json
+          p_support_mission: string
+        }
+        Returns: {
+          fleet_id: string
+          ship_id: string
+          quantity: number
+          origin_planet_id: string
+          destination_planet_id: string
+          mission_type: string
+          status: string
+          started_at: string
+          arrives_at: string
+          holding_until: string
+          fuel_consumed: number
+          idempotent_replay: boolean
+        }[]
+      }
       sync_combat_battle_final_counts: {
         Args: { p_battle_id: string }
         Returns: undefined
@@ -6132,6 +6556,15 @@ export type Database = {
           metal: number
           metal_produced: number
           planet_id: string
+        }[]
+      }
+      trade_with_expedition_merchant: {
+        Args: { p_planet_id: string; p_sell_resource: string; p_sell_amount: number }
+        Returns: {
+          sold: number
+          bought: number
+          bought_resource: string
+          remaining_merchant: boolean
         }[]
       }
       ui_building_definitions: {

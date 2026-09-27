@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="REFERENCE PLACEHOLDER — Cruiser (shipyard)">
+  <title>REFERENCE PLACEHOLDER — Cruiser</title>
+  <desc>Placeholder generado por scripts/generate-reference-assets.mjs. No es arte definitivo ni material de terceros.</desc>
+  <defs>
+    <pattern id="lgi-grid-shipyard-cruiser" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M0 10 L10 0" stroke="rgba(126, 180, 255, 0.10)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="160" height="120" fill="#0a0f18"/>
+  <rect width="160" height="120" fill="url(#lgi-grid-shipyard-cruiser)"/>
+  <rect x="0.5" y="0.5" width="159" height="119" fill="none" stroke="rgba(126, 180, 255, 0.38)" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="8" y="16" font-family="monospace" font-size="7" letter-spacing="1" fill="#35d0ff">REFERENCE</text>
+  <text x="8" y="26" font-family="monospace" font-size="7" letter-spacing="1" fill="#ffd75e">PLACEHOLDER</text>
+  <path d="M40 68 L80 34 L120 68 L80 60 Z" fill="none" stroke="#7fb8ff" stroke-width="3"/>
+    <path d="M80 60 L80 78" stroke="#35d0ff" stroke-width="3"/>
+  <text x="8" y="103" font-family="monospace" font-size="8" fill="#7fb8ff">CRUISER</text>
+  <text x="8" y="114" font-family="monospace" font-size="7" fill="#5c6f88">shipyard.cruiser</text>
+</svg>
