@@ -384,12 +384,7 @@ async function dragFrom(session, selector, targetSelector) {
   if (!source) return false
 
   await session.send('Input.dispatchMouseEvent', {
-    type: 'mousePressed',
-    x: source.x,
-    y: source.y,
-    button: 'left',
-    buttons: 1,
-    clickCount: 1,
+    type: 'mousePressed', x: source.x, y: source.y, button: 'left', buttons: 1, clickCount: 1,
   })
   await sleep(80)
 
@@ -410,44 +405,17 @@ async function dragFrom(session, selector, targetSelector) {
       const hit = document.elementFromPoint(x, y)
       return hit && hit.closest('.lgi-region') === to
     })
-    return {
-      point: point ? { x: point[0], y: point[1] } : null,
-      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-      candidates,
-    }
+    return point ? { x: point[0], y: point[1] } : null
   })()`)
-  if (!target?.point) {
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x: source.x,
-      y: source.y,
-      button: 'left',
-      buttons: 0,
-      clickCount: 1,
-    })
+  if (!target) {
+    await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: source.x, y: source.y, button: 'left', buttons: 0, clickCount: 1 })
     return false
   }
 
-  /* El origen y el destino pueden estar separados por varios miles de
-     píxeles. Mantenemos el botón pulsado mientras hacemos scroll al destino;
-     así la prueba sigue usando eventos físicos CDP sin exigir que ambos
-     puntos quepan simultáneamente en el viewport. */
-  await session.send('Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x: target.point.x,
-    y: target.point.y,
-    button: 'none',
-    buttons: 1,
-  })
+  // Source and target can be thousands of pixels apart. Keep the button held while scrolling.
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: target.x, y: target.y, button: 'none', buttons: 1 })
   await sleep(80)
-  await session.send('Input.dispatchMouseEvent', {
-    type: 'mouseReleased',
-    x: target.point.x,
-    y: target.point.y,
-    button: 'left',
-    buttons: 0,
-    clickCount: 1,
-  })
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: target.x, y: target.y, button: 'left', buttons: 0, clickCount: 1 })
   await sleep(350)
   return true
 }
@@ -758,45 +726,11 @@ async function runChecks(session) {
       const index = regions.indexOf(current)
       const target = regions[index === regions.length - 1 ? 0 : index + 1]
 
-      /* Diagnóstico temporal de 12d: registra PointerEvents reales y el
-         resultado de elementFromPoint() en cada coordenada. No altera la
-         lógica del Designer; sólo identifica dónde se pierde el destino. */
-      await session.evaluate(`(() => {
-        window.__lgiDesignerDragTrace = []
-        const record = (event) => {
-          const hit = document.elementFromPoint(event.clientX, event.clientY)
-          const region = hit?.closest('.lgi-region')?.getAttribute('data-region') ?? null
-          window.__lgiDesignerDragTrace.push({
-            type: event.type, pointerId: event.pointerId, pointerType: event.pointerType,
-            button: event.button, buttons: event.buttons, x: event.clientX, y: event.clientY,
-            target: event.target instanceof Element ? event.target.className : null,
-            hitRegion: region,
-          })
-        }
-        window.__lgiDesignerDragTraceHandler = record
-        for (const type of [
-          'pointerdown', 'pointermove', 'pointerup', 'pointercancel',
-          'mousedown', 'mousemove', 'mouseup',
-        ]) window.addEventListener(type, record, true)
-      })()`)
-
       const dragged = await dragFrom(
         session,
         '.lgi-module.is-selected .lgi-designer-grip',
         `.lgi-region[data-region="${target}"]`,
       )
-      const geometry = await session.evaluate(`window.__lgiDesignerDragGeometry ?? null`)
-      const trace = await session.evaluate(`window.__lgiDesignerDragTrace ?? []`)
-      await session.evaluate(`(() => {
-        const handler = window.__lgiDesignerDragTraceHandler
-        if (handler) {
-          for (const type of [
-            'pointerdown', 'pointermove', 'pointerup', 'pointercancel',
-            'mousedown', 'mousemove', 'mouseup',
-          ]) window.removeEventListener(type, handler, true)
-        }
-        delete window.__lgiDesignerDragTraceHandler
-      })()`)
       const after = await session.evaluate(
         `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region')?.getAttribute('data-region') ?? null`,
       )
@@ -805,7 +739,7 @@ async function runChecks(session) {
         .join(' ')
       return {
         ok: dragged && after === target,
-        detail: `${current} → ${after} (destino ${target}) · drag=${dragged} · eventos=${trace.length} · ${traceSummary || 'sin Mouse/PointerEvents'}${geometry ? ` · hit-test=${JSON.stringify(geometry)}` : ''}`,
+        detail: `${current} → ${after} (destino ${target}) · drag=${dragged}`
       }
     } finally {
       await setDesignerPanelOpen(session, true)
