@@ -16,6 +16,8 @@ export const classicTemplate = {
   density: 'compact',
   regions: ['rail', 'main', 'aside'],
   placement: {
+    'resources.summary': 'main',
+    'fleet.launch': 'main',
     'navigation.rail': 'rail',
     'navigation.main': 'main',
     'planet.bodies': 'aside',
