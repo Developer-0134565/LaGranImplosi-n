@@ -16,6 +16,9 @@ export const classicTemplate = {
   density: 'compact',
   regions: ['rail', 'main', 'aside'],
   placement: {
+    'navigation.rail': 'rail',
+    'navigation.main': 'main',
+    'planet.bodies': 'aside',
     'fleet.command': 'main',
     'fleet.slots': 'rail',
     'fleet.setup': 'rail',
@@ -40,6 +43,9 @@ export const classicTemplate = {
     'galaxy.grid': 'main',
   },
   order: [
+    'navigation.rail',
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'fleet.slots',
     'fleet.setup',
