@@ -22,7 +22,7 @@ export const industrialTemplate = {
     'planet.bodies': 'aside',
     'fleet.command': 'header',
     'fleet.slots': 'header',
-    'fleet.launch': 'header',
+    'fleet.launch': 'actions',
     'fleet.setup': 'rail',
     'fleet.capacity': 'rail',
     'fleet.slot-summary': 'rail',
