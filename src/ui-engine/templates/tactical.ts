@@ -16,6 +16,9 @@ export const tacticalTemplate = {
   density: 'dense',
   regions: ['status', 'ops', 'assets', 'log', 'actions'],
   placement: {
+    'navigation.rail': 'status',
+    'navigation.main': 'ops',
+    'planet.bodies': 'assets',
     'fleet.command': 'status',
     'fleet.slots': 'status',
     'fleet.setup': 'ops',
@@ -40,6 +43,9 @@ export const tacticalTemplate = {
     'galaxy.grid': 'ops',
   },
   order: [
+    'navigation.rail',
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'fleet.slots',
     'fleet.setup',
