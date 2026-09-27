@@ -289,6 +289,40 @@ Validation: `git diff --check` clean · `npx tsc -b` exit 0 · `npm run build` e
 ```
 
 
+## UI DESIGNER BROWSER CERTIFICATION (2026-09-27) — physical drag blocker closed
+
+The UI Designer browser certification reached the final physical-drag check and the failure was isolated to the
+certification harness geometry, not production drag logic.
+
+```text
+CERTIFICATION
+  script       scripts/ui-engine-certify.mjs
+  total checks 27
+  previous     26/27; only 12d failed
+  latest 12d   PASS — status → ops
+  evidence     pointerdown@428,189:status
+               pointermove@318,24:ops
+               pointerup@318,24:ops
+```
+
+The harness was attempting to hit-test a selected module grip and destination region that could be thousands of
+pixels apart because reference content is vertically long. The final harness sequence now scrolls the source into
+view, presses the grip, scrolls the destination into view while retaining the button state, and releases at a
+validated in-viewport point in the destination region.
+
+Conclusion: no production change to designerInteractions.ts was required for this blocker.
+
+The durable UI Designer record is segregated into
+[docs/systems/README_UI_DESIGNER.md](systems/README_UI_DESIGNER.md).
+
+CURRENT REMAINING VERIFICATION:
+- run the complete 27-check certification after the final harness commit;
+- record the complete 27/27 result before calling the whole browser battery fully certified;
+- if 27/27 passes, remove temporary drag diagnostics if they are no longer needed.
+
+EXECUTOR FOR THE NEXT VERIFICATION: Copilot Pro is sufficient for the localized UI-certification rerun/cleanup;
+no new gameplay implementation mission is justified by this result.
+
 ## 4. Rules for work
 
 1. Recover this context and only the specialized documents relevant to the task.
