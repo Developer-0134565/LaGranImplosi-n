@@ -10,6 +10,18 @@
 
 Before any new Cline/Copilot implementation mission, verify LOCAL ↔ \`origin/main\` first. The gate must record branch, local HEAD, remote HEAD, merge-base, ahead/behind, staged/unstaged/untracked/deleted files, stashes and relevant divergences. If local work is not understood or the trees diverge, stop implementation and protect the work first. Do not automatically pull, merge, rebase, reset, clean, checkout, stash-pop/drop, commit or push. For backend/migration/RPC/RLS work, also verify Supabase LIVE and consult the cloud reconciliation record: [\`docs/audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md\`](audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md).
 
+## CLOUD RECONCILIATION OVERRIDE — 2026-09-28
+
+`docs/audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md` is authoritative for the latest LIVE state.
+
+- GitHub `main` includes UI Designer via PR #5.
+- Guest ownership/RLS hardening is **CLOSED LIVE as of 2026-09-28**.
+- LIVE applied the guest RLS migration as version `20260928021418` and the live-shape ownership reconciliation as version `20260928021509`.
+- Final LIVE catalog check: **0** public functions still reference `is_guest`, excluding only `register_guest_player` and `reconcile_universe_ai_population`.
+- The historical `20260920120800_remove_guest_ownership_bypasses.sql` is superseded because its precondition did not match LIVE `start_colonize_fleet()`; do not replay it.
+- The repository now carries migration files matching the actual LIVE versions.
+- Historical migration provenance drift remains documented separately; do not infer absence of functionality solely from a missing historical version prefix.
+
 ## 1. Project mission
 
 La Gran Implosión is an OGame-like browser game with a React/TypeScript/Vite frontend, a Cloudflare Worker
