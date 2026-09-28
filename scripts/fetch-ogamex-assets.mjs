@@ -16,7 +16,7 @@ const tree = await response.json()
 const sourceFiles = tree.tree
   .filter((entry) =>
     entry.type === 'blob' &&
-    /^public\\/img\\/objects\\/(buildings|research|units)\\/.*_(micro|small)\\.(png|jpg)$/i.test(entry.path),
+    /^public\/img\/objects\/(buildings|research|units)\/.*_(micro|small)\.(png|jpg)$/i.test(entry.path),
   )
   .filter((entry, index, all) => all.findIndex((candidate) => candidate.path === entry.path) === index)
 
@@ -57,5 +57,5 @@ for (const entry of sourceFiles) {
   manifest.files.push({ source: entry.path, target: relative(TARGET_ROOT, target).replaceAll('\\\\', '/'), size: bytes.length })
 }
 
-await writeFile(MANIFEST, JSON.stringify(manifest, null, 2) + '\\n')
+await writeFile(MANIFEST, JSON.stringify(manifest, null, 2) + '\n')
 console.log(`OGameX assets: ${downloaded} descargados, ${skipped} ya existentes, ${sourceFiles.length} previstos.`)
