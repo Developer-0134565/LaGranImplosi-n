@@ -1816,3 +1816,59 @@ VALIDATION  npx tsc -b exit 0 · npm run build completed both environments and t
         three new RPCs · git diff --check clean · LIVE probes inside BEGIN … ROLLBACK · debris table back to its
         original 3 rows (0 in the active universe), 0 item uses · no commit, no push.
 ```
+
+# CLOUD STATE RECONCILIATION — 2026-09-28
+
+## Scope
+
+Direct audit of GitHub `main` and Supabase LIVE. This document is the durable cloud-state record; `docs/PROJECT_CONTEXT_PROMPT.md` remains the compact operational index.
+
+## GitHub
+
+- Repository: `Developer-0134565/LaGranImplosi-n`
+- Branch audited: `main`
+- HEAD at audit: `8942b90ed506ff9317abf2418d3b9b22c8065b08`
+- Latest CI for this HEAD: successful.
+- Migration files present in `supabase/migrations`: 379.
+
+## Supabase LIVE
+
+- Project: La Gran Implosión
+- Project id: `evtfsbntvuqmahiskekd`
+- Status: `ACTIVE_HEALTHY`
+- Latest applied migration: `20260927140000`
+- Applied migration rows: 377.
+- Public tables: 74.
+- Public functions: 338.
+- Cron jobs: 6.
+- Public RLS tables: 69.
+
+## Migration provenance
+
+The 379 repository filenames and 377 LIVE ledger rows do NOT form a one-to-one filename/version match.
+
+Repository-only version prefixes observed:
+
+```
+20260919060000
+20260919070000
+20260919080000
+20260919090000
+20260919180000
+20260920010000
+20260920120400
+20260920120800
+20260926240000
+```
+
+LIVE-only version prefixes observed:
+
+```
+20260919055336
+20260919061454
+20260919062509
+20260919070020
+20260921133525
+20260926130600
+20260926133901
+```
