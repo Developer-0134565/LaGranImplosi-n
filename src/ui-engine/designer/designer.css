@@ -705,3 +705,30 @@
 .lgi-ref-note b {
   color: var(--lgi-accent);
 }
+
+
+/* Template selector — always visible in the section header. */
+.lgi-designer__template-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--lgi-dev-accent, #4fc3f7);
+  border-radius: 3px;
+  background: rgba(79, 195, 247, .10);
+  color: var(--lgi-dev-accent, #4fc3f7);
+  font: 700 9px/1 Arial, sans-serif;
+  letter-spacing: .08em;
+  cursor: pointer;
+  opacity: 1;
+  visibility: visible;
+}
+.lgi-designer__template-toggle:hover,
+.lgi-designer__template-toggle:focus-visible {
+  background: rgba(79, 195, 247, .20);
+  outline: 1px solid var(--lgi-dev-accent, #4fc3f7);
+  outline-offset: 1px;
+}
