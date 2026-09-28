@@ -1,0 +1,154 @@
+/* Single frontend layout authority for the live game shell.
+   TemplateChrome was removed: only gameplay geometry remains here. */
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 0;
+}
+
+.app-frame,
+.game {
+  position: relative;
+  min-height: 0;
+}
+
+.game {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: transparent;
+  isolation: isolate;
+  z-index: 1;
+}
+
+.neo-main-content {
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.neo-main-content > .neo-main-view {
+  overflow: visible !important;
+  min-height: 100%;
+}
+
+.galaxy-view {
+  overflow: auto !important;
+}
+
+.neo-shell,
+.neo-main,
+.neo-main-content,
+.neo-owned-planets {
+  min-width: 0;
+  min-height: 0;
+}
+
+.neo-main {
+  height: 100%;
+}
+
+.neo-main-content,
+.neo-owned-planets {
+  height: 100%;
+  max-height: none;
+}
+
+.neo-main-content {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding-bottom: clamp(10px, 1.6vh, 22px) !important;
+}
+
+.neo-owned-planets {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.neo-overview-grid {
+  min-height: 100%;
+  align-content: stretch;
+}
+
+.neo-page-head,
+.neo-section-head,
+.neo-panel,
+.neo-planetbar {
+  min-height: 0;
+}
+
+.neo-panel-header {
+  min-height: clamp(34px, 4.2vh, 46px) !important;
+  padding-top: clamp(7px, 1vh, 12px) !important;
+  padding-bottom: clamp(7px, 1vh, 12px) !important;
+}
+
+.neo-button {
+  min-height: clamp(34px, 4.4vh, 46px) !important;
+  padding-top: clamp(8px, 1vh, 12px) !important;
+  padding-bottom: clamp(8px, 1vh, 12px) !important;
+  line-height: 1.2 !important;
+}
+
+.neo-nav-item {
+  min-height: clamp(32px, 4vh, 42px) !important;
+  padding-top: clamp(6px, .9vh, 10px) !important;
+  padding-bottom: clamp(6px, .9vh, 10px) !important;
+}
+
+.neo-resource {
+  min-height: clamp(38px, 5vh, 54px) !important;
+  padding-top: clamp(8px, 1.1vh, 13px) !important;
+  padding-bottom: clamp(8px, 1.1vh, 13px) !important;
+}
+
+.neo-list-row {
+  min-height: clamp(42px, 5.4vh, 58px) !important;
+  padding-top: clamp(8px, 1.1vh, 13px) !important;
+  padding-bottom: clamp(8px, 1.1vh, 13px) !important;
+}
+
+.message-row {
+  min-height: clamp(46px, 6vh, 64px) !important;
+  padding-top: clamp(9px, 1.2vh, 14px) !important;
+  padding-bottom: clamp(9px, 1.2vh, 14px) !important;
+}
+
+@media (max-height: 720px) and (min-width: 761px) {
+  .neo-panel-header { min-height: 32px !important; }
+  .neo-button { min-height: 32px !important; padding-top: 7px !important; padding-bottom: 7px !important; }
+  .neo-nav-item { min-height: 30px !important; padding-top: 5px !important; padding-bottom: 5px !important; }
+  .neo-resource { min-height: 36px !important; padding-top: 7px !important; padding-bottom: 7px !important; }
+  .neo-list-row { min-height: 40px !important; padding-top: 7px !important; padding-bottom: 7px !important; }
+  .message-row { min-height: 44px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
+}
+
+@media (max-width: 760px) {
+  .game {
+    overflow: auto;
+  }
+
+  .neo-main-content,
+  .neo-owned-planets {
+    height: auto;
+    max-height: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
