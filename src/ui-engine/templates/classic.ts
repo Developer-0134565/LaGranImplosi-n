@@ -16,6 +16,10 @@ export const classicTemplate = {
   density: 'compact',
   regions: ['rail', 'main', 'aside'],
   placement: {
+    'resources.summary': 'main',
+    'navigation.rail': 'rail',
+    'navigation.main': 'main',
+    'planet.bodies': 'aside',
     'fleet.command': 'main',
     'fleet.slots': 'rail',
     'fleet.setup': 'rail',
@@ -31,7 +35,6 @@ export const classicTemplate = {
     'fleet.launch': 'main',
     'fleet.slot-summary': 'aside',
     'fleet.active': 'aside',
-    'resources.summary': 'aside',
     'messages.feed': 'aside',
     'buildings.grid': 'main',
     'research.grid': 'main',
@@ -40,6 +43,9 @@ export const classicTemplate = {
     'galaxy.grid': 'main',
   },
   order: [
+    'navigation.rail',
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'fleet.slots',
     'fleet.setup',

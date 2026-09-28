@@ -52,6 +52,9 @@ export function UIEngineScreen({ id, modules, className }: UIEngineScreenProps) 
    *  También es lo que hace fiel el device preview (el ancho real del marco). */
   const { attach, size } = useContainerSize<HTMLDivElement>(true)
   const breakpoint = breakpointForWidth(size.width)
+  // The live application is also an Engine screen. Keep the inspector snapshot
+  // alive even when the DEV switcher is hidden so the Designer can verify that
+  // the real page is mounted (not only the workbench).
   const devVisible = engineContext?.switcherVisible ?? false
 
   const layout = useMemo(() => {
@@ -92,7 +95,7 @@ export function UIEngineScreen({ id, modules, className }: UIEngineScreenProps) 
       .filter((group) => group.entries.length > 0)
   }, [template, layout, modules])
 
-  /** Inspector DEV: publica la composición real (sólo si el switcher está visible). */
+  /** Inspector DEV: publica la composición real de esta pantalla, incluida la aplicación LIVE. */
   const snapshot = useMemo(
     () => ({
       screen: id,
@@ -107,7 +110,6 @@ export function UIEngineScreen({ id, modules, className }: UIEngineScreenProps) 
   )
 
   useEffect(() => {
-    if (!devVisible) return
     publishUIScreenSnapshot(snapshot)
   }, [devVisible, snapshot])
 
@@ -152,7 +154,12 @@ export function UIEngineScreen({ id, modules, className }: UIEngineScreenProps) 
       data-lgi-width={devVisible ? Math.round(size.width) : undefined}
       data-lgi-selected={editMode && selection ? selection.moduleId : undefined}
     >
-      <div className="lgi-layout" style={trackStyle}>
+      <div
+        key={template.id}
+        className="lgi-layout"
+        data-lgi-layout-template={template.id}
+        style={trackStyle}
+      >
         {groups.map(({ region, entries }) => {
           const columns = layout.regionColumns[region] ?? 1
           const regionStyle =

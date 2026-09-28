@@ -4,29 +4,11 @@ import { createRoot } from 'react-dom/client'
 // CSS de base
 import './index.css'
 
-// CSS de template / layout
-import './styles/template-chrome.css'
-import './styles/template-eventbar.css'
-import './styles/template-frame-fix.css'
-import './styles/template-layout-fix.css'
-import './styles/template-viewport-final.css'
-import './styles/template-screen-final.css'
-import './styles/template-final-overrides.css'
-import './styles/viewport-scale-fix.css'
-import './styles/sidebar-viewport-fix.css'
-import './styles/frontend-runtime-fixes.css'
-import './styles/frontend-layer-fix.css'
-
-// Autoridad de capas — DEBEN ir al final
-import './styles/zz-frontend-layer-authority.css'
-import './styles/zzz-wallpaper-lock.css'
-
 // Componentes
 import App from './App.tsx'
-import TemplateChrome from './TemplateChrome.tsx'
 import LoginPage from './LoginPage'
 import { supabase } from './lib/supabase'
-import { UIDesigner, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } from './ui-engine'
+import { UIDesigner, UIEngine, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } from './ui-engine'
 
 /*
   Raíz de la aplicación.
@@ -36,8 +18,7 @@ import { UIDesigner, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } fr
     * `#ui-designer` → BANCO DE PRUEBAS DEV (`UIWorkbench`): monta el engine, los
       grids de referencia y el UI Designer sin sesión. No toca gameplay.
     * resto         → aplicación real (login → juego). El `UIDesigner` es la
-      herramienta DEV del engine; vive dentro del gate de sesión, igual que
-      antes vivía el switcher de templates.
+      herramienta DEV del engine; vive dentro del gate de sesión.
 
   `UIEngineProvider` resuelve el template activo (React + localStorage). El
   provider NO toca Supabase: ninguna preferencia visual se persiste en el
@@ -87,11 +68,14 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div className="app-frame">
-      <TemplateChrome />
-      <App />
+    <>
+      <UIEngine>
+        <div className="app-frame">
+          <App />
+        </div>
+      </UIEngine>
       <UIDesigner />
-    </div>
+    </>
   )
 }
 

@@ -1,0 +1,8 @@
+{
+  "source":"lanedirt/OGameX",
+  "sourceCommit":"7c420bad3478d7099791e1f33c920e9ff92822e8",
+  "sourceRoot":"public/img/objects",
+  "targetRoot":"public/assets/ogamex/objects",
+  "intendedUse":"Reference-only UI prototype assets. Run npm run assets:ogamex to populate/update the full pack.",
+  "license":"OGameX source code is MIT; OGameX states that OGame artwork/rights belong to GameForge GmbH."
+}

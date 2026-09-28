@@ -96,6 +96,7 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
   const snapshot = useSyncExternalStore(subscribeUIScreenSnapshot, getUIScreenSnapshot)
   const [open, setOpen] = useState(true)
   const [showInspector, setShowInspector] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(true)
 
   const template = useMemo(() => getUITemplate(config.template), [config.template])
   const override = useMemo<UILayoutOverride>(
@@ -109,17 +110,30 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
 
   const applyTemplate = useCallback(
     (id: UITemplateId) => {
+      // A template switch is an actual Designer preference, not a transient
+      // preview. Update the Designer model first, clear template-scoped
+      // appearance overrides, then persist the complete state so a reload or
+      // a fresh workbench cannot silently fall back to the previous template.
       setUIDesignerTemplate(id)
       engine?.setTemplateId(id)
+      // Theme and density are Designer-wide appearance preferences, not
+      // template-scoped layout state. Keep explicit user choices when the
+      // template changes so they survive the switch and the next reload.
+      saveUIDesigner()
     },
     [engine],
   )
 
 
-  /** El template del Designer sigue al del engine (una sola verdad). */
+  /**
+   * El Designer es la autoridad del template. El provider sólo mantiene su
+   * propio estado/contexto sincronizado para consumidores que lo necesiten.
+   * Nunca copiamos el template del provider hacia el Designer, porque eso
+   * podría sobrescribir una preferencia persistida del Designer al montar.
+   */
   useEffect(() => {
     if (!engine) return
-    if (engine.templateId !== config.template) setUIDesignerTemplate(engine.templateId)
+    if (engine.templateId !== config.template) engine.setTemplateId(config.template)
   }, [engine, config.template])
 
   /**
@@ -252,7 +266,17 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
             <span>Template</span>
             <span>{config.template}</span>
           </div>
-          <div className="lgi-designer__templates">
+          <button
+            type="button"
+            className="lgi-designer__template-toggle"
+            onClick={() => setTemplatesOpen((value) => !value)}
+            aria-expanded={templatesOpen}
+            aria-controls="lgi-designer-template-list"
+          >
+            <span>PLANTILLAS</span>
+            <strong>{templatesOpen ? 'OCULTAR ▲' : 'MOSTRAR ▼'}</strong>
+          </button>
+          {templatesOpen && <div id="lgi-designer-template-list" className="lgi-designer__templates">
             {UI_TEMPLATES.map((entry) => (
               <button
                 key={entry.id}
@@ -267,7 +291,7 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
                 </small>
               </button>
             ))}
-          </div>
+          </div>}
           <p className="lgi-designer__meta">
             <span>{template.description}</span>
             <em>{summary}</em>

@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "assets:ogamex": "node scripts/fetch-ogamex-assets.mjs",
+    "predev": "npm run assets:ogamex",
     "build": "tsc -b && vite build",
+    "prebuild": "npm run assets:ogamex",
     "lint": "eslint .",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",

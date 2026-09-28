@@ -17,6 +17,10 @@ export const orbitalTemplate = {
   density: 'comfortable',
   regions: ['status', 'rail', 'main', 'ops', 'assets', 'actions'],
   placement: {
+    'resources.summary': 'status',
+    'navigation.rail': 'rail',
+    'navigation.main': 'main',
+    'planet.bodies': 'assets',
     'fleet.command': 'status',
     'fleet.slots': 'status',
     'fleet.setup': 'rail',
@@ -32,7 +36,6 @@ export const orbitalTemplate = {
     'fleet.composition-note': 'assets',
     'fleet.active': 'ops',
     'fleet.launch': 'actions',
-    'resources.summary': 'status',
     'buildings.grid': 'main',
     'research.grid': 'main',
     'shipyard.grid': 'assets',
@@ -41,6 +44,9 @@ export const orbitalTemplate = {
     'messages.feed': 'ops',
   },
   order: [
+    'navigation.rail',
+    'navigation.main',
+    'planet.bodies',
     'fleet.command',
     'fleet.slots',
     'resources.summary',
