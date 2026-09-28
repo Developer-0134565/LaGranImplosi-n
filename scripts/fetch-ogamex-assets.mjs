@@ -35,7 +35,7 @@ const manifest = {
 }
 
 for (const entry of sourceFiles) {
-  const relativeSource = entry.path.replace(/^public\\/img\\/objects\\//, '')
+  const relativeSource = entry.path.replace(/^public\/img\/objects\//, '')
   const target = join(TARGET_ROOT, relativeSource)
   await mkdir(dirname(target), { recursive: true })
 
