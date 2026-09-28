@@ -340,7 +340,11 @@ export function setUIDesignerUiScale(value: number) {
 }
 
 export function setUIDesignerDensity(value: UIDensity | null) {
-  updateUIDesignerConfig({ density: value })
+  const next = { ...state.config, density: value }
+  commit({ config: next })
+  // Appearance preferences must survive a reload even when the user changes
+  // density after the last explicit layout save.
+  persistConfig(next)
 }
 
 export function setUIDesignerTheme(value: UIThemeId | null) {
