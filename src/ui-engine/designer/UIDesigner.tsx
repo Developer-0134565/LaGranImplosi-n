@@ -96,6 +96,7 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
   const snapshot = useSyncExternalStore(subscribeUIScreenSnapshot, getUIScreenSnapshot)
   const [open, setOpen] = useState(true)
   const [showInspector, setShowInspector] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(true)
 
   const template = useMemo(() => getUITemplate(config.template), [config.template])
   const override = useMemo<UILayoutOverride>(
@@ -263,8 +264,17 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
           <div className="lgi-designer__group-title">
             <span>Template</span>
             <span>{config.template}</span>
+            <button
+              type="button"
+              className="lgi-designer__template-toggle"
+              onClick={() => setTemplatesOpen((value) => !value)}
+              aria-expanded={templatesOpen}
+              aria-controls="lgi-designer-template-list"
+            >
+              {templatesOpen ? 'OCULTAR' : 'MOSTRAR'}
+            </button>
           </div>
-          <div className="lgi-designer__templates">
+          {templatesOpen && <div id="lgi-designer-template-list" className="lgi-designer__templates">
             {UI_TEMPLATES.map((entry) => (
               <button
                 key={entry.id}
@@ -279,7 +289,7 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
                 </small>
               </button>
             ))}
-          </div>
+          </div>}
           <p className="lgi-designer__meta">
             <span>{template.description}</span>
             <em>{summary}</em>
