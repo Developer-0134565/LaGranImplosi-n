@@ -5,6 +5,11 @@
 > This document is the operational control panel, not an encyclopedia. Durable technical detail belongs in
 > the specialized documents linked below.
 
+
+## MANDATORY SYNC GATE
+
+Before any new Cline/Copilot implementation mission, verify LOCAL ↔ \`origin/main\` first. The gate must record branch, local HEAD, remote HEAD, merge-base, ahead/behind, staged/unstaged/untracked/deleted files, stashes and relevant divergences. If local work is not understood or the trees diverge, stop implementation and protect the work first. Do not automatically pull, merge, rebase, reset, clean, checkout, stash-pop/drop, commit or push. For backend/migration/RPC/RLS work, also verify Supabase LIVE and consult the cloud reconciliation record: [\`docs/audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md\`](audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md).
+
 ## 1. Project mission
 
 La Gran Implosión is an OGame-like browser game with a React/TypeScript/Vite frontend, a Cloudflare Worker
