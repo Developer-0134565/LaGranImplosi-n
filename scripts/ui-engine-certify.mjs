@@ -770,9 +770,6 @@ async function runChecks(session) {
       const after = await session.evaluate(
         `document.querySelector('.lgi-module.is-selected')?.closest('.lgi-region')?.getAttribute('data-region') ?? null`,
       )
-      const traceSummary = trace
-        .map((event) => `${event.type}@${Math.round(event.x)},${Math.round(event.y)}:${event.hitRegion ?? 'none'}`)
-        .join(' ')
       return {
         ok: dragged && after === target,
         detail: `${current} → ${after} (destino ${target}) · drag=${dragged}`
@@ -870,14 +867,16 @@ async function runChecks(session) {
     const spans = await session.evaluate(
       `[...document.querySelectorAll('.lgi-module[data-module-span]')].map((m) => m.getAttribute('data-module') + ':' + m.getAttribute('data-module-span'))`,
     )
+    const stored = await readStoredConfig(session)
     const fontFamily = await session.evaluate(JS.cssVar('.lgi-engine', '--lgi-font-family'))
     return {
       ok:
         state.template === 'tactical' &&
         state.density === 'comfortable' &&
+        stored?.density === 'comfortable' &&
         state.grid === 'on' &&
         spans.length > 0,
-      detail: `template=${state.template} density=${state.density} grid=${state.grid} spans=${spans.join(',')} font=${fontFamily.split(',')[0]}`,
+      detail: `template=${state.template} density=${state.density} storedDensity=${stored?.density ?? null} grid=${state.grid} spans=${spans.join(',')} font=${fontFamily.split(',')[0]}`,
     }
   })
 
