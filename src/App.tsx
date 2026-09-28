@@ -64,7 +64,7 @@ function formatNumber(value:number|string|undefined|null){if(value===undefined||
 function formatDuration(value:number|string|undefined|null){const seconds=Number(value);if(!Number.isFinite(seconds)||seconds<=0)return'—';const total=Math.round(seconds);const days=Math.floor(total/86400);const hours=Math.floor((total%86400)/3600);const minutes=Math.floor((total%3600)/60);const secs=total%60;return days?`${days}d ${hours}h`:hours?`${hours}h ${minutes}m`:minutes?`${minutes}m ${secs}s`:`${secs}s`}
 function coordinates(p:Pick<Planet,'galaxy'|'system'|'position'>){return`[${p.galaxy}:${p.system}:${p.position}]`}
 function formatTime(value?:string|null){if(!value)return'—';return new Date(value).toLocaleString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-function normalizeOGameXAssetSlug(id:string){return id.trim().toLowerCase().replace(/[-\\s]+/g,'_')}
+function normalizeOGameXAssetSlug(id:string){return id.trim().toLowerCase().replace(/[-\s]+/g,'_')}
 const OGAMEX_ASSET_ALIASES:Record<string,string>={
   armour_technology:'armor_technology',
   armour_technology_small:'armor_technology',
