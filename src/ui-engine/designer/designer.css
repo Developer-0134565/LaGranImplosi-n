@@ -740,7 +740,8 @@
   color: #fff !important;
   outline: 1px solid var(--lgi-dev-accent, #4fc3f7);
   outline-offset: 1px;
-}* ============================================================================
+}
+/* ============================================================================
    LGI UI ENGINE — UI DESIGNER (herramienta DEV) + BANCO DE PRUEBAS
 
    Todo lo de este archivo es superficie de DESARROLLO:
