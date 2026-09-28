@@ -1,0 +1,630 @@
+{
+  "source": "lanedirt/OGameX",
+  "sourceCommit": "7c420bad3478d7099791e1f33c920e9ff92822e8",
+  "sourceRoot": "public/img/objects",
+  "targetRoot": "public/assets/ogamex/objects",
+  "intendedUse": "Referencia visual local para el prototipo de interfaz de La Gran Implosión.",
+  "license": "OGameX source code is MIT; OGameX states that OGame artwork/rights belong to GameForge GmbH. These files are reference-only and must be replaced or relicensed before public/commercial distribution.",
+  "files": [
+    {
+      "source": "public/img/objects/buildings/alliance_depot_micro.jpg",
+      "target": "buildings/alliance_depot_micro.jpg",
+      "size": 1049
+    },
+    {
+      "source": "public/img/objects/buildings/alliance_depot_small.jpg",
+      "target": "buildings/alliance_depot_small.jpg",
+      "size": 1526
+    },
+    {
+      "source": "public/img/objects/buildings/crystal_mine_micro.jpg",
+      "target": "buildings/crystal_mine_micro.jpg",
+      "size": 1147
+    },
+    {
+      "source": "public/img/objects/buildings/crystal_mine_small.jpg",
+      "target": "buildings/crystal_mine_small.jpg",
+      "size": 1622
+    },
+    {
+      "source": "public/img/objects/buildings/crystal_store_micro.jpg",
+      "target": "buildings/crystal_store_micro.jpg",
+      "size": 1055
+    },
+    {
+      "source": "public/img/objects/buildings/crystal_store_small.jpg",
+      "target": "buildings/crystal_store_small.jpg",
+      "size": 1553
+    },
+    {
+      "source": "public/img/objects/buildings/deuterium_store_micro.jpg",
+      "target": "buildings/deuterium_store_micro.jpg",
+      "size": 1063
+    },
+    {
+      "source": "public/img/objects/buildings/deuterium_store_small.jpg",
+      "target": "buildings/deuterium_store_small.jpg",
+      "size": 1627
+    },
+    {
+      "source": "public/img/objects/buildings/deuterium_synthesizer_micro.jpg",
+      "target": "buildings/deuterium_synthesizer_micro.jpg",
+      "size": 1052
+    },
+    {
+      "source": "public/img/objects/buildings/deuterium_synthesizer_small.jpg",
+      "target": "buildings/deuterium_synthesizer_small.jpg",
+      "size": 1578
+    },
+    {
+      "source": "public/img/objects/buildings/fusion_plant_micro.jpg",
+      "target": "buildings/fusion_plant_micro.jpg",
+      "size": 1059
+    },
+    {
+      "source": "public/img/objects/buildings/fusion_plant_small.jpg",
+      "target": "buildings/fusion_plant_small.jpg",
+      "size": 1568
+    },
+    {
+      "source": "public/img/objects/buildings/jump_gate_micro.jpg",
+      "target": "buildings/jump_gate_micro.jpg",
+      "size": 1037
+    },
+    {
+      "source": "public/img/objects/buildings/jump_gate_small.jpg",
+      "target": "buildings/jump_gate_small.jpg",
+      "size": 1517
+    },
+    {
+      "source": "public/img/objects/buildings/lunar_base_micro.jpg",
+      "target": "buildings/lunar_base_micro.jpg",
+      "size": 927
+    },
+    {
+      "source": "public/img/objects/buildings/lunar_base_small.jpg",
+      "target": "buildings/lunar_base_small.jpg",
+      "size": 1353
+    },
+    {
+      "source": "public/img/objects/buildings/metal_mine_micro.jpg",
+      "target": "buildings/metal_mine_micro.jpg",
+      "size": 947
+    },
+    {
+      "source": "public/img/objects/buildings/metal_mine_small.jpg",
+      "target": "buildings/metal_mine_small.jpg",
+      "size": 1361
+    },
+    {
+      "source": "public/img/objects/buildings/metal_store_micro.jpg",
+      "target": "buildings/metal_store_micro.jpg",
+      "size": 968
+    },
+    {
+      "source": "public/img/objects/buildings/metal_store_small.jpg",
+      "target": "buildings/metal_store_small.jpg",
+      "size": 1376
+    },
+    {
+      "source": "public/img/objects/buildings/missile_silo_micro.jpg",
+      "target": "buildings/missile_silo_micro.jpg",
+      "size": 1038
+    },
+    {
+      "source": "public/img/objects/buildings/missile_silo_small.jpg",
+      "target": "buildings/missile_silo_small.jpg",
+      "size": 1520
+    },
+    {
+      "source": "public/img/objects/buildings/nanite_factory_micro.jpg",
+      "target": "buildings/nanite_factory_micro.jpg",
+      "size": 1110
+    },
+    {
+      "source": "public/img/objects/buildings/nanite_factory_small.jpg",
+      "target": "buildings/nanite_factory_small.jpg",
+      "size": 1628
+    },
+    {
+      "source": "public/img/objects/buildings/research_lab_micro.jpg",
+      "target": "buildings/research_lab_micro.jpg",
+      "size": 987
+    },
+    {
+      "source": "public/img/objects/buildings/research_lab_small.jpg",
+      "target": "buildings/research_lab_small.jpg",
+      "size": 1431
+    },
+    {
+      "source": "public/img/objects/buildings/robot_factory_micro.jpg",
+      "target": "buildings/robot_factory_micro.jpg",
+      "size": 1062
+    },
+    {
+      "source": "public/img/objects/buildings/robot_factory_small.jpg",
+      "target": "buildings/robot_factory_small.jpg",
+      "size": 1551
+    },
+    {
+      "source": "public/img/objects/buildings/sensor_phalanx_micro.jpg",
+      "target": "buildings/sensor_phalanx_micro.jpg",
+      "size": 1090
+    },
+    {
+      "source": "public/img/objects/buildings/sensor_phalanx_small.jpg",
+      "target": "buildings/sensor_phalanx_small.jpg",
+      "size": 1641
+    },
+    {
+      "source": "public/img/objects/buildings/shipyard_micro.jpg",
+      "target": "buildings/shipyard_micro.jpg",
+      "size": 981
+    },
+    {
+      "source": "public/img/objects/buildings/shipyard_small.jpg",
+      "target": "buildings/shipyard_small.jpg",
+      "size": 1507
+    },
+    {
+      "source": "public/img/objects/buildings/solar_plant_micro.jpg",
+      "target": "buildings/solar_plant_micro.jpg",
+      "size": 1236
+    },
+    {
+      "source": "public/img/objects/buildings/solar_plant_small.jpg",
+      "target": "buildings/solar_plant_small.jpg",
+      "size": 1751
+    },
+    {
+      "source": "public/img/objects/buildings/space_dock_micro.jpg",
+      "target": "buildings/space_dock_micro.jpg",
+      "size": 2147
+    },
+    {
+      "source": "public/img/objects/buildings/space_dock_small.jpg",
+      "target": "buildings/space_dock_small.jpg",
+      "size": 3120
+    },
+    {
+      "source": "public/img/objects/buildings/terraformer_micro.jpg",
+      "target": "buildings/terraformer_micro.jpg",
+      "size": 1534
+    },
+    {
+      "source": "public/img/objects/buildings/terraformer_small.jpg",
+      "target": "buildings/terraformer_small.jpg",
+      "size": 1535
+    },
+    {
+      "source": "public/img/objects/research/armor_technology_micro.jpg",
+      "target": "research/armor_technology_micro.jpg",
+      "size": 967
+    },
+    {
+      "source": "public/img/objects/research/armor_technology_small.jpg",
+      "target": "research/armor_technology_small.jpg",
+      "size": 1432
+    },
+    {
+      "source": "public/img/objects/research/astrophysics_technology_micro.jpg",
+      "target": "research/astrophysics_technology_micro.jpg",
+      "size": 1034
+    },
+    {
+      "source": "public/img/objects/research/astrophysics_technology_small.jpg",
+      "target": "research/astrophysics_technology_small.jpg",
+      "size": 1521
+    },
+    {
+      "source": "public/img/objects/research/combustion_drive_micro.jpg",
+      "target": "research/combustion_drive_micro.jpg",
+      "size": 1055
+    },
+    {
+      "source": "public/img/objects/research/combustion_drive_small.jpg",
+      "target": "research/combustion_drive_small.jpg",
+      "size": 1436
+    },
+    {
+      "source": "public/img/objects/research/computer_technology_micro.jpg",
+      "target": "research/computer_technology_micro.jpg",
+      "size": 1088
+    },
+    {
+      "source": "public/img/objects/research/computer_technology_small.jpg",
+      "target": "research/computer_technology_small.jpg",
+      "size": 1669
+    },
+    {
+      "source": "public/img/objects/research/energy_technology_micro.jpg",
+      "target": "research/energy_technology_micro.jpg",
+      "size": 1274
+    },
+    {
+      "source": "public/img/objects/research/energy_technology_small.jpg",
+      "target": "research/energy_technology_small.jpg",
+      "size": 1919
+    },
+    {
+      "source": "public/img/objects/research/espionage_technology_micro.jpg",
+      "target": "research/espionage_technology_micro.jpg",
+      "size": 1040
+    },
+    {
+      "source": "public/img/objects/research/espionage_technology_small.jpg",
+      "target": "research/espionage_technology_small.jpg",
+      "size": 1467
+    },
+    {
+      "source": "public/img/objects/research/graviton_technology_micro.jpg",
+      "target": "research/graviton_technology_micro.jpg",
+      "size": 1060
+    },
+    {
+      "source": "public/img/objects/research/graviton_technology_small.jpg",
+      "target": "research/graviton_technology_small.jpg",
+      "size": 2512
+    },
+    {
+      "source": "public/img/objects/research/hyperspace_drive_micro.jpg",
+      "target": "research/hyperspace_drive_micro.jpg",
+      "size": 1037
+    },
+    {
+      "source": "public/img/objects/research/hyperspace_drive_small.jpg",
+      "target": "research/hyperspace_drive_small.jpg",
+      "size": 1347
+    },
+    {
+      "source": "public/img/objects/research/hyperspace_technology_micro.jpg",
+      "target": "research/hyperspace_technology_micro.jpg",
+      "size": 1079
+    },
+    {
+      "source": "public/img/objects/research/hyperspace_technology_small.jpg",
+      "target": "research/hyperspace_technology_small.jpg",
+      "size": 1580
+    },
+    {
+      "source": "public/img/objects/research/impulse_drive_micro.jpg",
+      "target": "research/impulse_drive_micro.jpg",
+      "size": 1080
+    },
+    {
+      "source": "public/img/objects/research/impulse_drive_small.jpg",
+      "target": "research/impulse_drive_small.jpg",
+      "size": 1558
+    },
+    {
+      "source": "public/img/objects/research/intergalactic_research_network_micro.jpg",
+      "target": "research/intergalactic_research_network_micro.jpg",
+      "size": 785
+    },
+    {
+      "source": "public/img/objects/research/intergalactic_research_network_small.jpg",
+      "target": "research/intergalactic_research_network_small.jpg",
+      "size": 2163
+    },
+    {
+      "source": "public/img/objects/research/ion_technology_micro.jpg",
+      "target": "research/ion_technology_micro.jpg",
+      "size": 1023
+    },
+    {
+      "source": "public/img/objects/research/ion_technology_small.jpg",
+      "target": "research/ion_technology_small.jpg",
+      "size": 1491
+    },
+    {
+      "source": "public/img/objects/research/laser_technology_micro.jpg",
+      "target": "research/laser_technology_micro.jpg",
+      "size": 1076
+    },
+    {
+      "source": "public/img/objects/research/laser_technology_small.jpg",
+      "target": "research/laser_technology_small.jpg",
+      "size": 1568
+    },
+    {
+      "source": "public/img/objects/research/plasma_technology_micro.jpg",
+      "target": "research/plasma_technology_micro.jpg",
+      "size": 1114
+    },
+    {
+      "source": "public/img/objects/research/plasma_technology_small.jpg",
+      "target": "research/plasma_technology_small.jpg",
+      "size": 1659
+    },
+    {
+      "source": "public/img/objects/research/shielding_technology_micro.jpg",
+      "target": "research/shielding_technology_micro.jpg",
+      "size": 1028
+    },
+    {
+      "source": "public/img/objects/research/shielding_technology_small.jpg",
+      "target": "research/shielding_technology_small.jpg",
+      "size": 1500
+    },
+    {
+      "source": "public/img/objects/research/weapons_technology_micro.jpg",
+      "target": "research/weapons_technology_micro.jpg",
+      "size": 1153
+    },
+    {
+      "source": "public/img/objects/research/weapons_technology_small.jpg",
+      "target": "research/weapons_technology_small.jpg",
+      "size": 1719
+    },
+    {
+      "source": "public/img/objects/units/anti_ballistic_missile_micro.jpg",
+      "target": "units/anti_ballistic_missile_micro.jpg",
+      "size": 989
+    },
+    {
+      "source": "public/img/objects/units/anti_ballistic_missile_small.jpg",
+      "target": "units/anti_ballistic_missile_small.jpg",
+      "size": 1414
+    },
+    {
+      "source": "public/img/objects/units/battlecruiser_micro.jpg",
+      "target": "units/battlecruiser_micro.jpg",
+      "size": 1178
+    },
+    {
+      "source": "public/img/objects/units/battlecruiser_small.jpg",
+      "target": "units/battlecruiser_small.jpg",
+      "size": 1403
+    },
+    {
+      "source": "public/img/objects/units/battleship_micro.jpg",
+      "target": "units/battleship_micro.jpg",
+      "size": 871
+    },
+    {
+      "source": "public/img/objects/units/battleship_small.jpg",
+      "target": "units/battleship_small.jpg",
+      "size": 1209
+    },
+    {
+      "source": "public/img/objects/units/bomber_micro.jpg",
+      "target": "units/bomber_micro.jpg",
+      "size": 1039
+    },
+    {
+      "source": "public/img/objects/units/bomber_small.jpg",
+      "target": "units/bomber_small.jpg",
+      "size": 1517
+    },
+    {
+      "source": "public/img/objects/units/colony_ship_micro.jpg",
+      "target": "units/colony_ship_micro.jpg",
+      "size": 1277
+    },
+    {
+      "source": "public/img/objects/units/colony_ship_small.jpg",
+      "target": "units/colony_ship_small.jpg",
+      "size": 1435
+    },
+    {
+      "source": "public/img/objects/units/crawler_micro.png",
+      "target": "units/crawler_micro.png",
+      "size": 1646
+    },
+    {
+      "source": "public/img/objects/units/crawler_small.jpg",
+      "target": "units/crawler_small.jpg",
+      "size": 2044
+    },
+    {
+      "source": "public/img/objects/units/cruiser_micro.jpg",
+      "target": "units/cruiser_micro.jpg",
+      "size": 1238
+    },
+    {
+      "source": "public/img/objects/units/cruiser_small.jpg",
+      "target": "units/cruiser_small.jpg",
+      "size": 1435
+    },
+    {
+      "source": "public/img/objects/units/death_star_small.jpg",
+      "target": "units/death_star_small.jpg",
+      "size": 1572
+    },
+    {
+      "source": "public/img/objects/units/deathstar_small.jpg",
+      "target": "units/deathstar_small.jpg",
+      "size": 1572
+    },
+    {
+      "source": "public/img/objects/units/destroyer_micro.jpg",
+      "target": "units/destroyer_micro.jpg",
+      "size": 1322
+    },
+    {
+      "source": "public/img/objects/units/destroyer_small.jpg",
+      "target": "units/destroyer_small.jpg",
+      "size": 1575
+    },
+    {
+      "source": "public/img/objects/units/espionage_probe_micro.jpg",
+      "target": "units/espionage_probe_micro.jpg",
+      "size": 1315
+    },
+    {
+      "source": "public/img/objects/units/espionage_probe_small.jpg",
+      "target": "units/espionage_probe_small.jpg",
+      "size": 1502
+    },
+    {
+      "source": "public/img/objects/units/gauss_cannon_micro.jpg",
+      "target": "units/gauss_cannon_micro.jpg",
+      "size": 1084
+    },
+    {
+      "source": "public/img/objects/units/gauss_cannon_small.jpg",
+      "target": "units/gauss_cannon_small.jpg",
+      "size": 1582
+    },
+    {
+      "source": "public/img/objects/units/heavy_cargo_micro.jpg",
+      "target": "units/heavy_cargo_micro.jpg",
+      "size": 979
+    },
+    {
+      "source": "public/img/objects/units/heavy_fighter_micro.jpg",
+      "target": "units/heavy_fighter_micro.jpg",
+      "size": 991
+    },
+    {
+      "source": "public/img/objects/units/heavy_fighter_small.jpg",
+      "target": "units/heavy_fighter_small.jpg",
+      "size": 1446
+    },
+    {
+      "source": "public/img/objects/units/heavy_laser_micro.jpg",
+      "target": "units/heavy_laser_micro.jpg",
+      "size": 967
+    },
+    {
+      "source": "public/img/objects/units/heavy_laser_small.jpg",
+      "target": "units/heavy_laser_small.jpg",
+      "size": 1379
+    },
+    {
+      "source": "public/img/objects/units/interplanetary_missile_micro.jpg",
+      "target": "units/interplanetary_missile_micro.jpg",
+      "size": 1098
+    },
+    {
+      "source": "public/img/objects/units/interplanetary_missile_small.jpg",
+      "target": "units/interplanetary_missile_small.jpg",
+      "size": 1638
+    },
+    {
+      "source": "public/img/objects/units/ion_cannon_micro.jpg",
+      "target": "units/ion_cannon_micro.jpg",
+      "size": 1013
+    },
+    {
+      "source": "public/img/objects/units/ion_cannon_small.jpg",
+      "target": "units/ion_cannon_small.jpg",
+      "size": 1398
+    },
+    {
+      "source": "public/img/objects/units/large_cargo_small.jpg",
+      "target": "units/large_cargo_small.jpg",
+      "size": 1452
+    },
+    {
+      "source": "public/img/objects/units/large_shield_dome_micro.jpg",
+      "target": "units/large_shield_dome_micro.jpg",
+      "size": 1002
+    },
+    {
+      "source": "public/img/objects/units/large_shield_dome_small.jpg",
+      "target": "units/large_shield_dome_small.jpg",
+      "size": 1425
+    },
+    {
+      "source": "public/img/objects/units/light_fighter_micro.jpg",
+      "target": "units/light_fighter_micro.jpg",
+      "size": 1332
+    },
+    {
+      "source": "public/img/objects/units/light_fighter_small.jpg",
+      "target": "units/light_fighter_small.jpg",
+      "size": 1564
+    },
+    {
+      "source": "public/img/objects/units/light_laser_micro.jpg",
+      "target": "units/light_laser_micro.jpg",
+      "size": 997
+    },
+    {
+      "source": "public/img/objects/units/light_laser_small.jpg",
+      "target": "units/light_laser_small.jpg",
+      "size": 1419
+    },
+    {
+      "source": "public/img/objects/units/pathfinder_micro.jpg",
+      "target": "units/pathfinder_micro.jpg",
+      "size": 1363
+    },
+    {
+      "source": "public/img/objects/units/pathfinder_small.jpg",
+      "target": "units/pathfinder_small.jpg",
+      "size": 1401
+    },
+    {
+      "source": "public/img/objects/units/plasma_turret_micro.jpg",
+      "target": "units/plasma_turret_micro.jpg",
+      "size": 973
+    },
+    {
+      "source": "public/img/objects/units/plasma_turret_small.jpg",
+      "target": "units/plasma_turret_small.jpg",
+      "size": 1417
+    },
+    {
+      "source": "public/img/objects/units/reaper_micro.jpg",
+      "target": "units/reaper_micro.jpg",
+      "size": 1307
+    },
+    {
+      "source": "public/img/objects/units/reaper_small.jpg",
+      "target": "units/reaper_small.jpg",
+      "size": 1727
+    },
+    {
+      "source": "public/img/objects/units/recycler_micro.jpg",
+      "target": "units/recycler_micro.jpg",
+      "size": 955
+    },
+    {
+      "source": "public/img/objects/units/recycler_small.jpg",
+      "target": "units/recycler_small.jpg",
+      "size": 1393
+    },
+    {
+      "source": "public/img/objects/units/rocket_launcher_micro.jpg",
+      "target": "units/rocket_launcher_micro.jpg",
+      "size": 1085
+    },
+    {
+      "source": "public/img/objects/units/rocket_launcher_small.jpg",
+      "target": "units/rocket_launcher_small.jpg",
+      "size": 1608
+    },
+    {
+      "source": "public/img/objects/units/small_cargo_micro.jpg",
+      "target": "units/small_cargo_micro.jpg",
+      "size": 1295
+    },
+    {
+      "source": "public/img/objects/units/small_cargo_small.jpg",
+      "target": "units/small_cargo_small.jpg",
+      "size": 1505
+    },
+    {
+      "source": "public/img/objects/units/small_shield_dome_micro.jpg",
+      "target": "units/small_shield_dome_micro.jpg",
+      "size": 1010
+    },
+    {
+      "source": "public/img/objects/units/small_shield_dome_small.jpg",
+      "target": "units/small_shield_dome_small.jpg",
+      "size": 1427
+    },
+    {
+      "source": "public/img/objects/units/solar_satellite_micro.jpg",
+      "target": "units/solar_satellite_micro.jpg",
+      "size": 940
+    },
+    {
+      "source": "public/img/objects/units/solar_satellite_small.jpg",
+      "target": "units/solar_satellite_small.jpg",
+      "size": 1373
+    }
+  ]
+}
