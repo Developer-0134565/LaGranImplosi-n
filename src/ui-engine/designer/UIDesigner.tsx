@@ -264,16 +264,17 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
           <div className="lgi-designer__group-title">
             <span>Template</span>
             <span>{config.template}</span>
-            <button
-              type="button"
-              className="lgi-designer__template-toggle"
-              onClick={() => setTemplatesOpen((value) => !value)}
-              aria-expanded={templatesOpen}
-              aria-controls="lgi-designer-template-list"
-            >
-              {templatesOpen ? 'OCULTAR' : 'MOSTRAR'}
-            </button>
           </div>
+          <button
+            type="button"
+            className="lgi-designer__template-toggle"
+            onClick={() => setTemplatesOpen((value) => !value)}
+            aria-expanded={templatesOpen}
+            aria-controls="lgi-designer-template-list"
+          >
+            <span>PLANTILLAS</span>
+            <strong>{templatesOpen ? 'OCULTAR ▲' : 'MOSTRAR ▼'}</strong>
+          </button>
           {templatesOpen && <div id="lgi-designer-template-list" className="lgi-designer__templates">
             {UI_TEMPLATES.map((entry) => (
               <button
