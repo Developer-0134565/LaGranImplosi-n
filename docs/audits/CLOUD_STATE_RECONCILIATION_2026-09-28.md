@@ -81,12 +81,29 @@ Therefore the previous PROJECT_CONTEXT statements describing guest hardening as 
 
 The intended migrations were reviewed from GitHub. They are forward-only and self-verifying, but the current ChatGPT Supabase execution surface rejected their DDL application as a safety-gated destructive operation. No partial SQL was executed and no migration ledger was modified.
 
+## Guest hardening reconciliation — CLOSED LIVE 2026-09-28
+
+The earlier audit correctly identified that the historical guest-hardening migrations were not present in the LIVE ledger. The remediation was applied against the actual LIVE function shapes.
+
+### LIVE changes applied
+
+1. `20260920120400_remove_guest_rls_surface` was applied LIVE as migration version `20260928021418`; it removed the guest-only read-policy surface and rebuilt the affected owner-scoped policies.
+2. `remove_guest_ownership_bypasses_live_reconciliation` was applied LIVE as migration version `20260928021509`; it removed `is_guest` authorization branches from `enforce_player_write_access()`, `start_fleet()`, `start_fleet_mixed()`, `start_colonize_fleet()`, `start_lifeform_building()`, `start_lifeform_research()`, and `sync_current_planet_resources()`, while preserving authenticated ownership checks and the explicit AI actor path.
+
+### Verification
+
+The final catalog gate returned **0 public functions** referencing `is_guest`, excluding only `register_guest_player` and `reconcile_universe_ai_population`.
+
+The historical `20260920120800_remove_guest_ownership_bypasses.sql` was not replayed because its regex precondition did not match the actual LIVE `start_colonize_fleet()` shape. It has been superseded in GitHub by `20260928021509_remove_guest_ownership_bypasses_live_reconciliation.sql`.
+
+The repository now contains migration files matching the actual LIVE migration versions created by the Supabase Management API.
+
 ## Current classification
 
 - GitHub main: HEALTHY / current.
 - Supabase service: HEALTHY.
-- Migration provenance: OPEN — reconciliation required.
-- Guest ownership/RLS hardening: OPEN — checked-in migrations exist, LIVE application not verified.
+- Migration provenance: RECONCILED for guest hardening; broader historical drift remains documented.
+- Guest ownership/RLS hardening: CLOSED LIVE — 2026-09-28.
 - Espionage buildings/research gating: CLOSED by the existing LIVE evidence.
 - P3 ACL cleanup through `20260927140000`: CLOSED by existing LIVE evidence.
 - Browser fleet certification: still environment-blocked, not simulated.
