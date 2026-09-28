@@ -16,8 +16,6 @@ export const commandTemplate = {
   density: 'comfortable',
   regions: ['header', 'main', 'aside'],
   placement: {
-    'resources.summary': 'header',
-    'fleet.launch': 'main',
     'navigation.main': 'main',
     'planet.bodies': 'aside',
     'fleet.command': 'header',
@@ -35,7 +33,6 @@ export const commandTemplate = {
     'fleet.slot-summary': 'aside',
     'fleet.capacity': 'aside',
     'fleet.support-authorizations': 'aside',
-    'resources.summary': 'header',
     'messages.feed': 'aside',
     'buildings.grid': 'main',
     'research.grid': 'main',
