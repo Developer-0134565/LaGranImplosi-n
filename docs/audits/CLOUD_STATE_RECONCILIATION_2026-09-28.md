@@ -116,3 +116,7 @@ Before another implementation mission, perform the SYNC GATE and consult this do
 ## Post-remediation security advisor snapshot
 
 Supabase security advisors at 2026-09-28 02:16 UTC no longer report guest-policy/function residue as the issue addressed above. Remaining findings are broader pre-existing security debt: 3 RLS-enabled tables without policies, 5 mutable-search-path functions, 3 anon-callable SECURITY DEFINER functions, 61 authenticated-callable SECURITY DEFINER functions, anonymous-access policies on cron/dashboard/storage-related objects, and leaked-password protection disabled. These are separate follow-up items and were not silently folded into guest hardening.
+
+## 2026-09-28 AI target protection closure
+
+The existing beginner-protection contract was measured LIVE before changing it: the ATTACK insert trigger already called get_player_attack_protection(), but that function intentionally returned NOT_HUMAN_TARGET for AI players. The approved project rule is to reuse the existing human 24-hour beginner protection for AI targets. Migration 20260928050000_extend_beginner_protection_to_ai_targets now applies the same 24-hour created_at window to both human and AI targets. Post-change LIVE verification: 33 AI players are currently protected, 592 are outside the 24-hour window, and the human protection path remains unchanged. All 625 AI profiles remain DORMANT; no activation was performed.
