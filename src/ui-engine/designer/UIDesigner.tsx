@@ -115,9 +115,10 @@ export function UIDesigner({ hidden = false }: UIDesignerProps) {
       // appearance overrides, then persist the complete state so a reload or
       // a fresh workbench cannot silently fall back to the previous template.
       setUIDesignerTemplate(id)
-      setUIDesignerTheme(null)
-      setUIDesignerDensity(null)
       engine?.setTemplateId(id)
+      // Theme and density are Designer-wide appearance preferences, not
+      // template-scoped layout state. Keep explicit user choices when the
+      // template changes so they survive the switch and the next reload.
       saveUIDesigner()
     },
     [engine],
