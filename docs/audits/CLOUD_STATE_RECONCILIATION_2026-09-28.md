@@ -112,3 +112,7 @@ The repository now contains migration files matching the actual LIVE migration v
 ## Operating rule
 
 Before another implementation mission, perform the SYNC GATE and consult this document for cloud-state discrepancies. Do not reopen domains marked CLOSED unless new LIVE evidence demonstrates a regression.
+
+## Post-remediation security advisor snapshot
+
+Supabase security advisors at 2026-09-28 02:16 UTC no longer report guest-policy/function residue as the issue addressed above. Remaining findings are broader pre-existing security debt: 3 RLS-enabled tables without policies, 5 mutable-search-path functions, 3 anon-callable SECURITY DEFINER functions, 61 authenticated-callable SECURITY DEFINER functions, anonymous-access policies on cron/dashboard/storage-related objects, and leaked-password protection disabled. These are separate follow-up items and were not silently folded into guest hardening.
