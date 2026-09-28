@@ -19,6 +19,11 @@ body {
   background: #05080d url('/IMAGENES/wallpaper.jpg') center center / cover fixed no-repeat !important;
 }
 
+.app-frame {
+  zoom: 1 !important;
+  transform: none !important;
+}
+
 .game {
   position: relative !important;
   width: 100% !important;
