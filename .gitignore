@@ -41,6 +41,11 @@ backup/
 # Supabase temp
 supabase/.temp/
 
+# Local secrets: NEVER commit credentials (plaintext DEV logins, tokens, keys)
+credentials.txt
+*.credentials
+secrets.txt
+
 # v2 subfolder
 Lagranimplosion-V.2/node_modules/
 Lagranimplosion-V.2/dist/
