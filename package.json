@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "prebuild": "npm run assets:ogamex",
     "lint": "eslint .",
+    "cert:contracts": "node scripts/contract-inventory.mjs --assert-client-dispatchers",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types"

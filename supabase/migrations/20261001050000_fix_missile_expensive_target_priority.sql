@@ -1,0 +1,60 @@
+-- MISSILE TARGET PRIORITY: the `expensive` mode was a silent no-op
+-- ---------------------------------------------------------------------------------------------
+-- THE DEFECT (measured on LIVE 2026-10-01)
+--   `order_defenses_for_missile_attack` implements OGameX's three priority branches, but the
+--   price direction is hard-coded ASCENDING for every mode:
+--
+--       ORDER BY s.is_first DESC, s.is_expensive DESC, s.sort_price ASC, s.defense_id ASC
+--
+--   `is_expensive DESC` only separates the two GROUPS; it never inverts the ordering INSIDE
+--   them. With a single group selected, mode 1 therefore returns byte-identical output to
+--   mode 0. Measured with light_laser(2000) / heavy_laser(8000) / small_shield_dome(20000):
+--
+--       mode 0 (cheapest)  -> light_laser        correct
+--       mode 1 (expensive) -> light_laser        WRONG: OGameX requires small_shield_dome
+--
+--   So `start_missile_attack(..., p_target_priority => 1)` is accepted by validation
+--   (0..9) and by the dispatcher, silently destroys the CHEAPEST defense first, and reports
+--   success. A caller that deliberately asked for `expensive` gets the opposite of what it
+--   asked for, with no error and no trace.
+--
+-- OGameX source of truth (lanedirt/OGameX, app/GameMissions/MissileMission.php, read today)
+--   decodePriority(): 0 => 'cheapest', 1 => 'expensive', 2..9 => machine_name
+--   sortDefensesByPriority():
+--     'cheapest'  -> usort priceA <=> priceB              (metal + crystal ASC)
+--     'expensive' -> usort priceB <=> priceA              (metal + crystal DESC)
+--     otro        -> el machine_name elegido PRIMERO; el resto por precio ASC
+--
+--   LGI adaptation: the branch structure, the `metal + crystal` price definition, the
+--   explicit-type-first rule and the fallback to cheapest already match upstream verbatim.
+--   Only the missing DESC direction was absent.
+--
+-- THE FIX
+--   Make the sort key direction depend on the mode, instead of always ASC:
+--
+--       ORDER BY
+--         s.is_first DESC,
+--         CASE WHEN s.is_expensive = 1 THEN s.sort_price END DESC,
+--         s.sort_price ASC,
+--         s.defense_id ASC;
+--
+--   * mode 0 (cheapest, the D3-fixed product behaviour and what the UI always sends):
+--     the CASE is NULL for every row, so the ordering is unchanged and byte-identical.
+--   * mode 1 (expensive): now genuinely descending, as upstream.
+--   * modes 2..9 (explicit type): `is_first DESC` still wins; within each group the same
+--     ASC ordering applies, matching upstream's "the rest by price ascending".
+--   * D4 determinism is preserved everywhere: the final tie-break is always `defense_id ASC`,
+--     and an absolute price tie still resolves identically (certified by the fixture).
+--
+-- NOT CHANGED
+--   * The `is_missile_defense` exclusion (ABM/IPM are never targets), the armor helper
+--     (`get_combat_defense_hull`), the attack-power helper, the interception arithmetic, the
+--     damage loop in `resolve_missile_attack_arrival`, and the signature, volatility,
+--     SECURITY and `SET search_path` (the body is spliced out of pg_get_functiondef).
+--   * ACL: the function stays closed to `authenticated` and `anon`.
+--
+-- EDIT METHOD
+--   Anchored text splice over the COMPLETE pg_get_functiondef output, the same technique as
+--   20261001010000 / 20261001030000 / 20261001040000. The anchor is asserted to occur exactly
+--   once before the edit.
+-- ---------------------------------------------------------------------------------------------

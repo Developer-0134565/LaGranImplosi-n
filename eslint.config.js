@@ -51,6 +51,7 @@ export default defineConfig([
   'src/App.tsx',
   'src/screens/fleet/useFleetDispatch.ts',
   'src/GameplayEnginePanel.tsx',
+  'src/lib/useSocial.ts',
 ],
     rules: {
       'react-hooks/set-state-in-effect': 'off',

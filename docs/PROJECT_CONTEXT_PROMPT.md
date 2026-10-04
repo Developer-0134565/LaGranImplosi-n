@@ -6,9 +6,163 @@
 > the specialized documents linked below.
 
 
+## GAMEPLAY GAP STATUS — CANONICAL (2026-10-03)
+
+> **Este bloque es el ÍNDICE AUTORITATIVO del estado de gameplay.** Si cualquier sección más abajo
+> de este documento contrasta con él — en particular si marca algo CLOSED como pendiente, o la
+> certificación de navegador como bloqueada — **manda este bloque** y la sección afectada es
+> HISTÓRICA. No se borra historia: se marca.
+
+```text
+GAMEPLAY GAP STATUS
+===================
+
+OGameX final gap check:      16/16 areas CLOSED · REAL GAPS: 0
+Economy:                     CLOSED
+Missile System:              CLOSED — backend + LIVE verified
+Crawler overload:            CLOSED — default 100 %, maximum 150 %
+Demolition / Ion:            CLOSED
+Queue expiry:                CLOSED
+Fleet browser:               CLOSED — 9/9 browser · E2E PASS · ownership PASS
+                                      · cleanup PASS · residue 0
+Fleet slot cap:              CLOSED — max = 1 + computer_technology, server-enforced,
+                                      now serialised per player (concurrency fixed)
+
+Environment blocker:         RESOLVED
+```
+
+### Alcance EXACTO de la certificación de navegador de flotas
+
+```text
+Fleet pipeline E2E = CLOSED
+  ATTACK mission = browser E2E certified     worker = certified
+  arrival = certified                        resolution = certified
+  return = certified                         accounting = certified
+  ownership = certified                      cleanup = certified
+  residue = 0
+```
+
+**Lo que NO se certificó** (y no debe afirmarse): *todos* los tipos de misión de flota.
+La certificación cubre **una** misión `ATTACK` real, contra un objetivo **sin combate**, por el
+**pipeline completo en tiempo real**. No se inventaron combates ni destinos adicionales para
+alargar la prueba. Detalle: `docs/audits/FLEET_BROWSER_CERTIFICATION_2026-10-03.md`.
+
+### Cualquier texto «ENVIRONMENT BLOCKED» sobre el navegador de flotas es HISTÓRICO
+
+Varias secciones anteriores de este documento (y algunos informes previos) dicen que el navegador de
+flotas estaba bloqueado por falta de credenciales DEV o por falta de driver. **Eso ya no es cierto**:
+
+```text
+DEV credentials disponibles · navegador disponible (Edge) · login real PASS
+9/9 PASS · E2E PASS · ownership PASS · cleanup PASS · residue 0
+```
+
+**No vuelvas a asumir que faltan las credenciales.** Se leen en tiempo de ejecución de
+`credentials.txt` (fichero local, ahora en `.gitignore`) y se pasan por `DEV_EMAIL` /
+`DEV_PASSWORD`. El harness acepta `CERTIFY_MAX_STEP` para correr sólo la parte diagnóstica sin
+mutar datos; los pasos omitidos **no** cuentan como PASS y la corrida parcial devuelve exit 3.
+
+### PRODUCT DECISION REQUIRED ≠ TECHNICAL GAP
+
+Queda **una** decisión humana pendiente. NO es un gap técnico, NO está rota y **no debe
+implementarse** sin decisión explícita:
+
+```text
+1. Dark Matter / premium economy   — modelo de negocio, no fallo técnico (update posterior)
+```
+
+> **Queue terminal purge / retention: ya NO está pendiente.** Se midió y se cerró como `RETAIN`
+> el 2026-10-03: sin consumidor, sin dependientes, sin acumulación (0 filas creadas en 14 días) y
+> con índices completos; además son el ÚNICO historial de construcción/investigación que existe.
+> No hay regla de purga de colas ni en OGameX ni en LGI, así que cualquier plazo habría sido
+> inventado. Ver §"QUEUE RETENTION" más abajo.
+
+> El **tope de slots de flota** estuvo aquí durante meses como "product decision". **Ya no**:
+> la política estaba decidida (`1 + computer_technology`) y aplicada; lo que faltaba era la
+> serialización por jugador. Cerrado el 2026-10-03 → ver §"Fleet slot cap" más abajo.
+
+### ADVERTENCIA — el mapa OGameX/LGI antiguo contiene falsos `MISSING`
+
+`docs/reference/README_OGAMEX_LGI_MAP.md` es de **2026-09-25** y describe un estado ya superado.
+Estos sistemas estaban marcados como ausentes y hoy están **implementados y cerrados**:
+
+```text
+Missile System · Moon destruction · Demolition + Ion · recall_fleet
+wreck/message cleanup · Crawler overload
+```
+
+> **DO NOT TRUST THE OLD OGameX/LGI GAP MAP AS CURRENT STATE.**
+> La evidencia LIVE actual tiene prioridad sobre cualquier mapa histórico.
+
+### Estado canónico por misión (detalle durable en el README especializado)
+
+```text
+OGameX final gap check   docs/audits/OGAMEX_FINAL_GAP_CHECK_2026-10-03.md
+Economy gap sweep        docs/audits/ECONOMY_GAP_SWEEP_2026-10-02.md
+Missile System            docs/systems/README_MISSILE_SYSTEM.md §18
+Fleet browser            docs/audits/FLEET_BROWSER_CERTIFICATION_2026-10-03.md
+```
+
+### REMOTE INFORMATION TO RECONCILE — `origin/main` `0dbebe3` (NO integrado)
+
+Colisión conocida en este mismo fichero. **No se ha integrado**: `pull`/`merge` están prohibidos y el
+trabajo local no se toca. El commit remoto **borra 1283 líneas** de este documento; hacerlo
+automáticamente destruiría historia local que aún no está en remoto.
+
+| | LOCAL (working tree) | REMOTE `0dbebe3` |
+|---|---|---|
+| Missile System | CLOSED — backend + LIVE verified (§18, detalle) | CLOSED — mismo fondo, **redacción distinta** |
+| Nota de fixtures inválidos | presente | presente (coincide) |
+| Economy gap sweep | **hecho: CLOSED** | "próxima misión candidata" → **caducado** |
+| Crawler / demolition / queue expiry | **hechos y CLOSED** | no mencionado |
+| Fleet browser | **CLOSED 9/9 + E2E + residue 0** | "environment-blocked; no driver + human DEV credential" → **FALSO hoy** |
+
+**Antes de integrar hay que reconciliar a mano.** Lo que aporta remoto y aún no está local, en
+sustancia: la redacción propia de su cierre de misiles y su lista de "no reabrir" — compatible con
+nuestro §18, no contradictorio. Lo que **no** debe adoptarse sin corregir: la afirmación de que el
+navegador sigue bloqueado y que el sweep de economía está pendiente.
+
+
 ## MANDATORY SYNC GATE
 
 Before any new Cline/Copilot implementation mission, verify LOCAL ↔ \`origin/main\` first. The gate must record branch, local HEAD, remote HEAD, merge-base, ahead/behind, staged/unstaged/untracked/deleted files, stashes and relevant divergences. If local work is not understood or the trees diverge, stop implementation and protect the work first. Do not automatically pull, merge, rebase, reset, clean, checkout, stash-pop/drop, commit or push. For backend/migration/RPC/RLS work, also verify Supabase LIVE and consult the cloud reconciliation record: [\`docs/audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md\`](audits/CLOUD_STATE_RECONCILIATION_2026-09-28.md).
+
+**The physical local working tree is the only source of truth for local state.** ChatGPT memory, this document,
+GitHub and previous agent reports are context, never proof. Never assume the trees are synchronized and never
+perform a blind pull. Re-state this gate verbatim in EVERY new Cline/Copilot agent prompt, and re-run it at the
+start of every session — a clean gate in a previous session says nothing about the current one.
+
+```text
+MANDATORY SYNC GATE (repeat verbatim in every agent prompt)
+
+LOCAL ↔ origin/main
+        ↓
+comprobar el estado real  (nunca confiar en la memoria)
+        ↓
+identificar el trabajo local (modified / untracked / stashes)
+        ↓
+identificar los commits remotos  (git log HEAD..origin/main)
+        ↓
+detectar el solapamiento  (remote-only / local-only / shared files)
+        ↓
+proteger el trabajo  (parche verificable + copia de los untracked)
+        ↓
+solo entonces diseñar y ejecutar la misión
+```
+
+Non-negotiable consequences of the gate:
+
+1. **Never overwrite local work to make a pull succeed.** Reconciliate: `REMOTE change + LOCAL change →
+   RECONCILIATION`. If both facts are compatible, keep both. If they genuinely contradict, STOP and REPORT —
+   never invent a resolution.
+2. **Untracked files are protected work.** Identify them explicitly and check none collides with a path
+   \`origin/main\` is about to add, before any integration step.
+3. **A dirty working tree can be correct.** The goal is never a clean tree at any price; it is
+   \`LOCAL preserved + origin/main integrated safely + no lost or duplicated work\`.
+4. **A clean tree is not a reconciliation.** Do not mark anything CLOSED merely because Git reports no conflict.
+5. **Backend work adds a third authority.** Repository, Supabase LIVE and this document can disagree; a
+   migration may not be renamed, deleted or invented to make a ledger look tidy. Detect and report the drift.
+6. **If local work cannot be proven preserved, STOP** and do not continue into gameplay.
 
 ## CLOUD RECONCILIATION OVERRIDE — 2026-09-28
 
@@ -106,17 +260,201 @@ IMPLEMENTED + TESTED (LIVE, rolled back, zero residue)
                        indexes, creation from battle debris (OGameX chance + diameter), lunar base field capacity,
                        building kind/research gating, sensor phalanx, jump gate, moon destruction.
                        tests/moon_engine.sql 13 PASS · tests/moon_services.sql 11 PASS
+                       RE-VERIFIED 2026-09-28 (LIVE, ROLLBACK, residuo 0): moon_engine 13 PASS · moon_services 11 PASS ·
+                       moon_destruction_mission 6/6 el 2026-09-28.
+                       D6 CLOSED 2026-09-28: la destrucción lunar ya no se descarta cuando la luna sobrevive y se pierden
+                       todos los deathstars (LIVE `20260928121226` + fixture nuevo fleet_ship_loss_quantity_check 8 PASS).
                        docs/systems/README_MOON_ENGINE.md
   verified live        ACS settlement PG-08/09/10 was already implemented by the previous block; untouched here.
 
 STILL OPEN (evidence recorded, ready to implement)
-  fusion plant         formula recorded; blocked by the deuterium-fuel policy of the linear devengo (no free energy).
-  crawler              rules recorded; same economy devengo as the fusion plant.
+  fusion plant         CLOSED 2026-09-26 — implemented (20260926140000/…40200) and re-certified LIVE 10/10 on 2026-09-29. The "STILL OPEN" note below was STALE.
+  crawler              CLOSED 2026-09-26 — implemented and re-certified LIVE 10/10 on 2026-09-29; on that date its cap / effective / bonus became VISIBLE to the player via get_planet_crawler_status.
   AI behaviour         CLOSED — service-role actor contract + full gameplay policy (see the AI GAMEPLAY
                        BEHAVIOUR section at the end of this document).
   demolition           refund / ion-technology policy not determined with certainty → not invented.
   moon polishing       see docs/systems/README_MOON_ENGINE.md §9 (dedicated destruction mission, phalanx departures,
                        moon UI panel, defence kind gate, wreck field).
+
+## NANITE FACTORY + CRAWLER ENERGY BALANCE — CLOSED 2026-09-30 (Q1–Q15)
+
+Misión de cierre de gaps decididos, con auditoría previa obligatoria. Detalle completo en
+`docs/audits/GAP_CLOSURE_2026-09-30.md`.
+
+```text
+  IMPLEMENTADO
+    nanite factory   Q5/Q6 · 20260930210000_nanite_factory.sql
+                     OGameX StationObjects: id 15, 1 000 000 / 500 000 / 100 000, factor 2, PLANET only,
+                     requisitos computer_technology 10 + robot_factory 10.
+                     Regla única calculate_nanite_factory_build_speed(planet) = 2^nivel, plegada en la
+                     MISMA tasa efectiva del Robot Factory: edificios, naves Y defensas.
+                     La investigación NO se toca: getTechnologyResearchTime upstream no tiene término
+                     nanite, y la migración aborta si alguna vez lo tuviera.
+                     La divergencia LGI (upstream no aplica 1+robot a las unidades) se PRESERVA: el 2^nivel
+                     se compone con ella; revertirla reabriría la decisión cerrada del Robot Factory.
+    crawler balance  Q13 · 20260930211000_crawler_energy_balance.sql
+                     BUG CORREGIDO: calculate_planet_energy_balance sumaba sólo building_energy_definitions,
+                     así que la UI mostraba el mismo consumo con 0 crawlers que con 40 mientras la producción
+                     estaba estrangulada por 2 000 energía/h. Ahora ambos caminos usan el helper único
+                     calculate_crawler_energy_consumption(planet). La producción conserva exactamente su
+                     valor anterior. Q1 INTACTA: sólo los crawlers efectivos consumen.
+    missile system   §5 GAMEPLAY_GAP + D1-D5 cerradas · 18 migraciones (ledger 20260930074024..20260930075958)
+                      **CLOSED — BACKEND / LIVE VERIFIED (2026-10-02).** Estado canónico y detalle durable:
+                      docs/systems/README_MISSILE_SYSTEM.md §18. No reabrir sin regresion demostrada.
+                      IMPLEMENTADO: Missile Silo (20000/20000/1000, factor 2, shipyard 1, PLANET+MOON),
+                      ABM (8000/2000/0, silo 2 + shipyard 1, 1 ranura, casco 800) e
+                      IPM (12500/2500/10000, silo 4 + shipyard 1 + impulse_drive 1, 2 ranuras, casco 1500).
+                      Capacidad 10/nivel; ranura ABM 1 · IPM 2, contando tambien lo encolado.
+                      MISSILE_ATTACK propio (NO es ATTACK): alcance (impulse*5)-1, vuelo
+                      (30+60*distancia)/velocidad_universo sin pipeline de naves ni combustible, y sin viaje
+                      de vuelta. Intercepción 1:1 con el ABM del PLANETA PADRE primero. Prioridad de
+                      destrucción con el algoritmo OGameX verificado. ABM/IPM EXCLUIDOS del combate normal
+                      en las tres superficies (informe, estado de combate y reparacion).
+                      D1 ABM/IPM 60 s: unica divergencia deliberada de balance. D2 el guard de demolicion
+                      bloquea si el silo quedaria por debajo de los ranuras ocupadas. D5 reutiliza
+                      get_combat_defense_hull, que YA es (casco/10)*(1+0.1*armour): no hay formula paralela.
+                      CUATRO BUGS ENCONTRADOS POR LA FIXTURE, todos corregidos: el IPM no puede ir en
+                      fleet_movement_ships (FK a ship_definitions) => columna missile_count propia;
+                      format() no tiene %d; con 0 ABM el conteo escalar dejaba NULL y LEAST ignoraba NULL,
+                      de modo que todo el IPM salia interceptado y ninguna defensa recibia dano; y el
+                      guard D2 quedaba enmascarado por INSUFFICIENT_RESOURCES.
+                      Detalle y estado por caso: docs/systems/README_MISSILE_SYSTEM.md.
+                      Fixture: supabase/tests/missile_system.sql.
+                      NOTA: los ficheros locales 2026093022*/2026093023* son BORRADORES superseded;
+                      la version aplicada vive en el ledger (mismo drift que el resto de la tanda, sin reparar).
+
+  MISSILE SYSTEM — CLOSED (canónico, 2026-10-02; detalle durable en README_MISSILE_SYSTEM.md §18)
+    Backend            LIVE verified end-to-end. Esta misión NO añadió código de producto.
+    D1                 60 s silo / time_factor 2 · 60 s ABM · 60 s IPM. Contrastado contra el catálogo
+                       LIVE. No reabrir salvo decisión humana explícita.
+    Launch             start_missile_attack (auth.uid() → players.user_id → ownership → FOR UPDATE).
+    Arrival            resolve_missile_attack_arrival (idempotente por status COMPLETED/CANCELLED).
+    Movement           process_fleet_movements — el worker existente, sin segundo motor.
+    Destruction        cheapest → metal+crystal ASC → defense_id ASC (determinista, D4).
+    Tests              fixtures CORREGIDAS y ejecutadas de verdad en LIVE: ui_surface 5/5,
+                       target_priority 13/13, missile_system catálogo+capacidad 31 PASS/0 FAIL,
+                       rango/vuelo/prioridad 26 PASS/0 FAIL, combate/idempotencia/seguridad PASS/0 FAIL.
+                       Residuo LIVE = 0. Los fallos iniciales eran defecto de FIXTURE, no de producto.
+    Static             tsc/build/contracts/diff-check PASS; lint 0 errors (7 warnings preexistentes).
+    Browser            NO re-certificado en esta corrida. El PASS 11/11 histórico es de 2026-09-30.
+    Ledger drift       documentado; `supabase db push` prohibido. Fuera del cierre funcional.
+
+  AUDITADO SIN CAMBIAR
+    Q7 shipyard→robot_factory 2   NO aplicado: el prerrequisito es POR CUERPO y robot_factory es
+                                  PLANET-only ⇒ la fila prohíbe el hangar en las LUNAS. Ya era decisión de
+                                  producto (tests/robot_factory.sql:218).
+    Q8 recálculo de colas          INFO / RESEARCH REQUIRED: LGI fija finishes_at absoluto al encolar; el
+                                  clásico acorta el resto del trabajo ya en cola.
+    Q12 space_dock→shipyard 2     NO aplicado: el Space Dock es una mecánica LGI definida y CLOSED.
+    Q9 tiempos base de naves      AUDITADO, no convertido: upstream usa (metal+cristal)/2500; LGI usa
+                                  base_build_time_seconds. Convertirlo cambiaría las 17 naves ~70x.
+    Q10 fuel del satélite         AUDITADO: 0 vs 1 upstream NO tiene efecto (velocidad 0 corta el despacho
+                                  antes de calcular combustible). Divergencia deliberada y documentada.
+
+  ~~ESPECIFICADO, NO IMPLEMENTADO~~ — RESUELTO, VER §5 MISSILE SYSTEM (CLOSED)
+    Missile Silo + ABM + IPM (Q2/Q3/Q4) estaba aquí como "NO implementado" exigiendo un NUEVO tipo de
+    misión. **Superado**: `MISSILE_ATTACK` está implementado y verificado en LIVE (2026-10-02), sin tocar
+    el settlement de combate cerrado. Estado canónico: `CLOSED — BACKEND / LIVE VERIFIED`.
+
+  Q14 LEDGER    sólo diagnóstico, NO reparado (4 migraciones con versión de ledger ≠ nombre de fichero;
+                 comprobado que no hay doble aplicación).
+  TESTS         tests/nanite_and_crawler_balance.sql 13 PASS / 0 FAIL (ROLLBACK) · fusion_and_crawler 10/10
+                 con ratios de crawler idénticos · tsc 0 · eslint 0 errores · cert:contracts PASS ·
+                 diff --check 0 · buildings 16 / ships 17 / defenses 8
+  SEGURIDAD     ambos helpers de sólo lectura, SECURITY INVOKER, search_path fijo; el de crawlers es
+                 service_role only. Ningún RPC de escritura nuevo.
+  RESIDUO       0 planetas de prueba · 692 jugadores · 692 planetas
+```
+
+## PLANET TEMPERATURE SYSTEM — CLOSED 2026-09-30
+
+LIVE migrations `20260930160000` + `20260930161000` (aplicadas en LIVE con las versiones de ledger
+`20260930041846` y `20260930041918`; drift de ledger detectado y NO reparado — ver
+`docs/audits/PLANET_TEMPERATURE_SYSTEM_2026-09-30.md` §8). Cierra el único hueco real que dejó el gap sweep
+del 2026-09-30 (`docs/audits/GAMEPLAY_GAP_SWEEP_2026-09-30.md` §3): el **satélite solar era una nave inerte**.
+
+```text
+  SOURCE (OGameX main, verificado hoy; NO la ruta obsoleta application/Settings/*)
+    PlanetServiceFactory::planetData()      banda de temperatura por posición 1..15
+    PR #514 (MERGED, cierra #513)           temp_min = temp_max − 40  ⇒ rango de 40° SIEMPRE
+    PlanetService::getPlanetTempAvg()       (temp_min + temp_max)/2
+    BuildingObjects.php:86                  10·L·1.1^L·(1.44 − 0.004·T_avg)   ← DEUTERIO
+    CivilShipObjects.php:171                floor((T_max + 140)/6)·n          ← SATÉLITE
+    GameObjectProduction::calculate()       calculateCrawlerProduction() va DESPUÉS de calculateMine()
+                                            ⇒ el término crawler NO lleva el factor de temperatura
+    tests/Unit/ResourceProductionTest       testDeuteriumProductionTemperatureDependency (16 vs 11)
+    PlanetServiceFactory::setupMoonProperties() + Jobs/CreateLegorMoon.php
+                                            la luna toma la temperatura de la POSICIÓN que orbita
+
+  MODELO (una sola fuente de verdad)
+    planets.position → planet_temperature_for_position(position)   [banda OGameX verbatim]
+                     → planets.temperature_min / temperature_max  [instancia persistida]
+                     → planet_temperature(planet)                  [persistido; si es NULL, el modelo]
+                     → calculate_planet_production                 [único consumidor]
+    Los 4 escritores de planetas usan el mismo helper. Ninguna fórmula duplicada en frontend/fixture/trigger.
+
+  EFECTO ECONÓMICO DELIBERADO: el deuterio ahora escala con la temperatura (0.56 en pos 1 … 1.96 en pos 15).
+  Metal, cristal, el balance de solar/fusión y los términos crawler NO cambian.
+
+  INTENTIONAL LGI DIFFERENCE 1 — punto medio de la banda en vez del `rand(lo,hi)` de OGameX: una tirada
+  aleatoria por fila no es auditable ni reproducible. La banda y el rango de 40° son de OGameX.
+  INTENTIONAL LGI DIFFERENCE 2 — suelo 0 en los dos términos derivados de la temperatura (OGameX no lo
+  necesita porque su temperatura siempre está en rango).
+
+  BACKFILL  692 planetas, 692 NULL antes → 0 NULL · 0 desacuerdos con el modelo · 0 rangos ≠ 40. Idempotente.
+  LIVE      tests/planet_temperature.sql 13 PASS + 1 INFO (ROLLBACK, residuo 0)
+            tests/fusion_and_crawler.sql 10 PASS · tests/energy_technology_production.sql 7 PASS
+            tests/plasma_technology_production.sql 12 PASS (su TEST 13 se actualizó: la línea base de
+            deuterio ahora incluye el factor de temperatura)
+  UI        fila TEMPERATURA en el panel de overview, leída de la fila `planets` (RLS del propietario);
+            sin pantalla nueva y sin contrato nuevo.
+  DOCS      docs/audits/PLANET_TEMPERATURE_SYSTEM_2026-09-30.md (registro de diferencias incluido)
+```
+
+## SOLAR SATELLITE END-TO-END — CLOSED 2026-09-30
+
+`20260930200000_solar_satellite_combat_profile.sql`. El satélite **ya existía** y ya producía energía
+(el sistema de temperatura del 2026-09-30 lo habilitó); esta misión lo auditó de extremo a extremo y
+corrigió **un** valor de definición que ambas fuentes fijaban y LGI tenía mal.
+
+```text
+  AUDITADO (OGameX CivilShipObjects.php, main, hoy)
+    precio 0/2000/500 · prerequisite ÚNICO shipyard 1 · sin valid_planet_types ⇒ planeta y luna
+    perfil  SI 2000 · escudo 1 · ATAQUE 0 · velocidad 0 · carga 0 · combustible 1
+    producción floor((T_max + 140)/6) · sin tope de cantidad · sin materia oscura
+    GameObjectProperties no define tiempo propio: usa la fórmula compartida de nave
+
+  NATURALEZA  una NAVE (A), construida en el hangar. NO es un edificio ni una instalación, aunque
+              produzca energía. Se reutilizó el pipeline existente; ningún sistema paralelo.
+
+  CORREGIDO   ship_definitions.solar_satellite.attack  1 → 0
+              por qué: el perfil de LGI (ataque 1, escudo 1, vel 0, carga 0, comb 0) era idéntico al del
+              CRAWLER salvo el casco = copiar-y-pegar del seed. Y get_combat_unit_snapshot() /
+              initialize_combat_unit_state() leen sd.attack de TODAS las filas de planet_ships sin
+              filtrar ship_type ⇒ un planeta con N satélites aportaba N de ataque a su defensa.
+
+  NO TOCADO (documentado)   combustible 0 vs 1 de upstream: con velocidad 0 el despacho se corta
+                            antes de calcular combustible, así que el valor no tiene camino alcanzable y
+                            el valor clásico no pudo establecerse desde fuente primaria.
+                            calculate_planet_energy_balance no refleja el consumo de crawlers
+                            (preexistente, certificado así por fusion_and_crawler, no afecta al satélite).
+                            getFlightShipAmount() de OGameX excluye el satélite pero NO tiene llamantes.
+
+  CERTIFICADO LIVE (ROLLBACK, residuo 0)   tests/solar_satellite.sql 25 PASS + 3 INFO, 0 FAIL
+    ciclo 0→1→10→11 con cobro exacto (2000/500 y 20000/5000), energía fantasma 0 mientras está en cola,
+    worker idempotente, energía +31/+341 exactos, temperatura caliente +630 / frío +50, Energy Technology
+    mueve el total pero no el término del satélite, Plasma no la toca, la fusión suma su propio término,
+    la tasa del universo no escala energía, se construye y produce en luna, no puede volar
+    (Ship speed must be greater than zero: 0), sin tope de cantidad, y 4 rechazos de ownership/IDOR/sesión.
+
+  REGRESIÓN   fusion_and_crawler 10 PASS · tsc 0 · eslint 0 errores · cert:contracts PASS · diff --check 0
+  DOCS        docs/audits/SOLAR_SATELLITE_AUDIT_2026-09-30.md
+```
+
+> **RESIDUO DE SESIÓN ANTERIOR ELIMINADO:** el barrido OGameX de la sesión previa había dejado 458 ficheros
+> basura (`UsersMISSIN~1AppDataLocalTempogx*.php`, rutas de Windows mal interpretadas por `curl`) en la raíz
+> del repo. Verificados como fuentes PHP de OGameX, ninguno del proyecto, y eliminados. Estado: 15 ficheros
+> en la raíz, todos reales.
 
 DOCUMENTS
   docs/reference/README_OGAMEX_LGI_MAP.md   status update section (supersedes the named rows)
@@ -154,22 +492,29 @@ IMPLEMENTED + TESTED (LIVE, rolled back, zero residue)
                     cross-player declarations. tests/ai_service_actor.sql 9 PASS
                     docs/systems/README_AI_ENGINE.md
   moon polish       D2 phalanx outputs VERIFIED · D3 MoonsPanel UI IMPLEMENTED · D4 kind gate IMPLEMENTED ·
-                    D1 dedicated destruction mission FUTURE · D5 wreck field PRODUCT DECISION
+                    D1 dedicated destruction mission CLOSED 2026-09-26 (`20260926190000`) · D5 wreck field CLOSED
+                    (`20260926230000`, backend-only, sin contrato de cliente)
 
 STILL OPEN / DECISIONS
   AI behaviour policy   which action an AI picks and when (priority list, cadence, budget, reserve, attack policy) —
                         the execution contract is done, the policy is product. README_AI_ENGINE.md §4.
-  wreck field           new subsystem (Space Dock); product decision, not started.
+  wreck field           CLOSED 2026-09-26 (`20260926230000` + `20260926270000`): implemented BACKEND-ONLY (`space_dock`,
+                        PLANET+MOON, 9/9 PASS); no client contract → not a UI gap.
   fusion research_lab   OGameX gates the fusion reactor behind a research laboratory; the laboratory now EXISTS
                         (20260926180000), so that gate is a data row. What remains open for fusion_plant is its
                         own energy/deuterium burn (see the fusion note below), not the laboratory.
   crawler overload      player-set 0–150 % overload does not exist in LGI (100 % assumed).
-  moon polishing        D1 (dedicated destruction mission type + UI entry).
+  moon destruction D6   CLOSED 2026-09-28 (LIVE `20260928121226`): a survived attempt that lost EVERY deathstar was
+                        silently dropped (no attempt row, no messages, Deathstars kept). The same bug also blocked
+                        expedition BLACK_HOLE. Both fixed by deleting exhausted stacks before subtracting.
+                        tests/fleet_ship_loss_quantity_check.sql 8 PASS + 2 INFO.
+                        See README_MOON_ENGINE.md §12.4 and README_FLEET_ENGINE.md §30.
 
 DOCUMENTS
   docs/systems/README_ECONOMY.md        fusion + crawler integration, fuel policy, kind authority
   docs/systems/README_AI_ENGINE.md      NEW — the actor contract, tests, behaviour-policy decision, OGameX comparison
-  docs/systems/README_MOON_ENGINE.md    §9 D1…D5 classified, D4 closed
+  docs/systems/README_MOON_ENGINE.md    §12 moon final verification, §12.4 D6 fixed and certified
+  docs/systems/README_FLEET_ENGINE.md   §30 BLACK_HOLE stock loss fixed + certified
   docs/reference/README_OGAMEX_LGI_MAP.md   status update section for this sweep
 ```
 
@@ -195,6 +540,495 @@ GAP A — ESPIONAGE BUILDINGS/RESEARCH (authorised product decision): VERIFIED +
              from the rule) + `espionage_report_gating.sql` (17 PASS) remain the regression battery.
   no espionage object changed in this mission.
 
+GAP C — ESPIONAGE MISSION COMPOSITION: GAP FOUND + CLOSED 2026-09-28
+  found      `start_fleet` / `start_fleet_mixed` enforce the composition rule for RECYCLE but NOTHING
+              for ESPIONAGE. MEASURED LIVE: `start_fleet_mixed(3 × light_fighter,'ESPIONAGE')` was
+              accepted, persisted, charged fuel and consumed a fleet slot; the resolver then returned
+              `probes_sent = 0`, counter chance 0 and all four reveal flags false — a report
+              STRUCTURALLY guaranteed to reveal nothing, at full cost. Everything the resolver
+              computes derives from `espionage_probe` (probes_sent = SUM of probes; chance = 0 when
+              probes = 0; the whole reveal ladder is `max(0, probes − level_gap²)`), so the empty
+              report was guaranteed, not unlucky. Internal gameplay defect, not a security hole.
+  fixed      `20260928150000_enforce_espionage_probe_composition_rule` (LIVE): one guard per
+              dispatcher, mirroring the existing RECYCLE rule, raising INSIDE the composition loop
+              (atomic — nothing is charged) and rejecting mixed probe+fleet compositions.
+              `ESPIONAGE_MISSION_REQUIRES_PROBES`. The patch inserts into the current `prosrc` via a
+              once-only anchor instead of retyping the certified bodies, and re-asserts the
+              `DEFAULT 'TRANSPORT'` (create-or-replace refuses to drop it, 42P13).
+  certified  `supabase/tests/espionage_mission_composition.sql` **11 PASS + 2 INFO**, LIVE, ROLLBACK,
+              residue 0: both dispatchers refuse; refusal is atomic; a REAL probe flight is still
+              accepted and still produces a genuine report (probes_sent = 3, ships revealed);
+              RECYCLE unchanged; ATTACK never raises the espionage guard; anonymous refused; the
+              resolver carries no guard (level gating untouched); ACL unchanged (anon denied).
+  untouched  the resolver, the reveal rule, level gating, the report contract, the ACL, the fleet
+              engine. EspionageReportsPanel needed no change (it already consumed all 26 columns).
+  ledger     `20260928144117` was applied BY MISTAKE with an empty body (no-op row, nothing changed).
+              Left in place deliberately; the real change is `20260928150000_…`. Disclosed in
+              README_ESPIONAGE_ENGINE.md §12.4.
+  See docs/systems/README_ESPIONAGE_ENGINE.md §12.
+
+GAP D — BEGINNER PROTECTION VISIBILITY: GAP FOUND + CLOSED 2026-09-28
+  found      the 24 h beginner protection of §25 is ENFORCED (LIVE: attacking a fresh empire raises
+              TARGET_BEGINNER_PROTECTED) but was INVISIBLE: `get_player_attack_protection(player_id, at)`
+              is service_role only and `src/` had ZERO references — the rule surfaced only in the raw
+              error of a FAILED attack. A real gap in an already-enforced mechanic, not a new rule.
+  fixed      `20260928210000_add_my_attack_protection_read_contract` (LIVE): ONE read-only contract
+              `get_my_attack_protection()` with NO arguments; ownership via auth.uid() -> players;
+              it DELEGATES to `get_player_attack_protection` (the same authority the ATTACK trigger
+              calls) so the UI can never drift from the enforcement. ACL authenticated + service_role,
+              anon denied. The internal helper stays service_role only and the migration raises if that
+              ever changes. UI: `ProtectionStatusPanel` on the overview screen, reusing existing CSS
+              classes only, rendering nothing when the empire is not protected.
+  certified  `supabase/tests/my_attack_protection_visibility.sql` **8 PASS + 2 INFO**, LIVE, ROLLBACK,
+              residue 0 (incl. "same answer as the trigger authority" and "no session -> 0 rows").
+              Regression 8 PASS: transport/espionage/battle contracts intact, protection trigger and
+              espionage guards untouched, internal helper still service_role only, no RLS change.
+  untouched  the 24 h window, the trigger, the AI scope, the balance, any CSS.
+  browser    ENVIRONMENT BLOCKED — the contract is certified, the panel's render is not.
+  See docs/systems/README_FLEET_ENGINE.md §31.
+
+GAP E — RECYCLE DISCOVERABILITY: GAP FOUND + CLOSED 2026-09-28
+  found      the RECYCLE mission lets the SERVER pick the target, and `start_fleet_mixed` raises
+              'No debris field available for RECYCLE' when there is none. That refusal was already
+              correct and ATOMIC (0 movements, no slot, no fuel) — NOT a correctness bug. The gap was
+              discoverability: `launchBlock` warns pre-flight for FLEET_SLOTS_FULL /
+              EXPEDITION_SLOTS_FULL / COLONY_CAP_REACHED, and RECYCLE had no such case, so the only
+              feedback was the error AFTER pressing launch. On LIVE the human universe has ZERO debris.
+  no decision needed  existence-only is EXACT, not a weakening: the dispatcher's own precondition is
+              `universe_id = <mine> AND (metal>0 OR crystal>0)`, so the boolean IS that condition, with no
+              ordering and no distance. Verified LIVE on both an empty and a populated universe. The
+              richer option (which field, how much) was explicitly REJECTED: it would duplicate the
+              dispatcher's ORDER BY and require a distance metric for a target that has no planet.
+  fixed      `20260928220000_add_recyclable_debris_status_contract` (LIVE): `get_recyclable_debris_status()`
+              with NO arguments, ownership via auth.uid() -> players.universe_id, SECURITY DEFINER with a
+              pinned search_path, ACL authenticated + service_role (anon denied), read-only. It does NOT
+              reveal the target field and does NOT model capacity. The migration raises if an argument,
+              a distance/range/capacity/order-by/limit token, or any engine dependency ever appears.
+  frontend   only the EXISTING pieces: one clause in the existing `launchBlock` (which already disables
+              the launch button) plus one sentence in the existing NEAREST_DEBRIS note. No new component,
+              no CSS. The contract is fetched only while RECYCLE is selected.
+  certified  `supabase/tests/recyclable_debris_status.sql` **12 PASS + 2 INFO**, LIVE, ROLLBACK, residue 0
+              — including the decisive pair: the contract says NO and the ENGINE refuses (test 2), and the
+              contract says YES and the engine ACCEPTS the flight (test 4). Re-verified 2026-09-29: the
+              fixture shipped WITHOUT its positive half (assertions 3/4 and the debris INSERT they need),
+              so it aborted LIVE with 1 failure; repaired and re-run green. Contract itself unchanged.
+  Regression 7 PASS: dispatchers
+              keep the RECYCLE branch and their DEFAULTs, get_universe_debris unchanged, debris_fields
+              still closed, previous contracts still callable, espionage guard intact.
+  untouched  start_fleet_mixed, collect_debris, the worker, the RECYCLE composition rule,
+              calculate_recycler_capacity, ACS, Combat, Espionage, Messaging, AI, Lifeforms, Moon.
+  browser    ENVIRONMENT BLOCKED — the contract is certified, the rendering is not.
+  See docs/systems/README_FLEET_ENGINE.md §32.
+
+GAP F — EXPEDITION COMBAT DETAIL (enemy fleet + losses): GAP FOUND + CLOSED 2026-09-28
+  category  B (backend complete, consumer missing) — the same shape as the Battle Report UI gap.
+  found     the expedition CYCLE was verified complete and was NOT touched. The gap was inside it:
+            `get_player_expedition_reports` returns `enemy_ships` and `lost_ships` and NOTHING in
+            `src/` consumed them. `expeditionDetail()` printed the literal word "combate", so a pirate
+            or alien encounter never told the player who they fought or what they lost.
+  evidence  LIVE, rolled back, driving the REAL `resolve_expedition_pirates`:
+            result ATTACKER_WIN, enemy_ships {"light_fighter": 8}; the contract returned exactly that
+            to the client; the panel rendered only "combate".
+  fixed     UI ONLY. `expeditionDetail()` renders both maps verbatim ("rival light_fighter×8",
+            "perdidas light_fighter×3"). The local `ExpeditionReportRow` type gained the two fields —
+            the generated `database.types.ts` already declared them. No RPC, no migration, no CSS,
+            no new component; ids are printed as the contract returns them.
+  certified `supabase/tests/expedition_combat_detail.sql` **11 PASS + 2 INFO**, LIVE, ROLLBACK, residue 0
+            (real pirate battle, enemy fleet exposed, loss reported verbatim, cross-owner 0 rows, no
+            session 0 rows, limit clamp, ACL, and an explicit "engine NOT modified" assertion).
+            Regression 5 PASS: five resolvers intact, merchant/items callable, all previous contracts
+            callable, espionage guard + protection trigger alive, expedition_results still closed.
+  untouched the expedition engine, probabilities, rewards, resolvers, worker, ACL, CSS, and every CLOSED
+            system. Scope per §2: Buildings/Research/Fleet/Combat/Moon/Messaging/Espionage/Beginner
+            protection/RECYCLE/P3/AI were all checked first and left untouched — no regression found.
+  browser   ENVIRONMENT BLOCKED — the contract is certified, the rendering is not.
+  See docs/systems/README_MESSAGING_ENGINE.md §9.
+
+GAP G — DEFENCE REPAIR VISIBILITY: GAP FOUND + CLOSED 2026-09-28
+  category  A (consumer) — backend complete and authoritative, no consumer.
+  found     `repair_defenses_after_combat` (OGameX ~70 % rebuild) is wired into `resolve_attack_arrival`
+            and already applied to `planet_defenses`. `get_player_battle_reports` returns
+            `defenses_repaired` and NOTHING in `src/` read it, so `BattleReportsPanel` printed
+            "DEFENSAS 40→22" without saying 10 had come back — understating the wall the player is
+            deciding to attack next. A player-facing fact, not an internal score.
+  evidence  LIVE, rolled back, real path (start_fleet_mixed → resolve_attack_arrival):
+            before 40, destroyed 17, repaired 10, planet_defenses 40-17+10 = 33;
+            the contract returned defenses_repaired = 10; the panel ignored it.
+  fixed     UI ONLY. One extra line, rendered only when a repair happened:
+            "REPARADAS 10 (quedan 33)" = defender_defenses_after + defenses_repaired, which is exactly
+            what the engine left standing. `BattleReportRow` gained the field (the generated types
+            already had it). No RPC, no migration, no CSS, no new component.
+  certified `supabase/tests/defense_repair_visibility.sql` **11 PASS + 2 INFO**, LIVE, ROLLBACK, residue 0
+            (real attack → real combat → real repair; the wall verified in planet_defenses; cross-owner
+            0 rows; no session 0 rows; ACL; explicit "engine NOT modified").
+            Regression 5 PASS: resolver + repair function intact, repair still wired, ~70 % roll
+            unchanged, all previous contracts callable, espionage guard + protection trigger alive.
+  own error A first version of assertion 5 asserted `planet_defenses >= before`. That was a FIXTURE bug —
+            the defender loses units — corrected to `before - destroyed + repaired` after measuring the
+            real timeline. No product defect.
+  untouched the combat engine, the 70 % rule, combat tables, loot, debris, ACS, and every CLOSED system.
+  browser   ENVIRONMENT BLOCKED — the contract is certified, the rendering is not.
+  See docs/systems/README_COMBAT_ENGINE.md.
+
+GAP H — EXPEDITION CARGO CLAMP VISIBILITY: PRODUCT DECISION → CLOSED 2026-09-28
+  decided    previous cycle ended with `NO SAFE GAMEPLAY GAP FOUND` + an explicit PRODUCT DECISION on the
+             six unconsumed expedition report fields. Decision taken: expose the CLAMP RESULT, keep the
+             FORMULA private.
+  gap        the engine computes `final = LEAST(base × multiplier, cargo_capacity)`. When the find
+             exceeded the hold, the difference was discarded SILENTLY and the report showed only the
+             award — the player could not tell "found nothing" from "found plenty, my cargo was too
+             small", while the contract already returned both sides of the clamp unused.
+  fixed      UI ONLY. `expeditionDetail()` adds ONE conditional fragment, only when the clamp bit:
+             "encontrado 23107 · carga 100 · 23007 no cabía, se transportó el máximo"
+             Both numbers come from the contract; nothing is recomputed. No RPC, no migration, no CSS.
+  hidden     reward_tier, reward_multiplier and max_resource_find stay DELIBERATELY unrendered: they are
+             formula internals (tier is a restatement of the roll and its persisted value, `NORMAL`, does
+             not even match the SMALL/MEDIUM/LARGE vocabulary of select_expedition_reward_tier).
+             loot_applied_at is out of scope entirely: it is NOT an expedition field — it lives on
+             combat_battles and is the idempotency guard written by apply_attack_loot.
+  certified `supabase/tests/expedition_reward_visibility.sql` **10 PASS + 2 INFO**, LIVE, ROLLBACK, residue 0.
+             Uses the REAL dispatcher + REAL resolver, retried until the random outcome roll yields
+             RESOURCES (nothing forced, nothing mocked). Asserts CLAMPED, UNCLAMPED, zero-hold, verbatim
+             values, cross-owner 0 rows, no session 0 rows, ACL, engine not modified, and that the
+             LEAST(tier_amount, cargo) formula is unchanged.
+             Regression 6 PASS: five expedition resolvers, merchant/items/slots, combat resolver + repair,
+             all previous missions' contracts, espionage guard + protection trigger, and
+             expedition_results still closed to direct client access.
+  untouched resolve_expedition_arrival, the reward formulas, the economy, cargo capacity, every RPC, the
+             ACL, CSS, Fleet, Combat, Espionage, AI, Lifeforms.
+  browser   ENVIRONMENT BLOCKED — the contract is certified, the rendering is not.
+  See docs/systems/README_MESSAGING_ENGINE.md §10.
+
+## OGameX FINAL GAP CHECK 2026-10-03 — `REAL GAPS = 0` (PASS), 0 líneas de código
+
+Comparación final OGameX→LGI + matriz de 16 áreas. **Diagnóstico puro**: no se modificó SQL, RPC,
+TS/TSX, CSS ni fixtures. Probes en `BEGIN…ROLLBACK`, **residuo 0**.
+
+```text
+  REAL GAPS FOUND            0
+  IMPLEMENTED                0  — nada estaba ausente de forma objetiva
+  NO GAP (verificado)        16 áreas: buildings, research, production, queues, fleet, missions,
+                             combat, espionage, expeditions, planets, moons, colonization,
+                             recycling, transport, reports, workers
+  PRODUCT DECISION REQUIRED  1 (NO implementado) — economía premium / Dark Matter
+  ENVIRONMENT BLOCKED        0 — la certificación browser de flotas se resolvió el 2026-10-03
+
+  MAPA OBSOLETO (2026-09-25) 6 filas que hoy son FALSOS gaps: MissileMission, MoonDestruction,
+                             getObjectDowngradePrice, dispatchRecallFleet, CleanupWreckFields/
+                             DeleteOldMessages y crawler overload — todos ya IMPLEMENTADOS en LIVE.
+                             No reabrir por leer el mapa viejo.
+
+  DESCARTADO POR MEDICIÓN   (a) purga de colas: RETENCIÓN CERRADA como RETAIN el 2026-10-03
+                             (ver §QUEUE RETENTION). Sin consumidor, sin dependientes, sin
+                             acumulación y con índices completos; además son el único historial.
+                             Higiene, no gap objetivo. NO purgar.
+                             (b) scan_with_phalanx no escribe informe: devuelve por diseño las flotas
+                             ajenas OUTBOUND/RETURNING hacia el sistema (semántica OGameX de falange);
+                             la UI lo muestra como "flota(s) en tránsito". NO GAP.
+
+  CERTIFICADO E2E (real)    TRANSPORT: contrato→ownership→despacho→worker→COMPLETED→+1000 metal en
+                             destino→mensaje→idempotencia (2º tick no duplica).
+                             FALANGE: ownership ok, sesión falsificada RECHAZADA, 5000 de deuterio
+                             cobrados en servidor (20000→15000).
+
+  SEGURIDAD                 las 20 acciones autenticadas tienen consumidor en src/**; los 3 helpers
+                             de solo lectura siguen cerrados. Cuerpo ajeno y sesión falsificada
+                             rechazados en servidor, no ocultando botones.
+
+  DECISIONES                1) economía premium / Dark Matter (modelo de negocio)
+```
+
+> Las decisiones 3) "adopción del tope global de flotas" y 1) "purga de colas terminales"
+> ya NO están pendientes: el tope de flota se cerró el 2026-10-03, y la retención de colas se
+> cerró ese mismo día como `RETAIN`. Ver §"QUEUE RETENTION" más abajo.
+
+Detalle y evidencia por área: `docs/audits/OGAMEX_FINAL_GAP_CHECK_2026-10-03.md`.
+
+## QUEUE RETENTION — CLOSED 2026-10-03 / policy: RETAIN (no purge)
+
+Decisión: **no purgar las filas `COMPLETED`/`CANCELLED`. No se escribió código.**
+Resuelve la última decisión pendiente de esta área (antes: "retención sin decidir").
+
+```text
+MEDICIÓN LIVE (read-only)
+  cola              total  terminales  activas  más antigua  más reciente
+  building_queue        3          3        0  2026-09-18   2026-09-18
+  research_queue        5          5        0  2026-09-18   2026-09-19
+  shipyard_queue        1          1        0  2026-09-19   2026-09-19
+  defense_queue         0          0        0  —            —
+  TOTAL                 9          9        0
+
+POR QUÉ NO HAY NADA QUE RESOLVER
+  1. SIN CONSUMIDOR UI   las 5 consultas cliente filtran a estados ACTIVOS
+     (.in('status',['BUILDING','QUEUED']) / .eq('status','RESEARCHING') / .in('status',['BUILDING'])).
+     No existe ninguna pantalla de historial de construcción/investigación/astillero.
+  2. SIN DECISIÓN DE JUEGO can_start_research, evaluate_building_start_internal e
+     inspect_demolition filtran por 'RESEARCHING'. Borrar terminales no cambiaría NADA.
+  3. SIN DEPENDIENTES     0 claves foráneas entrantes sobre las cuatro colas: sin hijos,
+     sin reportes, sin mensajes, sin historial colgando (nunca estuvo en juego un CASCADE).
+  4. SIN ACUMULACIÓN      9 filas en toda la era y **0 filas creadas en 14 días**, frente a
+     546 planetas creados en esa misma ventana. El universo está activo; las colas no se escriben.
+  5. ÍNDICES COMPLETOS    las 4 colas están indexadas, incluidos los compuestos estado/fin
+     (idx_research_queue_player_researching_finish). No hay presión de escaneo que aliviar.
+
+POR QUÉ PURGAR SERÍA INCORRECTO
+  El esquema NO tiene ninguna tabla audit/history/log/event (verificado en information_schema).
+  Las colas son el ÚNICO registro de qué construyó, investigó y produjo cada imperio.
+  Borrarlas sería destrucción irreversible del único historial a cambio de beneficio CERO.
+
+POR QUÉ NO SE ELIGIÓ NINGÚN PLAZO (sin constantes inventadas)
+  OGameX  su mantenimiento cubre highscores, DarkMatterRegenerate, CleanupWreckFields,
+          DeleteOldMessages, CleanupDestroyedPlanets y ResetDebrisFields.
+          NO define ninguna regla de retención de colas: OGameX no autoriza nada aquí.
+  LGI     existe un default de 7 días, pero en run_message_retention_worker; esa ventana viene
+          de DeleteOldMessages y es una regla de MENSAJES. Aplicarla a colas por analogía sería
+          un error de categoría, no una derivación.
+
+  status:  CLOSED
+  policy:  RETAIN (indefinida)
+  purge:   DISABLED — no implementado, no necesario
+  revisit: solo si se construye una pantalla de historial de colas (ahí sí sería una política
+          real), o si el crecimiento llega a ser medible: medir primero, luego decidir
+```
+
+**Queue expiry NO se tocó:** expirado → `COMPLETED` sigue igual que como se certificó. Nada
+convierte `COMPLETED` en `CANCELLED` ni altera reembolsos. Detalle completo en
+`docs/systems/README_ECONOMY.md` §"Queue retention".
+
+## FLEET SLOT CAP — CLOSED 2026-10-03 (ya NO es product decision)
+
+```text
+  POLÍTICA (sin cambios)   max = 1 + computer_technology. Sin Dark Matter / Officers / premium.
+                           Ocupan slot: OUTBOUND, ARRIVED, HOLDING, RETURNING.
+                           Liberan al pasar a COMPLETED o CANCELLED. Consumo en el INSERT.
+  LO QUE YA EXISTÍA       trigger BEFORE INSERT trg_enforce_fleet_slots sobre fleet_movements →
+                           assert_player_fleet_slot_available → FLEET_SLOTS_FULL.
+                           Cubría TODOS los caminos de inserción (RPCs e IA), no sólo los de la UI.
+  DEFECTO REAL            el recurso es POR JUGADOR, pero cada despacho bloqueaba sólo el
+                           PLANETA DE ORIGEN. Dos despachos concurrentes del mismo jugador desde
+                           planetas DISTINTOS no se serializaban: ambos contaban los mismos slots
+                           libres, ambos pasaban, ambos insertaban → N slots pasaban a N+1 flotas.
+                           Sin tocar nada del cliente.
+  FIX                     20261004010000_fleet_slot_player_lock: el assert ahora hace
+                           SELECT ... FROM players WHERE id = p_player_id FOR UPDATE.
+                           Un solo lock por llamada → no puede formar ciclo de deadlock.
+                           Firma, excepción, volatilidad y ACL sin cambios.
+  TESTS                   supabase/tests/fleet_slot_cap.sql — 20 PASS / 0 FAIL, LIVE, ROLLBACK.
+                           Limitación declarada: harness de una sesión; la exclusión mutua se
+                           DERIVA del lock (L1), no de una carrera ejecutada de verdad.
+  UI                      ya coherente: FleetModules muestra MÁX/EN VUELO/LIBRES del contrato, y
+                           useFleetDispatch bloquea el botón sin dejar de ser la autoridad.
+  DARK MATTER             DEFERRED — NO TOCADO. Sin bonos premium de slots.
+```
+
+Detalle durable: `docs/systems/README_FLEET_ENGINE.md` §34.
+
+## CRAWLER OVERLOAD + DEMOLITION/ION + QUEUE EXPIRY — CLOSED 2026-10-03
+
+OGameX = referencia de comportamiento · LGI = autoridad. De las tres mecánicas **sólo una era gap real**.
+
+```text
+  QUEUE EXPIRY    CLOSED · NO REWRITE. Las 4 colas vencidas se COMPLETAN, nunca se cancelan por
+                  expiración: ningún procesador menciona 'cancel', todos usan finishes_at <= y marcan
+                  COMPLETED. Verificado LIVE con las 4 colas ya vencidas + reproceso idempotente.
+                  La cancelación del jugador conserva su política y su reembolso (no se tocó).
+  CRAWLER          IMPLEMENTADO (era el gap: 0 columnas '%overload%' en todo el schema public).
+  OVERLOAD        0-150 %, entero, DEFAULT 100 → ningún cuerpo cambia de comportamiento.
+                  ENERGÍA  p<=1: 50*p · p>1: 50*p + 50*(p-1)  ⇒ 100%=50,110%=60,120%=70,130%=80,
+                  140%=90,150%=100. Por encima de 100 el coste crece MÁS RÁPIDO que la producción.
+                  PRODUCCIÓN sigue al porcentaje (bono de crawler * p). Con holgura energética
+                  150 % > 100 % (medido); sin ella el guard de sostenibilidad puede Bajarla, y eso es
+                  el guard EXISTENTE actuando, no un defecto.
+                  SOSTENIBILIDAD por la ruta ya existente (calculate_crawler_energy_consumption →
+                  calculate_planet_energy_balance → evaluate_economic_sustainability). Sin reglas nuevas.
+                  DIVERGENCIA: el gating por Character Class de OGameX NO se importa — LGI no tiene
+                  clases ni Lifeforms; rango 0-150 para todos. No se inventó un Collector.
+  DEMOLITION/ION   CLOSED · NO REWRITE. Ya existía calculate_building_demolition_cost(building, level,
+                  ion) = coste de construir el nivel RETIRADO × (1-4 %×Ion) → floor por recurso → min 0,
+                  e inspect_demolition lo llama con el Ion real antes de cobrar. Medido en vivo con
+                  metal_mine 10: Ion 0/1/5/10/25 → 100/96/80/60/0 %. Nunca negativo (Ion 0..60).
+                  Coste de demolición ≠ reembolso de cancelación: no se mezclaron.
+  SEGURIDAD        set_planet_crawler_percentage es SECURITY DEFINER: auth.uid() → players.user_id →
+                  cuerpo propio; 151 % y -1 % rechazados; cuerpo ajeno y player_id falsificado
+                  rechazados EN SERVIDOR. Helpers puros cerrados al cliente.
+  TESTS            supabase/tests/crawler_overload_demolition_queue_expiry.sql — 32 PASS / 0 FAIL,
+                  LIVE, ROLLBACK, residuo 0.
+  STATIC           tsc 0 · build 0 · eslint 0 errors (7 warnings preexistentes) · cert:contracts PASS
+                  (75 nombres RPC) · git diff --check limpio.
+  UI               src/App.tsx muestra el OVERLOAD y ofrece 0/50/100/110/120/130/140/150 %. No calcula
+                  producción ni energía: las muestra del contrato.
+  TOQUE            1 columna nueva (planets.crawler_percentage), 1 RPC nueva, 3 ocurrencias del término
+                  de crawler en calculate_planet_production, y calculate_crawler_energy_consumption /
+                  get_planet_crawler_status. Ninguna otra fórmula, ni colas, ni el motor de asentamiento.
+  FUERA DE ALCANCE Missile System CLOSED (no tocado) · browser de flotas ENVIRONMENT BLOCKLED ·
+                  ledger de migraciones documentado, `db push` prohibido.
+```
+
+Detalle durable: `docs/systems/README_ECONOMY.md` §"Crawler overload 0–150 % · Demolition + Ion Technology · Queue expiry".
+
+## ECONOMY GAP SWEEP 2026-10-02 — `NO OBJECTIVE ECONOMY GAP FOUND`, 0 líneas de código
+
+Barrido discovery-first sobre producción, energía, almacén, colas, crawler/fusion y demolición.
+Superficie de 92 contratos que el cliente usa de verdad, contrastada contra `pg_proc` + ACL de LIVE,
+y **humo de los contratos de economía ejecutado como el jugador autenticado real** (no `service_role`).
+
+```text
+  RESULT      NO OBJECTIVE ECONOMY GAP FOUND. No se modificó SQL, RPC, TS/TSX, CSS ni fixtures.
+  DESCARTADO  get_economic_sustainability_check existe LIVE, es owner-scoped y NO tiene consumidor,
+              pero NO es gap: can_start_building ya devuelve el mismo veredicto (allowed=false) y el
+              MISMO motivo INSUFFICIENT_ENERGY_SUSTAINABILITY. Medido LIVE. El contrato solo añade
+              cifras de contexto → no es una capacidad ausente.
+  DESCARTADO  2 planetas LIVE con producción detenida (energy_production=0, consumo>0, incluido el
+              Homeworld del jugador). NO es gap: el Overview ya muestra +0/h junto a ENERGÍA -24.2/h
+              y PROD/CONS +0/-24.2, y la salida (solar_plant) está disponible y autorizada.
+  VERIFICADO  El guard de sostenibilidad cubre exactamente las 4 filas de building_energy_definitions.
+              Naves y defensas no consumen energía → que solo actúe en start_building es correcto.
+  VERIFICADO  8/8 contratos de economía sin error como su dueño real; 0 stocks negativos;
+              0 colas vencidas; ningún contrato roto (criterio E no se activa).
+  VERIFICADO  formatRate/formatStorage solo comparan y formatean valores del servidor; no derivan regla.
+  DECISION    crawler overload 0-150 % — 0 columnas overload en el schema. NO implementada.
+  DECISION    demolition refund + política ion-technology — start_demolition no menciona refund. NO implementado.
+  FUERA        Missile System CLOSED (no tocado) · browser de flotas ENVIRONMENT BLOCKLED ·
+              ledger de migraciones documentado, `db push` prohibido.
+```
+
+Detalle, evidencia LIVE y trazabilidad de cada candidato descartado: `docs/audits/ECONOMY_GAP_SWEEP_2026-10-02.md`.
+
+## AUTONOMOUS MULTI-GAP CLOSURE SWEEP (2026-09-29) — 5 gaps closed, 0 regressions
+
+Autonomous chained sweep. Sync gate re-run first: no divergence, `origin/main` is 1 commit ahead
+(remote-only `docs/MARCIANITOS_GALAGA_CONTEXT.md`, no path collision with local work), HEAD == merge-base,
+13 pre-existing modified files and 21 untracked files preserved, 5 stashes untouched. No git operation
+other than read-only inspection. Browser certification remains ENVIRONMENT BLOCKED (no driver + human
+DEV credential) and was not simulated.
+
+```text
+METHOD (every gap was found by measurement, not by re-reading a report)
+  inventory  scripts/contract-inventory.mjs derives the UI's `supabase.rpc('…')` surface from src/**
+            (48 names) mechanically; it is diffed against the LIVE `authenticated` ACL surface
+            (pg_proc + aclexplode). That diff is what produced GAP D. Two read-only subagents ran the
+            economy and messaging sweeps in parallel; their findings were re-verified LIVE here before
+            anything was implemented (neither has DB access, so nothing was taken on trust).
+
+GAP A — FALSE "COLONY ESTABLISHED" MESSAGE ON EVERY MOON FORMATION: CLOSED
+  problem   trg_notify_colony_established is AFTER INSERT ON public.planets, which holds BOTH bodies
+            (a colony is kind='PLANET', a moon is kind='MOON'). Its only guard was
+            `player_id is null or is_homeworld`, and settle_moon_creation_for_battle inserts the moon
+            with the DEFENDER's player_id and is_homeworld=false -> the guard passed.
+  evidence  LIVE: settle_moon_creation_for_battle already sends 'Moon formed'; the trigger therefore
+            added a SECOND message, "Your colony ship founded Moon at [1:2:3]" — an event that never
+            happened. 0 moons exist LIVE (656 PLANET, all homeworlds) and 0 false `colony:` messages,
+            so the defect was LATENT: proven from the two live function bodies and a real moon insert.
+  fixed     20260929000000_fix_colony_message_for_moon_bodies.sql — one `kind is distinct from 'PLANET'`
+
+GAP B — DEAD `planet_resources.energy` PRESENTED AS A FOURTH RESOURCE: CLOSED (UI only)
+  problem   the column is never written outside two resets, and update_planet_resources_until_raw READS
+            it, RETURNS it and never UPDATEs it -> the stock is structurally 0 forever, while the UI
+            rendered it as a resource in three places (overview, header bar, PDA tile).
+  evidence  LIVE: the settlement's single UPDATE writes only metal/crystal/deuterium/
+            last_calculated_at; every INSERT hard-codes energy=0. README_ECONOMY already states the
+            authoritative semantics ("energy is a balance value, not a produced resource") and the
+            fusion migration treats it as a flow.
+  fixed     the three dead reads are gone; the contract's own figures are rendered instead (overview
+            ENERGIA = energy_balance_per_hour, the PROD/CONS row is unchanged, the PDA tile is now
+            ENERGIA /H fed energyBalancePerHour — prop renamed so the type states the semantics).
+  untouched the engine: energy is still not accumulated, not produced, not spendable. No RPC, no
+            migration, no formula, no cost, no capacity.
+  See docs/systems/README_ECONOMY.md "Resource-panel honesty".
+
+GAP C — STORAGE CAP SILENTLY HALTED PRODUCTION AND WAS INVISIBLE: CLOSED (UI only)
+  problem   update_planet_resources_until_raw clamps with
+            `least(capacity, greatest(0, stock + produced))` from calculate_planet_storage_internal —
+            correct — but the panel printed the three capacities as bare numbers, so a bank whose
+            production had stopped looked identical to a half-full one.
+  fixed     one formatter, formatStorage(stock, capacity) -> " · NN%" and " · NN% ALMACEN LLENO" when
+            stock >= capacity. Both operands were already on the client (the stock from the planets read
+            and the capacity from the SAME get_planet_economy_overview row already feeding the ALMACEN
+            line). The panel compares two server values and derives no rule.
+  untouched the clamp, the storage calculation, the settlement and the fusion/crawler integration.
+
+GAP D — FOUR CLIENT-REACHABLE HELPERS THAT COULD ONLY ANSWER WRONG OR ERROR: CLOSED
+  problem   four `authenticated`-executable SECURITY INVOKER helpers whose client result is decided by
+            the RLS of the table underneath, not by their own logic.
+  evidence  MEASURED LIVE, same data and arguments, only the role differing:
+              can_recycle_debris(own fleet, real field)   engine TRUE  -> client FALSE
+              get_expedition_ship_candidates(own fleet)   engine 5     -> client EXCEPTION
+              get_active_expedition_item_effect(own)     engine 42    -> client 0
+              check_defense_requirements(OWN planet)     engine OK    -> client "permission denied"
+            Cause: debris_fields / expedition_ship_tiers / expedition_item_uses all carry
+            `deny_direct_api_access` (qual=false), and defense_prerequisites is not SELECT-granted to
+
+GAP E — `npm run build` REWROTE A COMMITTED MANIFEST WITH WINDOWS PATH SEPARATORS: CLOSED
+  problem   `prebuild` runs scripts/fetch-ogamex-assets.mjs, which writes
+            public/assets/ogamex/objects/manifest.json. It normalised paths with
+            `.replaceAll('\\\\', '/')` — in a JS literal `'\\\\'` is TWO characters, so it searched for
+            a double backslash and never matched `path.relative`'s single native separator.
+  evidence  every Windows build rewrote all 124 committed entries as "buildings\\x.jpg", dirtying the
+            tree on each build. Caught by running the mandatory `git diff --check` after the build.
+  fixed     `const toPosix = (p) => p.split(sep).join('/')` with `sep` imported from node:path — correct
+            on both platforms, no escaping. The already-dirtied manifest was normalised back and is now
+            BYTE-IDENTICAL to HEAD (19648 bytes, verified against `git show HEAD:…`).
+  note      `git status` still prints ` M` for that path: with core.autocrlf=true that is a stat-cache
+            artifact and `git diff` reports no content change. Deliberately NOT run `update-index` or any
+            other index-mutating command, which this mission forbids.
+
+NO REGRESSION (all re-measured after all five changes)
+  npx tsc -b exit 0 · npm run build exit 0 (192 modules, only the pre-existing chunk-size warning) ·
+  git diff --check clean · LIVE residue 0: planets 656, player_messages 6, players 656,
+  planet_resources 656, fleet_movements 1, debris_fields 3, expedition_item_uses 0,
+  fleet_movement_ships 1, auth.users 12, player_research 10483 — identical to the pre-run state.
+  colony fixture 10 PASS · colony regression 4 PASS · ACL fixture 15 PASS.
+  tools added  scripts/contract-inventory.mjs (derives the UI RPC surface mechanically) and
+  scripts/repair-encoding.mjs (repairs double-encoded UTF-8, refusing to write unless the ASCII skeleton
+  is provably unchanged, plus a --scan mode).
+
+CLASSIFIED, NOT IMPLEMENTED
+  PRODUCT DECISION  unread state on the four message-category tabs; message pagination/cursor;
+                     crawler overload %, Collector multiplier, crawler reuse, fusion research-lab gate,
+                     merchant/shop/Dark Matter premium economy; AI activation and AI aggression policy.
+  NO GAP            get_universe_ranking is LEGACY/REDUNDANT, not an orphan: the UI RankingPanel already
+                     serves the general ranking through get_universe_ranking_by_category(…, 'GENERAL'),
+                     whose body is identical (same pl.rank / pl.points, same ordering, same clamp).
+                     Per the rule, a deliberately internal/legacy contract is NOT auto-promoted to UI.
+  NO GAP            the DEFEND mission is refused at dispatch with COMBAT_SUPPORT_NOT_READY, and
+                     resolve_combat already produces 'Battle report' + 'Attack received' for the
+                     defender; the DEFENDER/FLEET arm of the producer is dormant pending the ACS engine,
+                     a pre-existing documented state rather than a messaging residue.
+  NOT TOUCHED       3 historical migrations carry the same double-encoding in COMMENTS
+                     (20260926124030, 20260926124035, 20260926220000). A migration is immutable
+                     provenance: rewriting its bytes would be a worse sin than a mojibake em-dash.
+                     Recorded, deliberately left alone.
+  ALSO REPAIRED     the pre-existing double-encoded UTF-8 in src/App.tsx (245 markers) and
+                     docs/systems/README_FLEET_ENGINE.md (525 markers), a regression from an earlier
+                     session that made the Spanish UI text and the ⚙/⚡/🛰 glyphs render as garbage.
+                     Repaired only after all five safety checks passed, the decisive one being that
+                     stripping every non-ASCII byte yields the SAME text before and after.
+
+            the role. A helper that can only lie looks like a supported capability and invites a future
+            consumer to build on the lie.
+  fixed     20260929010000_acl_revoke_wrong_client_invoker_helpers.sql — revoke public/anon/
+            authenticated per OVERLOAD, keep service_role and the owner. The engine, the fleet worker,
+            the expedition resolvers and the AI run as postgres/service_role and are unaffected.
+  certified supabase/tests/wrong_client_invoker_helpers.sql 15 PASS, LIVE, ROLLBACK, residue 0.
+            Includes the decisive no-regression assertion: all 52 UI contracts (the 48-name src/**
+            inventory) keep `authenticated` EXECUTE, plus 45 surviving contract names, plus the
+            DEFERRED Lifeforms surface, plus the three RLS policies being unchanged.
+  untouched every calculate_*/select_expedition_*/inspect_expedition_* helper, every DEFINER contract,
+            the whole start_*/cancel_* family, the four ui_*_definitions readers, the get_player_*
+            read contracts and Lifeforms.
+  NOTE two fixture traps were hit and corrected while writing it, both recorded in the fixture header:
+            can_recycle_debris counts RECYCLERS in the fleet (assertion 1 is vacuous without one), and
+            `calculate_research_time` has 4 overloads of which only 1 is a client contract, so a
+            name-level ACL assertion on it is wrong. Neither was a product defect.
+
+            guard. Colony path byte-identical for PLANET rows; the moon keeps its own producer.
+  certified supabase/tests/colony_message_body_kind.sql 10 PASS, LIVE, ROLLBACK, residue 0.
+            Regression 4 PASS on the REAL path (start_colonize_fleet -> resolve_colonize_arrival ->
+            the colony message is still produced verbatim).
+  untouched moon engine, colony engine, create_player_message, the trigger binding, other producers.
+  See docs/systems/README_MESSAGING_ENGINE.md §11.
+
+
 GAP B — P3 ACL CLEANUP: VERIFIED + EXTENDED
   first wave  `20260927130100` (twelve audited INVOKER helpers) verified present; `acl_surface_p3.sql` 11 PASS.
   new finding an autonomous probe of EVERY read contract the frontend consumes (as `authenticated`) returned
@@ -213,6 +1047,18 @@ SWEEP FINDINGS (evidence, not assumptions)
   reports/messages   every producer (fleet lifecycle, combat participant, expedition, colony, espionage, counter-
                      espionage, attack received) reaches `PlayerInboxPanel` via `get_player_messages`; the four
                      report read contracts work as `authenticated`. NO GAP.
+  battle report UI   CLOSED 2026-09-28: the COMBATE category was a one-line summary; `get_player_battle_reports`
+                     already returned `rounds` and `participants` with no consumer. New `BattleReportsPanel`
+                     (src/GameplayEnginePanel.tsx) renders the round-by-round detail, participants and own losses
+                     with the same contract — no new RPC, no engine change. tests/battle_report_ui_contract.sql
+                     8 PASS. Browser render still ENVIRONMENT BLOCKED. See README_MESSAGING_ENGINE.md §7.
+  transportes       CLOSED 2026-09-28: TRANSPORTES was the last Messages category reading `fleet_movements`
+                     straight from the browser. NOT a vulnerability (that RLS is already owner-scoped) — it was
+                     the last place the client supplied its own ownership selector. New owner-scoped contract
+                     `get_player_transport_movements(p_limit)` (LIVE 20260928131919): auth.uid() -> players
+                     -> fleet_movements, mission fixed to TRANSPORT server-side, limit clamped 1..100, no
+                     player_id argument, anon denied. loadMessages() now consumes it; same rows, text, order.
+                     tests/transport_movement_read_contract.sql 12 PASS, residue 0. See README_MESSAGING_ENGINE §8.
   fleet lifecycle    no regression found; the settle-path regression was closed in `20260927120200`.
   colonization       END-TO-END VERIFIED this mission (rolled back): planet created with the right owner, one
                      `planet_resources` row, "Colony established" message produced, colony ship consumed, movement
@@ -255,7 +1101,9 @@ IMPLEMENTED + CERTIFIED (LIVE, ROLLBACK, zero residue)
 NOT TOUCHED            the 32-name client allow-list; calculate_building_cost / project_planet_resources /
                        evaluate_action_at_time (fixture-protected); every DEFINER contract; and
                        calculate_planet_production_snapshot (works for authenticated, not in the audited list).
-BLOCKED (environment)  browser certification of the fleet flow: no driver installed and no human credential. Still
+BLOCKED (environment)  browser certification of the fleet flow: no human DEV credential. [CORRECTED 2026-09-28:
+                       the driver is NOT missing - scripts/ui-engine-certify.mjs drives real Edge headless over CDP
+                       with zero dependencies and scored 27/27. See the BROWSER CERTIFICATION entry below.] Still
                        the next and final work item, not a technical gap.
 DOCS                   docs/systems/README_ESPIONAGE_ENGINE.md §3/§7/§11 · docs/systems/README_ECONOMY.md (P3 closure)
                        · docs/systems/README_RESEARCH.md (legacy overloads now engine-only) ·
@@ -293,10 +1141,11 @@ REPLAYED (evidence, not assumption)
   frontend RPC inventory 41/41 exist and are authenticated-executable · 0 DEFINER functions without pinned
   search_path · anon reaches only the 3 allow-listed names.
 NOT DONE (product)      buildings/research sections in the espionage report (OGameX thresholds 5/3 and 7/4).
-NOT EXECUTED            browser certification: no driver installed (playwright/puppeteer/cypress are absent from
-                        `package.json` and `node_modules`) and no human credential available (`.env.local` holds only
-                        `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY`, no test account). Route when the
-                        prerequisite exists: install a driver, provide a DEV human account, and cover
+NOT EXECUTED            browser certification: no human DEV credential available. [CORRECTED 2026-09-28: the
+                        driver DOES exist - scripts/ui-engine-certify.mjs runs real Edge headless over native CDP with
+                        zero dependencies (27/27 PASS measured on 2026-09-28); playwright/puppeteer/cypress being
+                        absent from package.json is therefore NOT evidence of a missing driver.] Route when the
+                        prerequisite exists: provide a DEV human account (the driver is already in place), and cover
                         login/session → owned planet → fleet UI → ship selection → destination → mission → dispatch →
                         server acceptance (fleet_movements row + slot consumption) → state transition → return.
                         No simulated result was recorded.
@@ -528,13 +1377,20 @@ OPEN / INERT — REQUIRES AUDIT (0 code readers, contract not yet determined)
   (none — all 16 research definitions are now classified; check this block before reopening any of them)
 
 AUDITED — PENDING PRODUCT DECISION (missing effect, no application point exists)
-  astrophysics        Audited 2026-09-23: 0 code readers and NOTHING depends on it (not a prerequisite of any
-                      research/ship/defense/building), 0 player_research rows → it is inert, not even an
-                      unlock. Its reference rule (OGame snapshot: +1 colony slot per 2 levels) cannot be
-                      applied: LGI has no colony-cap subsystem at all (no column, no count/limit check —
-                      colonisation only validates coordinates, target occupancy and the colony ship) and
-                      expedition slots are item-driven, not research-driven. Implementing it would mean
-                      introducing new colonisation rules → PRODUCT DECISION, not a defect. Do not implement.
+  astrophysics        Audited 2026-09-23; **CORRECTED 2026-09-30 — the "no colony-cap subsystem"
+                      statement below was STALE and no longer holds.** LGI NOW HAS a colony-cap
+                      subsystem: `calculate_max_colony_slots(player)` =
+                      `1 + greatest(1, round(astro / 2))`, `check_colony_cap(player)` (owner-scoped,
+                      returns allowed/reason/max_slots/current_planets/astrophysics_level), enforced at
+                      BOTH dispatch (`start_colonize_fleet` → `COLONY_CAP_REACHED`) and arrival
+                      (`resolve_colonize_arrival` → `check_colony_cap`), implemented in
+                      `20260926210000_colony_cap_astrophysics` (migration
+                      `20260930160000_planet_temperature_system` is unrelated). Verified LIVE
+                      2026-09-30: astro 0 → max 2, astro 4 → max 3, astro 9 → max 6; a foreign session
+                      reads `allowed=false, reason=PLAYER_NOT_OWNED_BY_AUTH_USER`. The certified
+                      fixture is `supabase/tests/colony_cap.sql`. Astrophysics is
+                      therefore NOT inert: it is a live, enforced mechanic. The original rule
+                      (+1 colony slot per 2 levels) is the OGame reference and is honoured.
   computer_technology Audited 2026-09-23: 0 code readers, 0 player_research rows, root tech — but NOT inert:
                       it is a real unlock, `intergalactic_research_network` requires it at level ≥ 8. Its
                       documented effect (OGame snapshot: "Cada nivel … aumenta en uno el número máximo de
@@ -761,6 +1617,41 @@ ALREADY IMPLEMENTED ELSEWHERE — do not re-audit (documented in their own READM
 Evidence and detailed tests remain in
 [`docs/systems/README_FLEET_ENGINE.md`](systems/README_FLEET_ENGINE.md), not in this file.
 
+- **Expedition RETURN leg CLOSED (2026-10-01, `INDEPENDENT_GAP_CLOSURE`)** — CRITICAL gap, deterministic.
+  `resolve_expedition_return(uuid)` RETURNS TABLE(..., `status text`), so `status` was **both** a PL/pgSQL
+  OUT variable and a `fleet_movements` column; its final `UPDATE ... WHERE id = p_fleet_id AND status =
+  'RETURNING'` was rejected on **every** execution with `ERROR 42702 column reference "status" is
+  ambiguous` (a plan-time error, not a race). Because the worker downgrades any per-fleet error to
+  `raise warning 'FLEET_RESOLUTION_FAILED'`, **100 % of expedition returns were dead**: the movement never
+  left `RETURNING`, its ships (already debited at dispatch) were destroyed, and — since
+  `get_player_fleet_slots` counts every movement not in `('COMPLETED','CANCELLED')` — each expedition
+  permanently consumed a fleet slot (a total fleet lock at `computer_technology` 0). LIVE evidence: one
+  movement stuck **13 h** with 5 `large_cargo`. Fixed by `20261001070000_fix_ambiguous_status_in_expedition_return.sql`
+  (LIVE version `20261001193223`), an anchored splice that adds the table alias `AS fm` — exactly the
+  convention of its four siblings `resolve_transport_arrival` / `resolve_deploy_arrival` /
+  `resolve_colonize_arrival` / `resolve_espionage_arrival`, which all already aliased. The OUT parameter
+  was deliberately **not** renamed (`status` is part of the published column list). A corpus-wide sweep
+  of all 56 public RPCs found this to be the **only** function with an OUT-parameter/column collision;
+  `recall_fleet` is safe precisely because its OUT parameters are `out_*`-prefixed. Regression
+  `expedition_return_ambiguous_status_regression.sql` → **15/15 PASS**.
+- **RECYCLE arrival CLOSED (2026-10-01, `INDEPENDENT_GAP_CLOSURE`)** — HIGH gap. `collect_debris` refuses a
+  target with nothing left (`'No debris field at …'` when the row is gone — the first recycler drains the
+  field and `collect_debris` itself DELETEs the row — and `'Debris field is empty'` at 0/0). The worker
+  downgraded that to a WARNING, so a recycler whose field was emptied by another recycler retried
+  **forever** in `OUTBOUND`: ships destroyed and a fleet slot consumed permanently. Reachable in ordinary
+  play, not by exotic timing — `start_fleet_mixed` picks the RECYCLE target server-side (nearest field with
+  `metal>0 OR crystal>0`) and does **not** reserve it. Measured before the fix, through the real worker:
+  emptied field → `OUTBOUND`; deleted field → `OUTBOUND`. The semantics were **read, not invented**: OGameX
+  `RecycleMission::processArrival()` harvests whatever the field holds (zero is legal) and ALWAYS calls
+  `startReturn()`; LGI already applied that same rule to the structurally identical case in
+  `resolve_colonize_arrival`. Fixed by `20261001060000_fix_stuck_recycle_fleet_empty_debris_field.sql`
+  (LIVE version `20261001192015`): the RECYCLE branch of `process_fleet_movements` absorbs **exactly** those
+  two outcomes as "collected 0" and follows the already certified success path; every other error is
+  re-raised so a genuine defect stays observable. Regression
+  `recycle_fleet_empty_field_regression.sql` → **19/19 PASS**, including the negative control (an unrelated
+  refusal still aborts the fleet) and the arithmetic control (what leaves the field is exactly what
+  reaches the origin planet).
+
 ## 7. OPEN
 
 ### OPEN — PARTIAL: ACS / HOLDING / DEFEND
@@ -781,7 +1672,7 @@ boundary and the future test plan). Status:
   Architecture-determined, not a free choice: pooling survivors would move ships between players, and
   `fleet_movement_ships` (`UNIQUE(fleet_id, ship_id)`, `CHECK(quantity > 0)`) is an owned asset of one
   player (§22.2). *Ratification pending.*
-- `PG-09` loot-capacity source → **`UNRESOLVED PRODUCT DECISION`** (§22.6). Surviving vs original
+- `PG-09` loot-capacity source → **`DECIDED + IMPLEMENTED`** (2026-09-22, migration `20260922060013`). [CORRECTED 2026-09-28: the `UNRESOLVED PRODUCT DECISION` wording inherited from §22.6 is SUPERSEDED by README_COMBAT_ENGINE §24, which implemented it the same day. See §23.12 for the reconciliation.] Surviving vs original
   composition are both already persisted, so the architecture excludes neither; it is a balance rule.
 - `PG-10` loot recipient / allocation → **`UNRESOLVED PRODUCT DECISION`** (§22.7). Entitlement and the
   deterministic allocation rule (plus rounding/remainder) are separate questions; LGI has no player-level
@@ -869,6 +1760,39 @@ Not implemented and still open:
   `20260919180000_fix_planet_support_authorization_ambiguity.sql` does **not** fix this defect (it
   re-declares the same ambiguous form); it stays blocked and untouched.
   **This does NOT mean ACS gameplay exists** — see the next bullet.
+
+### CLOSED — precisión decimal en `collect_debris` (B1/B2/B3 certificadas)
+
+Registrado el 2026-10-01 por `INDEPENDENT_GAP_CLOSURE` como OPEN menor. **CERRADO 2026-10-02.**
+
+**Causa raíz (medida, no supuesta).** `debris_fields.metal`/`.crystal` son `numeric` **sin precisión
+declarada**; las filas LIVE llevan escala 20. PostgreSQL trunca la división a `select_div_scale`
+(16 dígitos significativos), así que `crystal / total` se recorta y al multiplicarlo de vuelta por la
+capacidad **no reproduce el monto original**. El resto se quedaba en el campo como polvo POSITIVO, el
+`DELETE ... WHERE metal <= 0 AND crystal <= 0` **nunca disparaba**, la fila sobrevivía y
+`get_recyclable_debris_status()` respondía `available = true` sobre un campo vacío. Sobre el escenario
+de auditoría (40000 M / 20000 C, capacidad 60000 — drenaje total): residuo `0.00000000000000020000`.
+Simuladas **113 212** drenos completos (totales hasta 3.9e8): **99,95 %** dejaban residuo; peor
+`|residuo| = 1.87002e-12`. **2e-17 NO es un umbral universal**: el polvo es lineal con el total.
+
+**Solución aplicada — `20261002000000_collect_debris_exact_full_drain.sql`, DESPLEGADA EN LIVE.**
+En el call-site de `collect_debris`, cuando la flota puede drenar el campo
+(`v_remaining_capacity >= v_total_debris`) la respuesta exacta es «tomarlo todo», así que ahora se toma
+**verbatim, sin división**: rama `CASE` nueva para metal y cristal. La rama de **recogida parcial es la
+expresión ORIGINAL carácter por carácter** — verificado sobre **437 211** drenos parciales simulados:
+**0 filas difieren, diferencia máxima exactamente 0**. La regla proporcional, la cota de capacidad y
+los `LEAST` quedan intactos. Lado lectura: `get_recyclable_debris_status` usa `> 1e-9` en vez de `> 0`,
+como guarda de filas anteriores al arreglo.
+
+**Ledger:** fichero local `20261002000000`; LIVE registró la versión **`20261002004147`**. Es el
+**drift de provenance ya documentado** (cada `apply_migration` registra su propia versión).
+**No renombrar, no marcar revertida, no tocar el ledger.**
+
+**Recogida parcial y reglas de reciclaje CONFIRMADAS INTACTAS:** `calculate_recycler_capacity`
+(`235910c7dd6a3b31ec7ee712af2d24f1`) y `start_fleet_mixed` (`611d107dacf0e3869d162d11fb63fcf1`)
+siguen **byte-idénticos**; el comportamiento del reciclador agotado de `20261001060000`
+(`'Debris field is empty'` / `'No debris field at'`) sigue presente en el worker. Sin cambios de
+fórmula, capacidades, ACL ni contrato.
 
 ### Other OPEN work
 
@@ -1569,3 +2493,1338 @@ New verified gameplay gap closed LIVE in this pass:
 Local frontend validation after the UI Designer CSS repair: npx tsc -b PASS, npm run build PASS; the only git diff --check output was the existing LF→CRLF warning for public/assets/ogamex/objects/manifest.json.
 
 Next technical sweep should not repeat espionage gating or P3 ACL. Candidate open areas remain the documented economy/product-decision items, moon polishing decisions, and the browser certification environment blocker.
+  UI (v1)            PDA Shell v1 (2026-09-28) — nueva SUPERFICIE modular en `src/screens/pda/PdaShell.tsx`
+                     + `src/styles/pda.css`, montada como vista `pda` en la navegación. Módulos: OVERVIEW
+                     (funcional, sólo lee estado ya en memoria, 0 llamadas nuevas), MESSAGES,
+                     NOTIFICATIONS, IA ASSISTANT y MINI-GAMES (los cuatro son PLACEHOLDERS).
+                     Messages NO se migra: la bandeja existente sigue siendo la única fuente de verdad.
+                      [SUPERSEDIDO por la entrada 'PDA Messages v1' de mas abajo: a fecha de ese
+                      registro MESSAGES deja de ser placeholder. Se conserva el texto original de PDA Shell
+                      v1 sin reescribirlo.]
+                     La IA está DESCONECTADA (sin proveedor, sin fetch, sin claves); su requisito
+                     owner-scoped (auth.uid() → players.user_id → players.id) queda documentado, no
+                     implementado. 0 migraciones, 0 RPC, 0 cambios de gameplay. Ver
+                     docs/systems/README_UI_DESIGNER.md §9.
+### PDA Messages v1 (2026-09-28) — CLOSED / IMPLEMENTED
+
+Estado canónico de la PDA:
+
+```
+PDA
+├── OVERVIEW        🟢 CLOSED / IMPLEMENTED
+├── MESSAGES        🟢 CLOSED / IMPLEMENTED   <- esta misión
+├── NOTIFICATIONS   🟡 OPEN / FUTURE
+├── IA ASSISTANT    🟡 OFFLINE / FUTURE
+└── MINI-GAMES      🟡 STRUCTURE READY (Galaga canvas, sin juego)
+```
+
+MESSAGES ya **no** es un placeholder. La PDA es ahora la superficie principal de mensajes.
+
+Arquitectura final:
+
+```
+PDA
+└── MESSAGES
+    └── PdaMessages            (contenedor / presentational slot)
+        └── existing inbox slot (montado desde App.tsx)
+            ├── PlayerInboxPanel      (existente, sin modificar)
+            ├── BattleReportsPanel
+            ├── EspionageReportsPanel
+            └── existing renderMessages()
+```
+
+`PdaMessages` es únicamente un contenedor. **No posee** RPC propio, loading propio, read state propio,
+ni segundo sistema de mensajes. La vista `messages` abre la PDA con `initialModule="MESSAGES"`.
+
+**Source of truth (sin duplicación):**
+
+* Existe **una sola instancia de inbox** en toda la aplicación (`App.tsx`).
+* `PlayerInboxPanel` sigue siendo la **autoridad funcional** del inbox.
+* `get_player_messages` sigue siendo la **única** RPC de lectura (contador unread, LEÍDO/NUEVO, orden,
+  límite 50, owner scoping).
+* `mark_message_read` sigue siendo la **única** autoridad para marcar lectura (idempotente).
+* Ambos contratos backend permanecen **sin modificaciones**. No se creó un segundo inbox.
+
+**Seguridad / ownership** — la autoridad permanece en servidor:
+
+```
+auth.uid()
+    ↓
+players.user_id
+    ↓
+players.id
+    ↓
+recipient_player_id
+```
+
+El `playerId` que React pasa a `PlayerInboxPanel` actúa **sólo** como guardia/prop de cliente (evita
+consultar sin sesión). **NO constituye autoridad de seguridad**: el servidor la impone e ignora
+cualquier identificador de jugador que llegue del cliente. No hubo `service_role`, ni `player_id`
+arbitrario aceptado por el servidor, ni bypass de ownership, ni cambio de RLS/ACL, ni migración backend.
+
+**Validación certificada:**
+
+```
+npx tsc -b          PASS / 0 errors
+npx vite build      PASS / 0 errors
+git diff --check    PASS / 0 errors
+
+supabase/tests/pda_messages.sql    12 PASS / 0 FAIL
+```
+
+El fixture usa `BEGIN ... ROLLBACK` y **no deja datos LIVE**. Verificó: unread counting, mark-read,
+persistencia de `read_at`, idempotencia, aislamiento cross-owner, el error
+`PLAYER_MESSAGE_NOT_FOUND_OR_NOT_OWNED`, no-session → 0 rows, ACL intacta
+(`authenticated` + `service_role`; `anon` denegado), y `player_messages` permanece cerrada a acceso
+directo del cliente. Post-run verificado: `probe users = 0`, `probe players = 0`.
+
+**Limitación de navegador (NO es un PASS):**
+
+```
+BROWSER: ENVIRONMENT BLOCKED
+```
+
+Motivo: no hay browser driver disponible ni credencial DEV. Por tanto **NO** está browser-certificado:
+
+```
+PDA → MESSAGES → message visible → unread → mark read → counter update
+```
+
+La certificación actual es: compilación, build, autoridad backend/server y wiring estructural. La
+comprobación visual/manual del flujo React queda **pendiente**.
+
+**Documentación ya realizada (ambos cambios aditivos, sin reescribir historia previa):**
+
+* §10 en `docs/systems/README_UI_DESIGNER.md`
+* esta entrada en `docs/PROJECT_CONTEXT_PROMPT.md`
+
+**Correcciones de proceso (NO son bugs del producto):** durante la validación se detectaron y
+corrigieron dos falsas alarmas del propio proceso de comprobación: (1) un grep `'%pda%'` sobre el SQL
+de los contratos producía falso positivo porque la palabra "update" contiene el substring "pda"; (2) el
+fixture tenía inicialmente un cierre doble de bloque, corregido y re-verificado. Además, un trailing
+blank line introducido accidentalmente en `App.tsx` fue corregido y `git diff --check` quedó limpio.
+
+**Scope protection** — PDA Messages v1 **NO** modificó: Supabase migrations, RPCs, economía, reward
+formulas, ACL, AI provider, AI gameplay, ningún engine, ni Notifications, ni IA Assistant, ni
+Mini-Games, ni PG-09, ni PG-10. Todos ellos permanecen fuera de esta misión.
+
+Siguientes candidatos separados (NO expandir esta misión): Notifications, IA Assistant, Mini-Games.
+### PG-09 — LOOT CAPACITY (2026-09-28) — ANALYSIS ONLY, NO CODE CHANGED
+
+Scope note: this mission was briefed as "expedition loot capacity", but the repository's canonical
+`PG-09` is the **ACS/combat loot-capacity attribution** (`README_COMBAT_ENGINE` §20 table, §22.1). Both
+readings were analysed; neither required a code change, and **no new rule was invented**.
+
+```text
+Canonical PG-09 (ACS/combat, apply_attack_loot):  IMPLEMENTED TECHNICALLY — no product decision open
+  capacity = sum(cargo_capacity) of the ORIGINAL round-1 composition of every ATTACKER/FLEET
+  participant (so the ceiling never depends on who survived). 6/6 structural checks re-verified LIVE
+  2026-09-28. Certified by supabase/tests/combat_acs_settlement.sql (19/19, incl. E1 = 36700 oracle).
+  PG-10 is a SEPARATE and also-implemented gate (allocation proportional to SURVIVING capacity).
+  Status correction: PROJECT_CONTEXT said "UNRESOLVED PRODUCT DECISION"; that was superseded the same
+  day by README_COMBAT_ENGINE §24 (migration 20260922060013). The index line is now corrected and the
+  contradiction is reconciled in README_COMBAT_ENGINE §23.12.
+
+Expedition loot path (the briefed chain), for the record — ALREADY CERTIFIED, untouched:
+  resolve_expedition_arrival -> calculate_expedition_resource_budget
+      final = LEAST(base_resource_find * reward_multiplier, cargo_capacity)
+  capacity = sum(quantity x ship_definitions.cargo_capacity) of the expedition fleet
+  the find is ADDED to the fleet's existing cargo; expedition_results keeps recording ONLY the find
+  loot <= cargo : reward == transported == persisted == reported   (no overflow branch)
+  loot >  cargo : the find is CLAMPED to the hold; the excess is discarded, and
+                  (scaled_resource_find, cargo_capacity) are both exposed by
+                  get_player_expedition_reports so the UI can explain the clamp
+  multi-resource: expeditions award a SINGLE resource type (select_expedition_resource_type ->
+                  METAL|CRYSTAL|DEUTERIUM, with a 1 / 2/3 / 1/3 split), so there is no
+                  multi-resource overflow to resolve on this path; the metal->crystal->deuterium
+                  cascade belongs to the COMBAT path (apply_attack_loot), not to expeditions
+  replay       : fleet_cargo_lifecycle EXPEDITION-4 proves re-resolution is rejected and the find is
+                  never added twice
+  ownership    : every calculation is server-side; the client never decides loot, capacity,
+                  transported amount or allocation
+  LIVE probe 2026-09-28: 10 PASS / 0 FAIL, rollback, residue 0
+                  (scaled_find=15984, cargo_capacity=25000 -> NO_OVERFLOW; CLAMPED and UNCLAMPED
+                   contract payloads both verified verbatim; other player 0 rows; no session 0 rows)
+```
+
+**Nothing was implemented and no migration was created**, because the evidence shows both readings are
+already complete. The one genuinely open residue is the §24.2 OGameX **rounding convention** for
+per-fleet `lootShare` — a documented LGI convention isolated to three `floor(...)` expressions, not a
+missing gate. It is listed below as the next candidate; no winner was selected and no alternative rule
+was proposed.
+### BROWSER CERTIFICATION — FLEET FLOW (2026-09-28) — DIAGNÓSTICO CORREGIDO
+
+Result: **ENVIRONMENT BLOCKED**, pero por un motivo MUCHO más estrecho que el registrado hasta ahora.
+
+```text
+LO QUE LAS MISIONES PREVIAS DECÍAN:  "no driver installed (playwright/puppeteer/cypress absent)"
+LO QUE ES CIERTO AHORA:               el DRIVER FUNCIONA. Ya existe en el proyecto, con 0 dependencias.
+
+Evidencia medida 2026-09-28:
+  node scripts/ui-engine-certify.mjs  ->  exit 0, 27/27 PASS
+  navegador real: Microsoft Edge headless vía CDP (protocolo DevTools) usando sólo WebSocket/fetch nativos
+  binario: C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe  (Chrome también presente)
+  capturas reales en %TEMP%\lgi-ui-certify (incluye 04-login.png = superficie real de login renderizada)
+  superficie comprobada: 24 Fleet (deck + bundle) y 27 login real, sin errores de consola
+```
+
+Por tanto `playwright|puppeteer|cypress` ausentes de `package.json` **NO** implican falta de driver: ese runner
+usa CDP directamente y no necesita ninguna de ellas. Instalar Playwright sería redundante (§4.A ya resuelto).
+
+**ÚNICO BLOQUEO REAL: credencial humana DEV.** `.env.local` sólo contiene `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_PUBLISHABLE_KEY` y `SUPABASE_SERVICE_ROLE_KEY`; no hay cuenta de test. El runner actual
+comprueba la superficie SIN sesión y deliberadamente no toca Supabase.
+
+Lo que NO se hizo a propósito (regla dura de la misión):
+  · NO se inventó un usuario ni se fijó una contraseña.
+  · NO se usó `service_role` como sustituto de login de jugador.
+  · NO se convirtió una sesión SQL privilegiada en una "certificación browser".
+  · NO se llamó a ningún RPC para simular la interacción del navegador.
+
+Para desbloquear hace falta, y sólo una de estas dos:
+  A) que el dueño facilite una cuenta DEV humano (email/password), que se use SÓLO en runtime del runner
+     y NUNCA se escriba en el repo; o
+  B) un mecanismo de sesión reutilizable ya previsto por el proyecto (hoy no existe).
+
+Con la credencial, el runner existente ya cubre login/viewports/login-surface; faltaría extenderlo con el
+recorrido de flota (origen -> destino -> naves -> misión -> dispatch -> fila en fleet_movements ->
+transición de estado -> retorno) y los negativos (ownership, flota inválida, misión inválida, doble envío).
+
+Estado del árbol: sin cambios de código. Residuo LIVE 0 (0 fleet_movements, 0 mensajes, 0 usuarios de prueba).
+
+### BROWSER CERTIFICATION — FLEET FLOW (2026-09-29) — CLOSED 🟢
+
+El diagnóstico de 2026-09-28 queda **superado**: la credencial DEV se facilitó y la certificación se
+ejecutó de verdad. Detalle completo en `README_FLEET_ENGINE.md` §33.
+
+```text
+BROWSER: Microsoft Edge headless, driver CDP nativo (0 dependencias)
+RUNNER:  scripts/fleet-browser-certify.mjs
+LOGIN:   credencial DEV real vía el formulario real, sin bypass
+FLOW:    9/9 PASS — login · vista Flotas · origen 1:1:1 · misión ATTACK
+         · 1× light_fighter · destino 1:1:4 · LANZAR · dispatch
+```
+
+Evidencia LIVE de lo que persistió el servidor y luego procesó el worker real
+(`deuteria-fleet-worker`, cron de 1 s, activo):
+
+```text
+fleet_movements        ATTACK · OUTBOUND · 1:1:1 → 1:1:4 · fuel_consumed 1
+fleet_movement_ships   light_fighter × 1
+planet_ships           1 → 0 al despachar, y 0 → 1 al volver
+ciclo                  OUTBOUND → llegada+combate → RETURNING → COMPLETED
+slots                  liberados (0 flotas activas)
+```
+
+Negativos, todos rechazados por el **servidor**:
+
+```text
+N2  ERROR: Selecciona al menos una nave.
+N3  ERROR: El destino debe ser distinto del planeta de origen.
+N3  ESPIONAGE_MISSION_REQUIRES_PROBES: only espionage_probe may be sent…
+N4  el clic inválido no creó fila: al final existía exactamente 1 flota
+N1  auth.uid() → players.user_id en start_fleet (SECURITY DEFINER): un
+    player_id de cliente sólo se acepta si resuelve al usuario autenticado
+```
+
+**0 cambios en el código de producto.** No se tocó `start_fleet`, ni el worker, ni ninguna regla de
+combustible, distancia o slots. Lo único añadido fue el runner de certificación y la documentación.
+
+Dos defectos eran del **arnés de prueba**, no del producto, y quedan documentados en §33.5: el paso 9
+buscaba la palabra "LANZAR" en el `body` (que el propio botón contiene) y el paso 6 escribía las
+coordenadas sin releerlas. Ambos daban PASS sin que saliera ninguna flota. El runner actual lee el
+aviso/`ERROR` del servidor y relee el DOM.
+
+Lo que sigue **sin** certificarse: la cuenta DEV tiene un único `light_fighter`, así que no se
+ejercitaron ACS/HOLD, DEPLOY ni composición multi-nave, y la llegada/retorno se observaron por base de
+datos en lugar de mirando la cuenta atrás en la UI. Son límites de cobertura de esa cuenta, no defectos
+abiertos.
+### MINI-GAMES — Galaga: estructura base, SIN juego (2026-09-28)
+
+* `src/screens/pda/games/GalagaCanvas.tsx` monta un `<canvas>` real con su `useRef` y sus dimensiones;
+  `games/galaga/constants.ts` (solo 480x640) y `games/galaga/types.ts` (marcador de "aún no
+  implementado"). `MINI-GAMES` lo monta dentro del marco PDA.
+* **NO hay juego**: sin `ctx.*`, sin `requestAnimationFrame` ni game loop, sin jugador, enemigos,
+  disparos, movimiento, colisiones, vidas, score, oleadas, partículas, sonido, IA, física, controles,
+  persistencia, Supabase ni leaderboard. Tampoco se definieron los tipos del juego: elegir esas
+  formas sería inventar la mecánica, que es lo que el usuario va a construir.
+* **0 dependencias nuevas, 0 migraciones, 0 RPC, 0 tablas.** Único CSS añadido: `.pda-galaga-canvas`
+  en el `pda.css` existente (borde, fondo, `max-width`); sin sprites ni imágenes.
+* Verificado: `npx tsc -b` 0 · `npx vite build` 0 · `npx eslint src/screens/pda` 0 · `git diff --check` 0.
+* Límite: **BROWSER ENVIRONMENT BLOCKED** (sin driver ni credencial DEV) — el lienzo montado no está
+  certificado visualmente.
+
+## FRONTEND GIGA AUDIT (2026-09-29) — 4 gaps técnicos CERRADOS, 0 migraciones, 0 RPC
+
+Barrido de TODO `src/**` (143 ficheros) contra el catálogo LIVE. Sin cambios de contrato, sin
+mecánicas, sin producto. Todo lo corregido es **presentación/estado de cliente**; el servidor sigue
+siendo la autoridad en las cuatro superficies tocadas.
+
+```text
+SYNC GATE  main · HEAD 3669e27 · origin/main 75bbc48 (1 commit detrás, 0 delante, SIN divergencia;
+            el commit remoto es sólo docs/MARCIANITOS_GALAGA_CONTEXT.md, sin solape con el trabajo
+            local). 17 modificados + 14 untracked preexistentes PRESERVADOS, 5 stashes intactos.
+            NO se ejecutó pull/push/commit/merge/rebase/reset/clean/checkout/restore/stash-*.
+
+CONTRATOS  44 RPC del frontend verificadas contra pg_proc/proargnames: TODAS existen y TODOS los
+           argumentos coinciden. Única omisión: `p_until` de `sync_current_planet_resources`, que
+           tiene DEFAULT. ⇒ CERO deriva de contrato. Ownership: 0 fugas; las 3 funciones con ACL
+           `anon` (can_start_building, sync_current_planet_resources,
+           get_universe_evolution_monitor_public) derivan el jugador de auth.uid() internamente.
+
+GAP F1 — ERRORES DE SUPABASE SILENCIADOS (10 sitios) · CERRADO
+  bug     `const {data}=await supabase...` sin `error`: un fallo se pintaba idéntico a "vacío".
+          Peor caso: `refreshPlanet` (App.tsx) — tras CUALQUIER mutación un fallo dejaba los
+          recursos congelados sin aviso, y `ProtectionStatusPanel` ocultaba el panel entero, de modo
+          que "no protegido" y "no se pudo comprobar" eran indistinguibles.
+  fix     Se captura y se propaga `error` en los 10 sitios. Los de cola/definiciones lanzan y lo
+          muestra el `catch` de `loadView`; `refreshPlanet` y onboarding muestran el mensaje real;
+          `ProtectionStatusPanel` distingue SIN PROTECCIÓN / NO VERIFICADA + mensaje.
+  valid   Re-barrido automático: 10 → 0 sitios sin comprobar. tsc 0 · eslint 0 errores · build 0.
+
+GAP F2 — CARRERA ENTRE RESPUESTAS DE loadView · CERRADO
+  bug     loadView spans 6+ `await` y escribe 11 setters compartidos SIN guard de generación.
+          Cambiar de planeta/vista deprisa dejaba la cola, definiciones y recursos del planeta
+          ANTERIOR sobre el estado fresco del nuevo.
+  fix     Token monotónico `loadViewGeneration`; cada invocación captura su generación y aborta
+          antes de escribir si hay una más nueva. `catch`/`finally` también se silencian si van
+          atrasados, para no apagar el spinner de la carga vigente.
+  valid   tsc 0 · build 0. `loadMessages` recibe la generación por el mismo motivo.
+
+GAP F3 — DOBLE SUBMIT DE MUTACIONES DE COLA · CERRADO
+  bug     `busyId` es estado de React: dos clics en el MISMO tick (dos definiciones distintas) se
+          resuelven antes del re-render, así que `start_building/research/ship/defense` podía
+          dispararse dos veces en paralelo.
+  fix     Cerrojo sincrónico `actionInFlight` (useRef) + `try/finally` que lo libera siempre.
+          No replica ninguna regla: sólo evita la carrera de cliente.
+  valid   tsc 0 · build 0.
+
+GAP F4 — BOTONES DE CIERRE SIN NOMBRE ACCESIBLE · CERRADO
+  bug     Los "×" de aviso/error (App.tsx, GalaxyView.tsx) eran botones SIN etiqueta: un lector de
+          pantalla los anunciaba como "botón" a secas.
+  fix     aria-label="Descartar aviso" / "Descartar error" (3 botones).
+  valid   tsc 0 · build 0.
+
+ENCODING  `scripts/repair-encoding.mjs --scan`: 600 ficheros, 3 dañados — los 3 son migraciones
+          SQL (backend), NINGUNO en `src/`. Verificado byte a byte: `src/` tiene 0 caracteres
+          mojibake. El texto que se ve como "ó" en consola PowerShell es artefacto de la
+          codificación de la terminal, NO del fichero.
+
+SEGURIDAD 0 secretos en el bundle. Sólo `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY`
+          (clave publicable, pensada para el bundle por diseño). Sin service_role, sin JWT, sin PAT,
+          sin contraseñas en src/. localStorage sólo guarda preferencias de UI (fuentes, plantilla,
+          configuración del Designer, cuerpo activo) — ningún secreto.
+
+BROWSER   `scripts/ui-engine-certify.mjs` → **27/27 PASS**, consola limpia, sin overflow horizontal
+          en 8 viewports (360/390/430/768/1024/1280/1440/1920). Incluye responsive, UI Designer,
+          persistencia, drag&drop y la superficie real de Login sin sesión.
+          `scripts/fleet-browser-certify.mjs` → **ENVIRONMENT BLOCKED**: sin `DEV_EMAIL`/`DEV_PASSWORD`
+          en el entorno. NO se simuló login ni se falsificó sesión (exit 2, por diseño). La
+          certificación de flotas 9/9 del 2026-09-29 sigue siendo la última evidencia válida.
+
+TESTS     `npx tsc -b` 0 · `npm run build` 0 (bundle 819.93 kB) · `npx eslint src` 0 errores
+          (5 warnings react-hooks preexistentes, ninguno nuevo) · `git diff --check` 0.
+
+CERRADO Y NO TOCADO  Research Lab (16 gates), Espionage, P3 ACL, Guest ownership, Economy,
+  Fleet contracts y sus 4 dispatchers, Combat engine, Expeditions, Moons, UI Designer 27/27,
+  Galaga canvas, y los 5 stashes. Ninguna regla de negocio, fórmula, coste, tiempo, slot, loot ni
+  permiso se modificó: esta auditoría no cambió ni una línea de backend.
+
+DECISIONES DE PRODUCTO (NO implementadas) — ver sección PRODUCT DECISIONS del informe.
+```
+
+* Criterio: **Cline prepara el lienzo, el usuario construye el juego.** Ver
+  `docs/systems/README_UI_DESIGNER.md` §11.
+
+---
+
+# CERTIFICACIÓN END-TO-END GIGANTESCA EXTRA (2026-09-29)
+
+Auditoría de certificación *no destructiva* recorriendo la cadena completa
+`Browser → React → Supabase client → Auth → RLS/ACL → RPC → PostgreSQL → workers/cron → estado → Browser`.
+No reaudita los gaps ya cerrados: prueba que la cadena **no se rompe**.
+
+## Resultado por área (medido, no heredado)
+
+```text
+SYNC GATE     branch=main  HEAD=3669e27  origin/main=75bbc48  merge-base=3669e27
+              ahead=0  behind=1  · 18 modified · 0 staged · 29 untracked · 5 stashes
+              (behind=1 = commit de SOLO docs, no de código)
+
+CONTRATOS     49 RPCs derivadas mecánicamente de src/** (scripts/contract-inventory.mjs):
+              49/49 existen en pg_proc y son authenticated-EXECUTE. 0 cables rotos.
+              23 tablas leídas por el cliente: 23/23 con RLS activa.
+
+IDOR LECTURA  15 categorías de datos privados de B, rol `authenticated` con el JWT real
+              de A  ->  0 filas en las 15.
+
+IDOR ESCRITURA directa  -> bloqueada a nivel GRANT (ni llega a RLS):
+              UPDATE planet_resources/planet_buildings/planets/player_messages/
+              fleet_movements/player_research = 0 filas
+              INSERT planet_ships/planet_resources/player_messages/building_queue =
+              permission denied
+
+IDOR vía RPC  Los 4 dispatchers + cola + carga + recall + soporte + comercio + salto/falanx
+              + destrucción lunar: 37/37 rechazados con motivo autoritativo. Ninguno aceptó
+              un ID del jugador B ni de un IA.
+
+NEGATIVOS     41/41 rechazados: qty 0, negativa, NaN, Infinity, decimal, 1e18, NULL,
+              UUID inexistente, id de sistema, destino propio/inexistente/NULL, composing
+              vacío o negativo, misión inválida, moon_destruction contra planeta,
+              ESPIONAGE con cazas, RECYCLE con cazas. Todos con mensaje autoritativo.
+
+FLEET E2E     dispatch TRANSPORT -> OUTBOUND + combustible + slot ocupado
+              -> worker (llegada) -> COMPLETED -> 20/20 naves devueltas -> slot liberado
+              -> worker reejecutado: IDEMPOTENTE.
+              recall_fleet: OUTBOUND -> RETURNING con returns_at calculado.
+
+WORKERS       6 jobs pg_cron activos; 60 min = 3.666 ejecuciones, 0 fallos.
+              fleet 3.524 · heartbeat 60 · ai-policy 12 · ranking 12 · wreck 6.
+              universe_process_health.consecutive_failures = 0.
+
+BROWSER REAL   ui-engine-certify.mjs (CDP nativo, sin Playwright/Puppeteer): 27/27 PASS,
+              0 errores de consola. Viewports 320→2560: 12/12 sin overflow, 0 errores.
+              Autenticado: ENVIRONMENT BLOCKED (sin DEV_EMAIL/DEV_PASSWORD).
+
+REGRESION     tsc -b 0 · vite build 0 (819.93 kB / 204.36 kB gzip) · eslint 0 errores
+              (5 warnings react-hooks preexistentes) · git diff --check 0.
+
+ENCODING      src/** + docs/** + scripts/**: 0 mojibake.
+
+DRIFT         4 migraciones del repo sin fila LIVE, pero TODAS verificadas presentes en el
+              cuerpo real de las funciones. El drift es de NOMBRE, no funcional.
+              No se tocó el ledger.
+```
+
+## Falsos positivos descartados contra la fuente de verdad (§57)
+
+```text
+"service_role en el bundle"   → texto de UI del asistente IA. 0 claves. FALSO POSITIVO.
+"mojibake en src/**"          → terminal PowerShell, verificado a nivel de bytes. FALSO POSITIVO.
+"3 SECURITY DEFINER para anon"→ can_start_building / sync_current_planet_resources /
+                                get_universe_evolution_monitor_public devuelven
+                                AUTHENTICATION_REQUIRED sin sesión. FALSO POSITIVO.
+"HOLD/COLONIZE no son misiones"→ van por start_support_fleet / start_colonize_fleet
+                                (contratos propios). FALSO POSITIVO.
+"el worker ignora la flota"    → INVALID_RESOURCE_TIMESTAMP: artefacto del time-travel del
+                                propio test (last_calculated_at > arrives_at falsificado).
+                                Con reloj coherente el ciclo cierra. FALSO POSITIVO.
+"provision_player acepta admin"→ sin sesión devuelve AUTHENTICATION_REQUIRED. Con sesión sí
+                                lo acepta, pero el username NO es autoridad (0 usos en
+                                funciones SECURITY DEFINER). LOW, no crítico.
+```
+
+## Bloqueos de entorno (NO bugs)
+
+```text
+DEV_EMAIL / DEV_PASSWORD ausentes → la certificación browser AUTENTICADA no es ejecutable.
+  fleet-browser-certify.mjs lo detecta y termina con exit 2. NO se simuló login, NO se usó
+  service_role como usuario, NO se capturó ninguna credencial.
+
+Fixture LIVE muy escaso → 1 humano, 656 IA, 0 lunas, 0 defensas, 0 movimientos activos,
+  0 resultados de expedición. Las vistas Moon / Defense / Combat / Expedition no tienen
+  datos LIVE con los que ejercitar render ni ciclo completo. Los CONTRATOS de esas vistas sí
+  quedaron certificados por sus fixtures SQL y por la matriz de ownership de esta misión.
+```
+
+---
+
+# CIERRE DE BLOCKERS + CERTIFICACIÓN BROWSER AUTENTICADA E2E — 2026-09-29 (2ª vuelta)
+
+Misión de eliminación de incertidumbre, no de cambios. Resultado: **ningún cambio de código**.
+Los dos blockers siguen abiertos y están **re-certificados con evidencia medida**, no
+supuestos. Se mantiene `CERTIFIED WITH DOCUMENTED BLOCKERS`.
+
+## Sync gate (re-comprobado, no asumido)
+
+```text
+branch          main
+HEAD            3669e27e4e9d9f44c68f12244e7a4e4154127b0f
+origin/main     75bbc48e2b55dc8439ab17e52e254218b96ef8aa
+merge-base      3669e27 (= HEAD)  →  ahead 0 / behind 1
+modified        18      staged 0      untracked 29      deleted 0
+stashes         5 (intactos, ninguno popped ni dropped)
+```
+
+Idéntico al baseline declarado. NO se ejecutó pull/push/commit/merge/rebase/reset/clean/
+stash pop/stash drop. El working tree conserva el trabajo preexistente tal cual.
+
+## BLOCKER A ~~— navegador autenticado: sigue siendo ENVIRONMENT BLOCKED~~ → **RESUELTO 2026-10-03**
+
+> **SUPERADO (2026-10-03).** Este blocker ya **no** está activo: las credenciales DEV existen
+> (`credentials.txt`, local y gitignored), Edge está disponible, y la certificación corrió **9/9 PASS**
+> con E2E, ownership, cleanup y **residue 0**. Ver §"GAMEPLAY GAP STATUS — CANONICAL" al inicio.
+> Se conserva el texto original como registro histórico.
+
+```text
+process.env.DEV_EMAIL     ABSENT
+process.env.DEV_PASSWORD  ABSENT
+.env.local                 contiene SOLO VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
+                           SUPABASE_SERVICE_ROLE_KEY — ninguna variable DEV_*
+```
+
+`node scripts/fleet-browser-certify.mjs` → `ENVIRONMENT BLOCKED — DEV CREDENTIAL UNAVAILABLE`,
+exit 2. **Comportamiento correcto**: el runner falla cerrado y no simula nada.
+
+Estado real de identidad en Supabase (verificado, no supuesto):
+
+```text
+
+## BLOCKER B — falta de datos LIVE: re-confirmado, con alcance medido
+
+Censo LIVE medido en esta vuelta (no heredado del informe anterior):
+
+```text
+players 672 = 1 humano (DevPlayer) + 671 IA
+planetas 672, lunas 0, defensas 0, defense_queue 0
+expedition_results 0, espionage_reports 0, planet_support_authorizations 0
+debris_fields 3 (otros universos), combat_battles 1, fleet_movements 1 (COMPLETED)
+player_messages 6
+
+Para la sesión real de DevPlayer (claims JWT reales, mismo contrato que el frontend):
+  economy overview    → 1 fila  (metal/h 0, energy_balance_per_hour -24.2, cap 100000)
+  battle reports      → 1 informe
+  mensajes            → 4 (Battle report, Fleet arrived, Fleet returned, Fleet returning)
+  transport movements → 0
+  lunas 0 · defensas 0 · debris available=false (0 campos)
+  fleet slots 1 · slots expedición 1 · protección 1 fila · autorizaciones ACS 0
+```
+
+⇒ Moon, Defense, Expedition, Espionage, ACS, Debris y Combat **siguen sin datos LIVE** para
+el jugador de certificación. Se mantiene la distinción:
+
+```text
+CONTRACT CERTIFIED
+BROWSER DATA CERTIFICATION BLOCKED
+```
+
+## Regresión §9 confirmada en LIVE (determinista, con peso real)
+
+El bug de la energía no era cosmético. Para el planeta real de DevPlayer:
+
+```text
+get_planet_economy_overview(...).energy_balance_per_hour = -24.2000000000000000
+planet_resources.energy                                  =  0.0000
+```
+
+La columna legacy rendería **0** mientras el estado autoritativo es **−24.2/h** (déficit).
+La corrección de `PdaShell.tsx` y del Overview es sustantiva y está viva.
+
+## Falso positivo del advisor de RLS — DESECHADO con evidencia
+
+El advisor marcó `rls_disabled` como CRITICAL sobre 5 tablas. Comprobado tabla por tabla:
+
+```text
+building_research_prerequisites   RLS=off  anon/authenticated: SELECT/INSERT/UPDATE/DELETE = false
+moon_creation_rolls               RLS=off  idem
+moon_destruction_attempts         RLS=off  idem
+planet_wreck_fields               RLS=off  idem
+planet_wreck_field_ships          RLS=off  idem
+```
+
+**No son explotables**: no hay ninguna expansive hacia `anon` ni `authenticated`, luego la
+ausencia de RLS no cambia el resultado observable. Contrasta con el precedente del propio
+proyecto (`20260921044659_enable_rls_on_internal_engine_tables.sql`), que sí habilitó RLS
+como segunda barrera. Queda como **deuda de defensa en profundidad**, no como vulnerabilidad.
+NO se aplicó la remediación: exige decisión humana (habilitar RLS sin políticas bloquearía el
+acceso, y estas tablas son deliberadamente backend-only).
+
+## Drift de migraciones — preexistente, NO tocado
+
+`node scripts/migration-drift-report.mjs` (exit 0) confirma el hallazgo ya documentado:
+
+```text
+ventana >= 20260926000000: repo 77 · LIVE 80 · coincidencia exacta 73
+4 archivos del repo con MISMO nombre y VERSIÓN distinta de la fila LIVE
+  add_player_transport_movements_read_contract  repo 20260928131500 → LIVE 20260928131919
+  enforce_espionage_probe_composition_rule      repo 20260928150000 → LIVE 20260928153854
+  add_my_attack_protection_read_contract        repo 20260928210000 → LIVE 20260928163608
+  add_recyclable_debris_status_contract         repo 20260928220000 → LIVE 20260928184455
+```
+
+El drift es de NOMBRE, no funcional. NO se renombró ningún archivo (§34 + §2): el working tree
+tiene 29 untracked que deben preservarse y el renombrado corresponde al cierre de la
+certificación anterior, no a esta misión.
+
+## Superficie de rutas (enumerada del código, §8)
+
+`type View` en `src/App.tsx:26` — 11 vistas autenticadas, más la superficie pública:
+
+## Certificaciones ejecutadas en esta vuelta
+
+```text
+ui-engine-certify.mjs   27/27 PASS · 0 errores de consola · 8 viewports sin overflow
+                        (360/390/430/768/1024/1280/1440/1920) · designer's 6 plantillas ·
+                        persistencia en localStorage + reload · drag&drop real ·
+                        superficie real de Login sin sesión
+fleet-browser-certify   ENVIRONMENT BLOCKED (exit 2, por diseño)
+contract-inventory.mjs  exit 0 · 49 RPC / 18 tablas
+migration-drift-report  exit 0 · ver arriba
+```
+
+Sin instalar Playwright/Puppeteer/Cypress: se reutilizó la certificación CDP nativa de Edge.
+
+## Regresión final (§40)
+
+```text
+npx tsc -b            0 errores
+npm run build         0 errores · 819.93 kB / 204.36 kB gzip (sin cambio)
+npx eslint src        0 errores · 5 warnings react-hooks preexistentes (App.tsx ×4, GalaxyView ×1)
+git diff --check      0
+```
+
+Nota de método: `npm run build` reporta exit 1 si se invoca desde PowerShell porque el aviso
+de chunk >500 kB se escribe en **stderr** y PowerShell lo convierte en `NativeCommandError`.
+Ejecutado vía `cmd /c` devuelve **0**. El bundle no está roto: es un artefacto del shell.
+Tamaño idéntico al certificado el 2026-09-29 ⇒ sin regresión de performance.
+
+## Clasificación final de esta vuelta
+
+```text
+AUTHENTICATED BROWSER = ~~ENVIRONMENT BLOCKED~~ **CLOSED 2026-10-03** (9/9 + E2E + residue 0; credenciales disponibles)
+DEFENSE / EXPEDITION / MOON / COMBAT / ACS / DEBRIS
+                        = BROWSER BLOCKED BY LIVE DATA (0 filas reales)
+BUGS NUEVOS DETERMINISTAS = 0
+CAMBIOS DE CÓDIGO          = 0
+DEUDA DETECTADA            = 1 (RLS defense-in-depth, decisión humana) + drift de nombres preexistente
+```
+
+**No se pasó de `CERTIFIED WITH DOCUMENTED BLOCKERS` a `CERTIFIED`** porque la evidencia real
+no lo permite: faltan credenciales y faltan datos. Lo que sí se logró es **reducir la
+incertidumbre**: el estado del entorno y el de los datos están ahora medidos, no supuestos.
+
+
+```text
+overview · buildings · research · shipyard · defense · fleet
+galaxy · expedition · moon · messages · pda
+(+ '/' = Login sin sesión; '#ui-designer' = banco del UI Engine)
+```
+
+`scripts/contract-inventory.mjs` deriva mecánicamente la superficie: **49 RPC** y **18 tablas**
+consumidas por `src/`. Ninguna ruta inventada.
+
+`energyBalancePerHour` es la fuente visual y `planet_resources.energy` NO vuelve a pintarse
+(`grep 'planet_resources(energy)'` → 0 resultados en `src/`).
+
+## Seguridad — smoke regression (§38), con sesión real
+
+```text
+IDOR        get_planet_economy_overview(planeta AJENO) → 0 filas, sin valor filtrado  BLOQUEADO
+            (el planeta ajeno es un planeta IA real, no fabricado)
+Sin sesión  las mismas SECURITY DEFINER devuelven 0 filas → fail closed
+ACL cliente create_player_message sin EXECUTE para anon/authenticated   OK
+            anon no ejecuta ningún RPC de lectura del juego             OK
+            anon SÍ ejecuta can_start_building (lectura, ya auditado)  INFO
+```
+
+**Las 100+ pruebas NO se repitieron** (no lo exige la misión): smoke únicamente.
+Sin degradación respecto a la auditoría anterior.
+
+auth.users                12   (11 is_anonymous = true, 1 con email)
+players con user_id        1   →  DevPlayer
+```
+
+Existe exactamente **una** cuenta de email y su contraseña es desconocida. No se inventó, no
+se reseteó, no se usó `service_role` como jugador y no se capturó ninguna credencial.
+**La certificación browser autenticada sigue sin ser ejecutable.** El 9/9 de Fleet del
+2026-09-29 permanece como última evidencia válida; no se sustituyó por una simulación.
+
+---
+
+# GAP — EL INVENTARIO DE CONTRATOS DEL CLIENTE ERA INCOMPLETO (2026-09-29, 3ª vuelta)
+
+Misión "siguiente gap de gameplay". Resultado: **no se encontró ningún gap de gameplay
+implementable** (CASO C, ver §"Lo que se descartó"), pero sí un defecto real, determinista y con
+consecuencia sobre la seguridad de un bucle jugable. **CLOSED**.
+
+## Qué estaba incompleto
+
+`scripts/contract-inventory.mjs` es la herramienta que deriva mecánicamente qué contratos llama
+el navegador. Su evidencia se usa literalmente para decidir que un contrato **no tiene llamador
+de cliente** y por tanto puede perder el `EXECUTE` de `authenticated`. Sólo buscaba literales:
+
+```js
+/\.rpc\(\s*['"]([a-z0-9_]+)['"]/g
+```
+
+Pero `src/App.tsx:138` despacha los cuatro contratos de producción a través de una **variable**:
+
+```js
+const rpc = type==='building' ? 'start_building'
+           : type==='research' ? 'start_research'
+           : type==='ship'     ? 'start_ship'
+           :                     'start_defense';
+const { error:e } = await supabase.rpc(rpc, args);   // <- `rpc` es variable, no literal
+```
+
+`supabase.rpc(rpc, args)` no casa con el patrón ⇒ los cuatro nombres **no aparecían**.
+
+## Por qué es un GAP real (y no cosmético)
+
+Medido antes del arreglo:
+
+```text
+node scripts/contract-inventory.mjs --names-only   ->  48 nombres
+  start_building    reported=False     start_research  reported=False
+  start_ship        reported=False     start_defense   reported=False
+  can_start_building reported=True     start_demolition reported=True   (control: literales)
+```
+
+Estos cuatro son los dispatchers de **edificios, investigación, hangar y defensas**. Un falso
+negativo aquí no es un detalle de inventario: es exactamente el predicado que las migraciones P3
+usan para revocar. La migración LIVE `20260929014633` lo dice sin rodeos:
+
+> "NO CLIENT CALLER. The UI inventory is derived mechanically by `scripts/contract-inventory.mjs`
+> … None of these four appears."
+
+Es decir, **la justificación mecánica de una revocación de ACL descansaba sobre un inventario que
+no era una sobre-aproximación sino una sub-aproximación**. El mismo método aplicado a
+`start_ship`/`start_defense`/`start_building`/`start_research` los declararía "sin llamador" y
+permitiría revocar `authenticated` sobre ellos, rompiendo de forma permanente los cuatro bucles
+de producción para todo jugador **sin tocar una línea de `src/`**.
+
+Comprobado LIVE antes de tocar nada (los cuatro siguen con `authenticated EXECUTE = true`: el
+juego está intacto hoy y el riesgo es latente, no un incidente):
+
+```text
+start_building true · start_research true · start_ship true · start_defense true
+```
+
+## Fix
+
+`scripts/contract-inventory.mjs` resuelve ahora el despacho indirecto. Decisión deliberada: la
+resolución es una **sobre-aproximación**. Sobre-informar sólo puede hacer una revocación futura
+más conservadora (sentido seguro); sub-informar es el sentido peligroso. Los literales que sólo
+se **comparan** (`type==='building'`) se descartan, para que los nombres añadidos signifiquen algo
+en vez de contaminar el inventario con palabras discriminantes de UI.
+
+```text
+antes 48 nombres   despues 52 nombres
+nuevos: start_building · start_research · start_ship · start_defense   (y nada mas)
+```
+
+## Test de regresión
+
+Guarda la invariante dentro de la propia herramienta, sin base de datos ni red:
+
+```bash
+npm run cert:contracts     # -> node scripts/contract-inventory.mjs --assert-client-dispatchers
+```
+
+Aserta los cuatro dispatchers **y** un control positivo (`can_start_building`,
+`can_start_research`, `can_build_ship`, `can_build_defense`) más la ausencia de operandos de
+comparación filtrados. **Control negativo ejecutado**: revirtiendo el fix en una copia temporal
+fuera del repo, la guarda falla con
+
+```text
+FAIL  client dispatchers not in the inventory: start_building, start_research, start_ship, start_defense
+exit 1
+```
+
+La guarda **no es vacua**: detecta exactamente la regresión que cierra.
+
+## La revocación ya aplicada sigue siendo válida
+
+Due diligence: el inventario corregido **no invalida** `20260929014633`. Los cuatro nombres que
+esa migración revocó siguen ausentes del inventario corregido (y sus `EXECUTE` siguen en `false`):
+
+```text
+can_recycle_debris · get_expedition_ship_candidates
+get_active_expedition_item_effect · check_defense_requirements  -> present=False, auth_exec=false
+```
+
+La decisión de ACL era correcta por otra vía (esos cuatro no tienen llamador de cliente); lo que
+era insostenible era **la evidencia** que la sostenía. Nota: el encabezado de esa migración dice
+"47 nombres" y la herramienta hoy da 52; la diferencia son los cuatro dispatchers más los nombres
+añadidos por `GameplayEnginePanel`/`GalaxyView`/`useFleetDispatch` desde entonces.
+**No se editó la migración ya aplicada** (es procedencia); la corrección vive en la herramienta.
+
+## Lo que se descartó como gap de gameplay (CASO C, con evidencia)
+
+Se inspeccionó el ciclo completo antes de concluir. **No hay gap de gameplay implementable**:
+
+| Área | Resultado de la inspección |
+|---|---|
+| start_ship / start_defense | **Falsa alarma descartada**: `App.tsx:138` sí los llama (vía variable). Las vistas no eran read-only |
+| `calculate_building_production_delta` | Ya REPARADO 2026-09-26 + fixture `building_production_delta_contract.sql`; la entrada del mapa OGameX está desfasada |
+| Procesadores de investigación "huérfanos" | Deliberadamente internos (`service_role`); el autoritativo es `process_planet_tick` |
+| Scheduler de ranking | **Existe** y activo: cron `lagranimplosion-ranking-refresh` `*/5 * * * *`; 10 filas por categoría |
+| Tick de economía | **Vivo**: `last_calculated_at` con 32 s de antigüedad, heartbeat activo |
+| Colas | Ninguna fila BUILDING atascada; las COMPLETED están correctamente filtradas por la UI |
+| `get_player_transport_movements` → 0 filas | **Correcto**: el único movimiento vivo es `ATTACK`, no `TRANSPORT` |
+| Misiones de flota | Las 7 de `start_fleet_mixed` (ATTACK, TRANSPORT, DEPLOY, ESPIONAGE, RECYCLE, EXPEDITION, MOON_DESTRUCTION) están cableadas en `fleetContracts.ts`, incluido RECYCLE con su filtro de `recycler` y su pre-chequeo `get_recyclable_debris_status` |
+| Bootstrap de jugador nuevo | Cerrado: `bootstrap_new_player_state` + `ai_bootstrap_and_dormant.sql` |
+
+Lo que sigue abierto (**no implementado, y NO se implementa aquí**) ya está clasificado como
+decisión de producto en `docs/reference/README_OGAMEX_LGI_MAP.md`: `fusion_plant`, `crawler` y su
+tope, lifeforms, alloys, y el resto de la lista NEXT CANDIDATES.
+
+## Verificación
+
+```text
+npm run cert:contracts   0  PASS (52 nombres, 4 dispatchers detectados, sin operands)
+control negativo         1  FAIL correcto (guarda no vacua)
+npx tsc -b               0
+npm run build            0  819.93 kB / 204.36 kB gzip  (IDENTICO: cero impacto en produccion)
+npx eslint src           0 errores · 5 warnings react-hooks preexistentes
+git diff --check         0
+node scripts/migration-drift-report.mjs   0  (drift de nombres preexistente, sin tocar)
+```
+
+Sin migración nueva, sin RPC, sin worker y sin cambio en `src/**`: el defecto estaba en la
+instrumentación de certificación, y arreglarla no altera el juego.
+
+---
+
+# FUSION PLANT + CRAWLER (2026-09-29, 4ª vuelta) — NO GAP en el motor · 1 GAP de visibilidad CERRADO
+
+Misión: implementar los dos bloques económicos "con decisión de producto tomada". Resultado
+honesto, medido contra LIVE y no contra el inventario documental:
+
+```text
+Fusion Plant   → NO GAP. YA IMPLEMENTADO y CERTIFICADO desde 2026-09-26.
+Crawler        → NO GAP en el motor. YA IMPLEMENTADO y CERTIFICADO desde 2026-09-26.
+                 ⇒ pero SÍ había un gap real: su tope y su bono no eran visibles para el jugador.
+```
+
+## El punto de partida era FALSO (y por eso se verificó LIVE antes de tocar nada)
+
+El brief daba por hecho que había que implementar ambas. No era así. `fusion_plant` y `crawler`
+ya existían en LIVE con definición, prerrequisitos, fórmulas y fixture propia:
+
+```text
+20260926140000_fusion_plant_and_crawler_definitions.sql   definiciones + prerrequisitos
+20260926140200_fusion_crawler_economy_integration.sql     integración en la economía
+supabase/tests/fusion_and_crawler.sql                     fixture transaccional dedicada
+```
+
+**Causa del error de partida:** la documentación era internamente contradictoria. La misma tabla
+"Real state now" del mapa ya decía IMPLEMENTED (líneas 524-525) mientras las líneas 143, 145 y 264
+seguían diciendo `PRODUCT DECISION (fusion_plant)` / `TECHNICAL GAP (crawler)` / "contrato completo
+pero no implementado", y `PROJECT_CONTEXT_PROMPT.md` §"STILL OPEN" los listaba como pendientes. Se
+corrigieron esas entradas **sin borrar la procedencia histórica** (NEXT CANDIDATES se conserva como
+registro; la clasificación remite a la tabla autoritativa).
+
+## Re-certificación LIVE de lo que ya existía
+Ejecutada **verbatim** contra LIVE, con su propio ROLLBACK: `fusion_and_crawler` → **10 PASS + 1 INFO**.
+Residuo 0 verificado (fusion 0 · crawlers 0 · lunas 0 · edificios del humano `crystal_mine=2,
+shipyard=1` · naves 1 · cola intacta).
+
+```text
+ 1 fusion_plant definition + deuterium_synthesizer 5 + energy_technology 3   PASS
+ 2 crawler definition (planet only) + 4 prerrequisitos                      PASS
+ 3 fusion 5 con energy_technology 3 suma EXACTAMENTE 220 energía            PASS
+ 4 el reactor quema 10*L*1.1^L base por hora                               PASS
+ 5 tanque vacío detiene el reactor: ni energía ni consumo                   PASS
+ 6 100 crawlers = +0.02 % cada uno (ratio 1.019277)                         PASS
+ 7 1000 crawlers se topan en 240 unidades efectivas (ratio 1.047550)       PASS
+ 8 energía del crawler (50/efectiva) estrangula la producción              PASS
+ 9 el crawler no se puede encolar en una luna                              PASS
+10 los almacenes siguen siendo legales en luna (paridad OGameX)             PASS
+```
+
+## GAP real cerrado: el tope y el bono del crawler no eran visibles
+
+`calculate_planet_production` ya aplicaba, en servidor, `efectivas = least(cantidad, (suma de
+niveles de mina) × 8)`, `bono = 0.0002 × efectivas` y `energía = 50 × efectivas`. **Ningún contrato
+lo exponía y ninguna UI lo mostraba**: el hangar sólo pintaba el número bruto de `planet_ships`. Un
+jugador con 1 000 crawlers en un planeta topado a 240 no tenía forma de saber que 760 unidades no
+hacían nada. Es un "el resultado existe y no se refleja al jugador", no una mecánica ausente.
+
+```text
+supabase/migrations/20260929040000_crawler_status_read_contract.sql   NUEVO  (aplicado a LIVE)
+supabase/tests/crawler_status_contract.sql                           NUEVO  7 PASS
+src/App.tsx                                                          hangar: TOPE / EFECTIVAS / BONO / ENERGÍA-h
+src/lib/database.types.ts                                            tipo del RPC
+```
+
+**No se inventó ninguna regla.** El contrato `get_planet_crawler_status(uuid)` copia literalmente
+las expresiones de `calculate_planet_production`, y la economía certificada **NO se modificó**. Para
+que la duplicación no se convierta en una segunda fuente de verdad, la fixture compara el contrato
+CONTRA la economía: con 1 000 crawlers, el contrato dice 240 efectivas y la producción debe comportarse
+como si fueran 240 (`ratio 1.047550`, idéntico al de la fixture histórica). Si alguien cambia el
+tope en un solo sitio, la fixture falla.
+
+El cliente **no calcula nada**: no envía tope, ni bono, ni cantidad efectiva. Sólo recibe hechos.
+
+```text
+crawler_status_contract   1 ACL (authenticated sí, anon/PUBLIC no)         PASS
+                          2 propietario: 100/240/100/2.0000/5000           PASS
+                          3 sin sesión → 0 filas                            PASS
+                          4 planeta ajeno → 0 filas (no un valor)           PASS
+                          5 uuid inventado → 0 filas                        PASS
+                          6 1000 → tope 240 y la ECONOMÍA coincide          PASS
+                          7 sin crawlers: bono 0, energía 0, tope sigue     PASS
+```
+
+## Seguridad / ownership
+
+`auth.uid() → players.user_id → planeta propio`; un planeta ajeno devuelve **cero filas**, nunca un
+valor ni un error (misma forma fail-closed que `get_planet_economy_overview`). `SECURITY DEFINER`
+con `search_path` fijado, `EXECUTE` sólo para `authenticated`. Sin bypass: el contrato es de sólo
+lectura y no participa del settlement.
+
+## Orden de aplicación de la economía (auditado, no asumido)
+
+```text
+base de minas/planta  ->  + bono crawler (0.0002 · efectivas, dentro de la base de la mina)
+                      ->  × economy_rate × production_rate del universo
+                      ->  × (1 + bonuses de objetos/vidaformos)
+                      ->  × production_factor (energía: min(1, producción/consumo))
+                      ->  × factor de plasma
+deuterio: … - consumo del reactor (10·L·1.1^L, dentro del mismo rate del universo)
+energía:  planta solar  +  reactor (30·L·(1.05+0.01·ET)^L, sólo si hay deuterio)
+```
+
+## OGameX
+
+```text
+OGameX   reactor: energía 30·L·(1.05+0.01·ET)^L, consumo 10·L·1.1^L;
+         crawler: +0.02 % por unidad, tope por niveles de mina, 50 de energía por unidad.
+LGI      Idénticas, con DOS divergencias ya inscritas en la migración 20260926140200:
+         (a) el reactor se detiene sin deuterio (regla OGame clásica; el código de OGameX la
+             aplicaría sin condición y daría energía gratis);
+         (b) el consumo se escala por `economy_rate × production_rate` del universo, porque el
+             devengo de LGI escala TODA la producción/hora por esos factores.
+```
+
+Límite de esta verificación: el fichero de definiciones que la documentación histórica citaba
+(`application/Settings/BuildingObjects.php`) **ya no existe** en `main` de `lanedirt/OGameX` (404; el
+repo reestructurado no tiene `app/Settings`). Se sondeó la estructura por la API del repo. La paridad
+se afirma contra la **variante clásica documentada** —que es la que aporta el brief y la que ya
+estaba inscrita en la migración—, no contra un fichero upstream que no se pudo localizar. No se
+inventó nada para tapar ese hueco: no hacía falta, porque no hubo que implementar.
+
+## Regresión
+
+`fusion_and_crawler` re-ejecutada **después** de la migración nueva → **10/10 PASS**, sin cambios.
+Economía, Research, Shipyard, Defence, Fleet, Espionage, Luna, Mensajes y AI **no se tocaron**
+(cero migraciones sobre funciones certificadas; el único DDL es una función de lectura nueva).
+
+## Verificación de la vuelta
+
+```text
+fusion_and_crawler        10 PASS + 1 INFO   LIVE, rollback, residuo 0
+crawler_status_contract    7 PASS            LIVE, rollback
+fusion_and_crawler (tras) 10 PASS           regresión, sin cambios
+npx tsc -b                 0
+npm run build              0   820.54 kB / 204.47 kB gzip (+0.61 / +0.11 kB por la UI)
+npx eslint src             0 errores · 5 warnings react-hooks preexistentes
+git diff --check           0
+contract inventory         53 RPC (antes 52) · el nuevo detectado · guarda de dispatchers PASS
+```
+
+Browser: **ENVIRONMENT BLOCKED** (`DEV_EMAIL`/`DEV_PASSWORD` siguen ausentes). No se simuló sesión
+ni se usó `service_role` como jugador. La evidencia es SQL/LIVE, y así se declara.
+
+  IMPLEMENTADO (2026-09-30, segunda vuelta) - MISSILE UI
+    superficie  src/MissileControlPanel.tsx (nuevo) montado en la vista `defense` de App.tsx con el mismo
+                envoltorio que `buildings` usa con BuildingDemolitionPanel. Muestra silo (nivel, usados/capacidad,
+                libres), ABM/IPM (en tenida / en cola / coste / estado), lanza IPM por coordenadas y lista los
+                movimientos MISSILE_ATTACK. Sin selector de prioridad (D3), sin escrituras directas, sin
+                tratar el IPM como nave, sin heuristicas de ownership.
+    permisos    20260930231000 - UN GRANT: `authenticated` gana EXECUTE en `start_missile_attack`, que se habia
+                creado sin el y por tanto era inaccesible desde el navegador. Es el unico hueco de backend
+                que la UI necesita. Los helpers de solo lectura SIGUEN CERRADOS al cliente a proposito:
+                abrirlos saltaria el RLS owner-scoped de planet_buildings.
+    produccion  sin cambios: start_defense/can_build_defense ya eran ejecutables por el cliente y
+                ui_defense_definitions/ui_building_definitions devuelven SETOF, asi que ya exponen el silo
+                y las columnas nuevas sin contrato nuevo.
+    tests      supabase/tests/missile_ui_surface.sql - 5 PASS (postura de seguridad; NO duplica el resto).
+                `npm run cert:contracts` PASS con `start_missile_attack src/MissileControlPanel.tsx`.
+    browser    PASS 11/11 (2026-09-30) con `scripts/missile-browser-certify.mjs` (Edge headless + CDP, sin
+                dependencias). Login real, vista de defensas, panel del silo, ABM/IPM en catálogo,
+                capacidad coherente, SIN selector de prioridad, producción real por la UI, resolución
+                de objetivo ajeno y LANZAMIENTO real (`1 IPM en vuelo hacia AI World G1:S1:P3`).
+                Verificado en BD: MISSILE_ATTACK, target_priority 0, 0 filas en fleet_movement_ships,
+                vuelo 30 s, IPM consumido 1->0, COMPLETED sin vuelta, 1 informe atacante + 1 defensor.
+                El estado del jugador DEV se restauró por completo (residuo 0). Detalle en
+                README_MISSILE_SYSTEM.md §16.7 (histórico). La re-certificación de navegador NO se repitió en la
+misión de cierre 2026-10-02 y se registra honestamente como `NOT RUN` — ver §5 MISSILE SYSTEM
+y README §18.10.
+---
+
+# INDEPENDENT TECHNICAL GAP CLOSURE — 2026-10-01
+
+Misión de **auditoría dirigida + cierre de GAPs técnicos independientes**. No se implementó ninguna
+mecánica nueva. Evidencia primaria completa:
+[`docs/audits/INDEPENDENT_GAP_CLOSURE_2026-10-01.md`](audits/INDEPENDENT_GAP_CLOSURE_2026-10-01.md)
+(este bloque es sólo el índice operativo; el detalle vive en ese informe).
+
+## SYNC GATE de la misión
+
+```text
+branch          main
+HEAD            3669e27e4e9d9f44c68f12244e7a4e4154127b0f   (sin cambios)
+origin/main     75bbc48e2b55dc8439ab17e52e254218b96ef8aa
+merge-base      3669e27 (= HEAD)  → SIN DIVERGENCIA
+ahead/behind    0 / 1   (el commit remoto toca sólo un doc nuevo → sin colisión)
+staged 0 · deleted 0 · stashes 5 (intactos, ninguno aplicado ni descartado)
+```
+
+Sin `pull` · `push` · `commit` · `merge` · `rebase` · `reset` · `clean` · `checkout` · `restore` ·
+`stash pop/drop` · `db push` · `migration repair`. Ninguna credencial leída ni revelada.
+
+## Qué se corrigió (resumen; el detalle está en §6 CLOSED)
+
+| # | Severidad | Defecto | Migración | Regresión |
+|---|---|---|---|---|
+| 1 | **CRÍTICA** | `resolve_expedition_return` referenciaba `status` sin cualificar (OUT param vs columna) → `ERROR 42702` en el **100 %** de los retornos de expedición | `20261001070000_fix_ambiguous_status_in_expedition_return.sql` (LIVE `20261001193223`) | **15/15 PASS** |
+| 2 | **ALTA** | `collect_debris` rechaza un campo agotado/borrado y el worker lo degrada a WARNING → el reciclador queda `OUTBOUND` para siempre (naves + slot perdidos) | `20261001060000_fix_stuck_recycle_fleet_empty_debris_field.sql` (LIVE `20261001192015`) | **19/19 PASS** |
+
+Ambos arreglos son **un único call-site** cada uno, hechos con splice anclado sobre
+`pg_get_functiondef()` (misma técnica que `20260930240000` / `20260930241000` / `20261001030000` /
+`20261001040000`), con bloque de postcondiciones que **aborta la migración** si el estado no es el
+esperado. Cuerpos que **no** debían cambiar verificados por `md5(prosrc)`: `collect_debris`,
+`start_fleet_mixed`, `calculate_recycler_capacity`, `get_player_fleet_slots`.
+
+**Ledger:** los ficheros locales llevan prefijo `20261001060000` / `20261001070000` pero LIVE registró
+versiones `20261001192015` / `20261001193223`. Es el **drift de provenance ya documentado** (cada
+`apply_migration` registra su propia versión). **No renombrar, no marcar revertida, no tocar el ledger.**
+
+## Reparaciones de certificación
+
+- `fleet_stuck_return_arrival_regression.sql` tenía `rollback;` **en mitad del cuerpo**: el fichero
+  abortaba con `42703 column "v_dst" does not exist` y sus aserciones **4–13 eran código muerto**
+  (nunca se ejecutaron); el bloque de resumen además corría antes del `rollback`, así que sólo contaba
+  3 filas. Con agravante: lo posterior al `rollback` habría corrido en **autocommit** contra LIVE.
+  Reparado moviendo el bloque al final → **13/13 PASS** (antes sólo 3 ejecutables). Se corrigió
+  además una aserción que comparaba `count(*) = 5` sobre un conteo de **filas**, contradiciendo su
+  propio comentario («credited exactly once»).
+- `recyclable_debris_status.sql` y `fleet_worker_contract.sql` comparaban **totales absolutos** donde su
+  propia convención documentada exige **deltas** antes/después; en LIVE fallaban por datos ajenos al
+  contrato, no por defectos del motor → **12/12** y **6/6 PASS**.
+- Dos fixtures nuevas: `recycle_fleet_empty_field_regression.sql`, `expedition_return_ambiguous_status_regression.sql`.
+
+**Total de la vuelta: 19 + 15 + 13 + 9 + 8 + 12 + 6 = 82 assertions, todas PASS.**
+
+## Estado de validación
+
+```text
+tsc -b                 PASS
+eslint src             PASS  (0 errores)
+npm run build          PASS
+cert:contracts         PASS  (56 RPC / dispatchers verificados, guard de dispatchers indirectos OK)
+
+LIVE, residuo tras la misión
+  movimientos no terminales    0
+  shipyard / defense / building / research queues   0 en las cuatro
+  planet_wreck_field_battles   0
+  campos de escombros drenados con residuo < 1e-9   0
+```
+
+**El movimiento LIVE atascado (GAP 1) se resolvió solo** en el siguiente tick del worker de 1 s tras
+aterrizar el arreglo: recuperó sus 5 `large_cargo` + 125 000 metal al planeta origen y liberó su slot
+de flota. No se ejecutó ninguna otra escritura fuera de ROLLBACK.
+
+**Browser:** esta misión **no ejecutó** ninguna certificación de navegador nueva. Toda la evidencia es
+SQL/LIVE. No hay que declararla.
+
+## Áreas auditadas sin GAP nuevo
+
+Economía y liquidación · las cuatro colas · combate, botín e idempotencia · espionaje · ACS/HOLDING ·
+identidad, ownership, RLS y ACL · workers, cron y heartbeat · prerrequisitos y catálogos · mensajería ·
+consistencia frontend↔backend. Ningún sistema previamente certificado se ha reabierto.
+
+OGameX (`main` @ `2649076`) consultado literalmente: `RecycleMission.php` y `Abstracts/GameMission.php`.
+`OGameX: no new relevant difference` en el resto de áreas.
+
+## Decisiones de producto — SIN CAMBIOS en esta misión
+
+Colonias (rangos OGameX + resultado aleatorio persistido) · DEFEND/ACS (ciclo completo vía
+`planet_support_authorizations`) · Friends/Buddies · Alliances/Guilds · Late-join · normalización de
+los 729 perfiles antiguos de IA · activación de IA (todas `DORMANT`) · protección de principiantes
+para ataques de IA · **escudo** (seguye siendo **decisión de producto** para una misión posterior;
+**NO está implementada**).
+
+La regla del **MANDATORY SYNC GATE** (repetirlo literal en cada prompt de agente y re-ejecutarlo al
+iniciar cada sesión) permanece vigente e inalterada.
+
+---
+
+## SOCIAL FOUNDATIONS + DEFEND INTEGRATION (2026-10-02) — AUDIT + FUNDATIONS, NOTHING DEPLOYED
+
+Three forward-only migrations were written **locally only**. **No migration was applied to LIVE, no
+`db push`, no commit, no push, and no production function was modified.**
+
+### SYNC GATE (identical to the previous mission; nothing changed)
+
+```text
+ruta/rama     C:\Users\Missingn0\LaGranImplosi-n   main
+HEAD          3669e27e4e9d9f44c68f12244e7a4e4154127b0f   (= merge-base)
+origin/main   75bbc48e2b55dc8439ab17e52e254218b96ef8aa
+ahead/behind  0 / 1   (remote-only: docs: add Marcianitos learning context — docs only, no collision)
+modified 22 · untracked 81 · stashes 5 (untouched)
+```
+
+No pull/merge/rebase/reset/clean/stash-pop/commit/push. `credentials.txt` never read.
+
+### 2. AUDIT OF THE EXISTING SYSTEM (measured on LIVE 2026-10-02)
+
+| Block | Status | Evidence |
+|---|---|---|
+| Friends/Buddies | **NOT_IMPLEMENTED** | 0 tables, 0 functions matching `buddy\|friend\|alliance\|guild` |
+| Alliances/Guilds | **NOT_IMPLEMENTED** | same query: 0 rows |
+| ACS planet authorization | **IMPLEMENTED** | `planet_support_authorizations` + `grant/revoke/get_player_support_authorizations` |
+| Support dispatcher | **IMPLEMENTED for `ACS_HOLD`** | `start_support_fleet(...)`, idempotent, fuel/ship debit atomic |
+| DEFEND dispatch | **DEFINITION_ONLY** | step 2 of `start_support_fleet` raises `COMBAT_SUPPORT_NOT_READY` |
+| DEFEND combat | **NOT_IMPLEMENTED** | see §6 below |
+| `holding_until` / `HOLDING` | **IMPLEMENTED** | `fleet_movements_holding_until_check`, `..._after_arrival_check` |
+
+**Reused, never duplicated:** identity always resolves through `players.user_id = auth.uid()`
+(new helper `current_player_id()` wraps that one chain); the social tables follow the certified
+`planet_support_authorizations` precedent — **no direct grants to `authenticated`/`anon`**, reachable
+only through `SECURITY DEFINER` RPCs; authorization helpers follow the
+`grant_planet_support_authorization` ownership style.
+
+### 3. OGAMEX REFERENCE (read verbatim, `lanedirt/OGameX` @ `2649076`)
+
+- `app/Models/BuddyRequest.php` — `sender_user_id`, `receiver_user_id`, `status` (0 pending / 1
+  accepted / 2 rejected), `message`, `viewed`.
+- `app/Services/BuddyService.php` — `areBuddies()` matches the pair in **either** orientation;
+  `sendRequest()` refuses sender === receiver; removing a buddy is **symmetric** (either side).
+- `app/Models/Alliance.php`, `AllianceMember.php`, `AllianceRank.php`, `AllianceApplication.php`,
+  `app/Services/AllianceService.php` — tag 3–8, name 3–30, tag unique; **founder inserted as a member
+  with `rank_id = NULL`** holding **ALL** permissions; one alliance per user; `leaveAlliance()`
+  refuses for the founder. Rank vocabulary is exactly `AllianceRank::PERMISSION_*`.
+- `app/GameMissions/AcsDefendMission.php` — the decisive rule:
+  `if (!$isBuddy && !$isAllianceMember) return new MissionPossibleStatus(false, 'You can only send
+  ACS Defend missions to buddies or alliance members!')`, plus `checkOwnPlanet()`, destroyed-target
+  and vacation checks.
+
+**Adaptations documented:** OGameX keys everything on `user_id`; LGI uses **player id** everywhere, so
+every foreign key is `players(id)`. Statuses became `text` (not smallint) for readability. Buddy is
+**one row per unordered pair** (unique over `least/greatest`), so duplicates are impossible in
+storage. Buddy and alliance stay **separate** models: being buddies never implies membership.
+
+### 4–5. WHAT WAS BUILT (local files, NOT deployed)
+
+- `20261003000000_social_foundations_buddies.sql` — `player_buddies` + `current_player_id()`,
+  `send_buddy_request`, `respond_buddy_request`, `cancel_buddy_request`, `remove_buddy`,
+  `list_buddies`, `players_are_buddies`.
+- `20261003010000_social_foundations_alliances.sql` — `player_alliances`, `player_alliance_ranks`,
+  `player_alliance_members`, `player_alliance_applications` + `alliance_member_permission`,
+  `create_alliance`, `apply_to_alliance`, `respond_alliance_application`, `leave_alliance`,
+  `dissolve_alliance`, `create_alliance_rank`, `set_alliance_member_rank`, `list_alliance_members`,
+  `players_in_same_alliance`.
+- `20261003020000_defend_social_authorization.sql` — `can_defend_player`,
+  `defend_dispatch_readiness`. **Does not touch** `start_support_fleet`, `resolve_combat`,
+  `resolve_attack_arrival`, the settlement or the worker.
+- `supabase/tests/social_foundations_buddies.sql` — 48-assertion fixture.
+
+Identity: **every** RPC resolves the caller from `auth.uid()`; no social RPC accepts a caller id
+(assertion 21 proves it from `pg_get_function_arguments`).
+
+### 6. DEFEND — REAL STATE: `PARTIALLY_IMPLEMENTED`
+
+Schema ready, authorization **ready**, dispatch and combat **blocked**:
+
+- `fleet_movements_mission_type_check` admits `DEFEND`; the `holding_until` constraints are in force.
+- `start_support_fleet` step 2 refuses: `COMBAT_SUPPORT_NOT_READY`.
+- **Measured blocker:** `resolve_combat` never mentions `HOLDING`/`holding_until`. It creates exactly
+  two participants — `('ATTACKER','FLEET',p_fleet_id,…)` and
+  `('DEFENDER','PLANET',null,destination_planet_id,…)` — and `get_planet_defender_ship_count` sums only
+  `public.planet_ships`. **A fleet in HOLDING would never join the battle.** Closing that gap *is* the
+  already-selected multi-fleet combat redesign, so it is left isolated and untouched.
+- `defend_dispatch_readiness()` derives its answer from the deployed bodies, so it cannot claim a
+  readiness the engine lacks. **No partial solution was invented.**
+
+Planet-scoped `planet_support_authorizations` and player-scoped social authorization **both** remain;
+neither replaces the other, and `start_support_fleet` keeps its own check untouched.
+
+### 9. VERIFICATION (executed against REAL deployed objects, inside ROLLBACK)
+
+Buddies **16/16 PASS**; alliances **33/33 PASS** (29 + 4 retests); DEFEND authorization **10/10 PASS**.
+Every negative assertion checks a **specific error code**, and each control asserts its own
+precondition first. Two defects were **found by execution and fixed**: (a) a CHECK constraint
+containing a subquery, which PostgreSQL forbids — replaced by a `BEFORE INSERT/UPDATE` trigger;
+(b) `players_in_same_alliance` silently depended on a founder membership row — hardened to test
+`founder_player_id` on **both** sides.
+
+### 11. REMAINING GAPS
+
+- **DEFEND dispatch + combat** depend on the multi-fleet redesign (separate mission).
+- **Late-join** remains a distinct phase, untouched.
+- **No frontend**: no services, hooks or UI were written (no TypeScript changed, so no `tsc`/`build`).
+- Alliance wars, bonuses, diplomacy, circular messaging, depot/terraformer: **deliberately absent**.
+- Browser E2E: **not claimed**; only SQL was executed.
+
+**Product decisions preserved:** DEFEND still to be implemented; OGameX authorization rules adopted
+where compatible; social foundations delivered; multi-fleet redesign and late-join untouched; shield
+loss on attacking/spying another player untouched; `ACS_HOLD` behaviour unmodified.
+
+---
+
+## SOCIAL FRONTEND + BROWSER INTEGRATION (2026-10-02) — CAPA TS/HOOKS/UI, NAVEGACIÓN, E2E BLOCKED
+
+Capa frontend construida **contra los contratos de las tres migraciones sociales**. **Ningún deploy,
+ninguna migración, ningún commit, ningún push.** Sin cambios de identidad, ownership, economía,
+flotas, combate ni worker; el flujo de DEFEND sigue intacto y bloqueado.
+
+### SYNC GATE (idéntico al inicio y al final)
+
+```text
+rama main · HEAD 3669e27e4e9d9f44c68f12244e7a4e4154127b0f (= merge-base)
+origin/main 75bbc48e2b55dc8439ab17e52e254218b96ef8aa · ahead/behind 0/1
+modified 22 · untracked 81 → 89 · stashes 5 (intactos)
+```
+
+### BLOQUEO RAÍZ DE LA CERTIFICACIÓN BROWSER (medido, no supuesto)
+
+Los contratos sociales **NO están desplegados**: LIVE tiene **0 tablas sociales y 0 RPC sociales**
+(`to_regclass('public.player_buddies')` → NULL; el contador de RPC probed devuelve 0). El ledger
+sigue en **431 filas, última `20261002004147`**, la misma de antes de esta misión. Son ficheros
+locales **untracked**.
+
+Consecuencias honestas, sin maquillar:
+
+- **Browser E2E: `BLOCKED`** por dos causas independientes:
+  1. Los RPC no existen → cualquier flujo social devolvería error en el servidor, no el
+     comportamiento real.
+  2. El arnés existente (`scripts/*-browser-certify.mjs`) exige `DEV_EMAIL`/`DEV_PASSWORD`; no están
+     definidos en el entorno, y su propio script **rechaza simular el login**. El arnés además es de
+     **una sola identidad**, insuficiente para los dos flujos cruzados que pide la misión.
+- **Ningún escenario se declara PASS por inspección estática.**
+
+### Archivos nuevos
+
+- `src/lib/social.ts` — servicio tipado. Centraliza los **18 RPC**; sin `any`, sin casts ciegos; los
+  errores conservan `code` en `SocialRpcError`. No envía `playerId` de llamante en ninguna mutación
+  (el backend lo resuelve con `auth.uid()`), no toca las tablas sociales directamente (sólo `rpc`) y
+  reutiliza el cliente Supabase existente (no crea un segundo).
+- `src/lib/useSocial.ts` — `useBuddies`, `useAlliance`, `useDefendReadiness`. Estados
+  `loading/ready/error` explícitos, `isEmpty` sólo cuando la carga **terminó bien**, invalidación por
+  refresco desde el servidor, guardia monótono contra carreras, y `busy` que impide llamadas dobles.
+- `src/screens/social/` — `SocialScreen.tsx`, `SocialModules.tsx`, `socialRegistry.ts`, `index.ts`.
+- `src/styles/social.css` — sólo layout/estados con tokens `--lgi-*`.
+
+### Integración en la navegación
+
+`App.tsx`: import, `View` gana `'social'`, un item `SOCIAL` en `navItems` y la rama
+`if(view==='social')return <SocialScreen playerId={playerId}/>`. **No se tocó** Classic, Command,
+Tactical, ni el flujo de login/guest.
+
+### Contratos consumidos y bloqueos de contrato
+
+Se consumen los 18 RPC de las migraciones. **Tres flujos NO se ofrecen en la UI porque ningún
+contrato los respalda** (no se crean RPC nuevos):
+
+| Flujo pedido | Estado | Causa |
+|---|---|---|
+| Buscar jugador para enviar solicitud | **BLOQUEADO** | no existe RPC de búsqueda; el formulario pide el UUID exacto |
+| Ver solicitudes de ingreso recibidas | **BLOQUEADO** | no existe RPC que las liste; `respondApplication` sí existe |
+| Ver mis propias solicitudes de ingreso | **BLOQUEADO** | no existe RPC equivalente |
+| Descubrir «mi alianza» sin conocer el id | **BLOQUEADO** | `list_alliance_members` exige `alliance_id`; el estado se declara desconocido en vez de adivinarse |
+
+### Validación estática
+
+```text
+npx tsc -b                       PASS
+npx eslint (ficheros afectados)  PASS
+npm run build                    PASS (exit 0; aviso de chunk >500kB preexistente)
+git diff --check                 0 hallazgos
+```
+
+Se corrigió un defecto real detectado por el lint: `setState` síncrono dentro de los efectos. Los
+hooks se reescribieron para escribir estado **sólo tras el `await`** (como ya hacía
+`useFleetDispatch`) y `useSocial.ts` se añadió al allow-list existente de `react-hooks/set-state-in-effect`
+en `eslint.config.js`, **junto a la justificación**, no como `--disable` silencioso.
+
+### Estado de certificación browser
+
+| Escenario | Resultado |
+|---|---|
+| 1–12 (flujos cruzados de amistad y alianza) | **BLOCKED** — RPC no desplegados + sin credenciales DEV |
+| Sin alianza / sin amigos / duplicados / no autorizado / errores / refresco | **BLOCKED** — misma causa |
+
+**Límites del alcance respetados:** sin rediseño multi-flota, sin DEFEND dispatch/combat, sin
+late-join, sin guerras/diplomacia/bonificaciones/mensajería, sin migraciones ni reglas nuevas. No se
+ha reabierto ningún sistema certificado.
+
+---
+
+## REPARACIÓN DEL CORPUS DE RECICLAJE Y CERTIFICACIÓN FINAL (2026-10-02) — COMPLETADA
+
+`20261002000000_collect_debris_exact_full_drain` está **DESPLEGADA EN LIVE** (versión registrada
+`20261002004147`). Esta misión **no desplegó SQL, no creó migraciones, no ejecutó `db push` y no
+tocó datos LIVE**: reparó exclusivamente tres defectos del corpus de pruebas y certificó B1/B2/B3.
+
+### SYNC GATE (inicial y final, sin cambios)
+
+```text
+ruta/rama        C:\Users\Missingn0\LaGranImplosi-n   main
+HEAD             3669e27e4e9d9f44c68f12244e7a4e4154127b0f   (= merge-base)
+origin/main      75bbc48e2b55dc8439ab17e52e254218b96ef8aa
+ahead/behind     0 / 1  (remoto: docs: add Marcianitos learning context — solo docs, sin colisión)
+modified         22      untracked 81      stashes 5 (intactos)
+```
+
+Ninguna operación Git de escritura: sin pull/merge/rebase/reset/clean/stash/commit/push.
+
+### Los tres defectos y su causa
+
+- **R1-12 — PIN MD5 OBSOLETO** (`recycle_fleet_empty_field_regression.sql`). Fijaba
+  `md5(prosrc) = 4e63662301c7d89b3b07b720ec4d7627`, el valor **anterior** a la migración. Al desplegar
+  esta el motor era correcto y la aserción fallaba igual; el pin ataba la fixture a una release
+  histórica. **Medido:** LIVE = `e1b44f438fa1da026a182a0068e20c70`.
+  **Corrección (semántica, no un número nuevo):** el pin rígido se sustituyó por una comprobación del
+  **código** (comentarios y espacios normalizados) que exige rama de drenaje total exacta para ambos
+  recursos, rama parcial con la **fórmula original literal**, la cota de capacidad, las **tres**
+  negativas, los `GREATEST`, el `DELETE` de la fila drenada y el `RETURN QUERY`. No se referencia
+  ningún MD5 de ninguna versión anterior, y sigue fallando ruidosamente si se rompe cualquier garantía.
+- **R1-9 — PRECONDICIÓN PERDIDA** (mismo fichero). La sección C drena el campo por completo y, desde
+  esta migración, `collect_debris` **borra la fila**. El `UPDATE` de control afectaba a **0 filas**, así
+  que el «control de negativa» en realidad ejecutaba el caso de campo **borrado** — uno de los errores
+  que el arreglo absorbe — en vez de «no lleva reciclador». **Medido:** 0 filas en 1:1:16 y la flota
+  terminaba `COMPLETED` donde debía abortar.
+  **Corrección:** el campo de control se crea **explícitamente** con `INSERT` (5000/5000, no residuo
+  decimal ni fila agotada mantenida viva), y se asertan **dos** precondiciones nuevas: que el `INSERT`
+  tocó **exactamente 1** fila y que la preparación afecta **exactamente 1** fila. El control negativo
+  real se ejecuta igual y la flota queda **verificada en `OUTBOUND`**. Se conserva el control de campo
+  inexistente (aserción 5). Sin tocar `collect_debris` ni el worker. La fixture ya no depende de que
+  sobreviva una fila agotada.
+- **R2-11 — FALSO POSITIVO POR COMENTARIO** (`recyclable_debris_status.sql`). La aserción 11 buscaba
+  la subcadena `get_recyclable_debris_status` en `prosrc`; la migración añadió un comentario
+  **explicativo** dentro de `collect_debris` que nombra el contrato, y el search lo leyó como
+  dependencia. **Corrección:** se eliminan comentarios (`--`, `/* */`) y se exige ausencia de una
+  **llamada** (`identificador` + `(`). **No** es «borrar toda aparición y dar PASS»: la misma
+  transformación se aserta en **meta-control anti-vacuidad** que **SÍ detecta** una llamada real y
+  **NO** detecta una mención en comentario, así que el chequeo no puede pasar por construcción.
+
+### Resultados finales (LIVE, cada fixture por separado, todas con `ROLLBACK`)
+
+| Fixture | Resultado |
+|---|---|
+| `collect_debris_numeric_residue_regression.sql` | **13 PASS + 1 INFO, 0 FAIL** (A1–A10 + B1/B2/B3; el INFO es el `SUMMARY`) |
+| `recycle_fleet_empty_field_regression.sql` | **21 PASS, 0 FAIL** |
+| `recyclable_debris_status.sql` | **12 PASS + 2 INFO, 0 FAIL** |
+
+**Convenciones de recuento (documentadas, sin ocultar ninguna aserción).** El primer fixture reporta
+`13 PASS + 1 INFO`: las 13 aserciones ejecutables más una fila `INFO` de resumen, que por diseño del
+propio fixture **nunca** cuenta como PASS — sus grupos B reportan `PENDING`, no `PASS`, si la migración
+no estuviera desplegada. Al estar desplegada, B1/B2/B3 sí ejecutan y PASS. La aserción 9 de
+`recyclable_debris_status` está numerada `7b` en el original: son **12** aserciones, no 13. El recuento
+de `recycle_fleet_empty_field_regression` sube de 19 a **21** **por las dos precondiciones nuevas que
+exige R1-9**; las 19 previas siguen todas presentes.
+
+### Regresión cruzada y delimitación
+
+Orden **adverso** (la fixture que drena y borra la fila corre **primera**, luego el contrato de
+status, luego la de residuo) para demostrar que ninguna depende de estado residual: **6/6 PASS**.
+Controles transaccionales: `begin;` … `ROLLBACK;` en las tres, temp tables creadas y descartadas
+dentro de la transacción, sin DDL persistente. **Residuo en LIVE: 0** — `debris_fields`
+4 filas / `188906.96095076400679120000` M / `86393.03904923599320880000` C **idénticos al baseline**;
+`fleet_movements` 7, `players` 757, `planets` 758, sin movimientos a medias, slots 0 → 0.
+
+### Integridad de LIVE (antes/después, idénticos)
+
+`md5(prosrc)` sin cambios en **ninguna** función: `collect_debris` `e1b44f43…`,
+`get_recyclable_debris_status` `b834a324…`, `calculate_recycler_capacity` `235910c7…`,
+`start_fleet_mixed` `611d107d…`, `get_player_fleet_slots` `119b1100…`,
+`process_fleet_movements` `16e875ac…`, `process_universe_tick` `c1d9ea7a…`,
+`can_recycle_debris` `fc677303…`. `search_path` inalterado, **cero cambios de ACL**, cero migraciones
+nuevas (431 filas en el ledger, última `20261002004147`, la misma de antes de esta misión).
+
+**La certificación del reciclaje queda COMPLETADA.** Recogida parcial, capacidades, ACL, permisos y
+comportamiento del reciclaje **intactos**. No se tocó runtime, frontend ni otros sistemas
+certificados.

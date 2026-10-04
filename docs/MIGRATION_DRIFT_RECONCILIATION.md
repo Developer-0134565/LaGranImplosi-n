@@ -189,4 +189,66 @@ The forward migration reasserts three already-certified end states without chang
 The four unledgered `origin/main` migration files were **not deleted as history**. They are preserved as
 `.superseded` artifacts with provenance headers and are no longer discovered by the Supabase migration CLI.
 
+
+## 2026-09-29 — ledger made directly readable, and the drift re-measured for the first time
+
+The blocker that had stood since 2026-09-18 was *"the CLI cannot read the ledger from this copy"*. It is
+now lifted on the **read-only** side: `supabase_migrations.schema_migrations` is queryable, and a
+Supabase personal access token was supplied for exactly that. **No `db push`, no `migration repair`, no
+reset, no replay, no ledger write** — the prohibition in the sections above still holds in full.
+
+Two tools make the comparison reproducible rather than anecdotal:
+
+* `scripts/migration-ledger-snapshot.json` — the ledger rows (version → name) as read from LIVE.
+  Refresh with `select version, name from supabase_migrations.schema_migrations order by version;`
+* `scripts/migration-drift-report.mjs` — diffs that snapshot against `supabase/migrations/*.sql` and
+  classifies every difference. It writes nothing and changes nothing.
+
+### Ledger state measured 2026-09-29
+
+```text
+LIVE ledger rows                     388   (oldest 20260912092555, newest 20260929014633)
+window (>= 20260926000000)           repo files 77 · LIVE rows 80 · exact version match 73
+```
+
+### Drift still open — NOT fixed here, owner decision required
+
+```text
+A. repo file whose version has no LIVE row (4)  — every one PRE-EXISTING, none from 2026-09-29
+   20260928131500  add_player_transport_movements_read_contract   -> LIVE 20260928131919
+   20260928150000  enforce_espionage_probe_composition_rule        -> LIVE 20260928153854
+   20260928210000  add_my_attack_protection_read_contract          -> LIVE 20260928163608
+   20260928220000  add_recyclable_debris_status_contract           -> LIVE 20260928184455
+
+B. LIVE row with no repo file (2)  — a missing FILE, not a missing migration
+   20260926130600  moon_read_contracts
+   20260928144117  enforce_espionage_probe_mission_composition
+
+C. applied twice in the LIVE ledger
+   harden_can_start_building_ownership  x2  (20260926133901 and 20260926240000)
+```
+
+A and C are the same *kind* of drift already remediated once on 2026-09-28, where the repo file was
+renamed so its version prefix matches the LIVE row (`20260928021418_20260920120400_remove_guest_rls_surface.sql`
+keeps the original historical name inside the filename). B needs a judgement this mission will not
+make: whether a missing file means history was lost, two migrations were merged, or a payload is
+recoverable from the ledger — which is precisely the question §3 answered for the 2026-09-18 window
+using `pg_get_functiondef` body hashes. C should be confirmed as an idempotent double-apply before
+anything is renamed, because two rows for one name may be a genuine retry rather than duplicate work.
+
+### Drift CLOSED on 2026-09-29
+
+The two migrations applied by this mission were recorded by the apply tool under CLI-assigned
+timestamps, not under the version prefixes in their filenames, which left them in category A. With the
+ledger row as evidence, both repo files were renamed to their true LIVE versions — repo-only, no
+production change, and it prevents a future `supabase db push` from trying to re-apply them:
+
+```text
+20260929012739_fix_colony_message_for_moon_bodies.sql
+20260929014633_acl_revoke_wrong_client_invoker_helpers.sql
+```
+
+Exact version match in the window went **71 → 73**, and category A **6 → 4**. The four rows still in A
+are all pre-existing and are left untouched pending an owner decision.
+
 This closes the repository↔LIVE migration provenance blocker. No `migration repair`, reset, or replay was used.

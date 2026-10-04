@@ -1,0 +1,35 @@
+<!-- ==========================================================================
+     FIXTURE DEL SHELL DE JUEGO — para scripts/layout-audit.mjs
+
+     Reproduce la jerarquía DOM REAL que emite `UIEngineScreen` para el shell de
+     juego con el template `classic` (ver src/ui-engine/templates/classic.ts y
+     src/ui-engine/UIEngineScreen.tsx):
+
+       .lgi-engine[data-lgi-template=classic]
+         > .app-frame > .game
+           > .lgi-screen.lgi-live-shell
+             > .lgi-layout            grid 'rail main aside'
+               > .lgi-region[data-region]  (rail | main | aside)
+                 > .lgi-module[data-module] > contenido de gameplay
+
+     Las tarjetas replican `renderDefinitionMenu('research')` de App.tsx:
+     `.neo-panel.neo-definition` con `.neo-panel-title`, `.neo-definition-media`,
+     `.neo-definition-costs`, `.neo-definition-stats`, `.neo-definition-extra` y
+     `.neo-button` "INVESTIGAR".
+
+     Marcadores sustituidos en runtime: {{NAV}} {{OWNED}} {{CARDS}}
+     La imagen es un SVG 2:1 en línea para poder auditar `object-fit`.
+     ========================================================================== -->
+<!-- FIXTURE:BEGIN -->
+<div class="lgi-engine" data-lgi-template="{{TEMPLATE}}" data-lgi-theme="nebula" data-lgi-density="compact"
+     data-lgi-grid="off" data-lgi-boundaries="off" data-lgi-safe-area="off" data-lgi-edit="off"
+     style="--lgi-font-scale:1;--lgi-ui-scale:1;height:100%">
+  <div class="app-frame">
+    <div class="game">
+      <div class="lgi-screen lgi-live-shell" data-lgi-screen="game-shell" data-lgi-bp="desktop">
+        <div class="lgi-layout">{{REGIONS}}</div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- FIXTURE:END -->

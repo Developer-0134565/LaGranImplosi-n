@@ -956,6 +956,8 @@ export type Database = {
           metal_cost: number
           name: string
           shield: number
+          slots_per_unit: number
+          target_priority: number
         }
         Insert: {
           attack?: number
@@ -969,6 +971,8 @@ export type Database = {
           metal_cost?: number
           name: string
           shield?: number
+          slots_per_unit?: number
+          target_priority?: number
         }
         Update: {
           attack?: number
@@ -982,6 +986,8 @@ export type Database = {
           metal_cost?: number
           name?: string
           shield?: number
+          slots_per_unit?: number
+          target_priority?: number
         }
         Relationships: []
       }
@@ -1691,12 +1697,14 @@ export type Database = {
           id: string
           idempotency_key: string | null
           metal: number
+          missile_count: number
           mission_type: string
           origin_planet_id: string
           player_id: string
           returns_at: string | null
           started_at: string
           status: string
+          target_priority: number
         }
         Insert: {
           arrives_at: string
@@ -4307,7 +4315,12 @@ export type Database = {
         }[]
       }
       provision_player: {
-        Args: { p_username: string; p_country_code?: string }
+        Args: {
+          p_username: string
+          p_country_code?: string
+          p_planet_name?: string | null
+          p_avatar_id?: string | null
+        }
         Returns: {
           player_id: string
           planet_id: string | null
@@ -5430,6 +5443,58 @@ export type Database = {
         Args: { p_slot: number }
         Returns: number
       }
+      get_planet_crawler_status: {
+        Args: { p_planet_id: string }
+        Returns: {
+          crawler_count: number
+          crawler_cap: number
+          crawler_effective: number
+          crawler_bonus_percent: number
+          crawler_energy_per_hour: number
+          crawler_percentage: number
+          crawler_production_multiplier: number
+        }[]
+      }
+      set_planet_crawler_percentage: {
+        Args: {
+          p_player_id: string
+          p_planet_id: string
+          p_percentage: number
+        }
+        Returns: {
+          crawler_percentage: number
+          crawler_production_multiplier: number
+          crawler_energy_per_hour: number
+        }[]
+      }
+      get_planet_wreck_field: {
+        Args: { p_planet_id: string }
+        Returns: {
+          wreck_field_id: string
+          planet_id: string
+          status: string
+          space_dock_level: number
+          blocked_reason: string | null
+          expires_at: string
+          repair_started_at: string | null
+          repair_finishes_at: string | null
+          ship_id: string | null
+          ship_name: string | null
+          quantity: number | null
+          repaired_quantity: number | null
+          pending_quantity: number | null
+        }[]
+      }
+      start_planet_wreck_field_repairs: {
+        Args: { p_planet_id: string }
+        Returns: {
+          out_wreck_field_id: string | null
+          out_status: string
+          out_result: string
+          out_finishes_at: string | null
+          out_ships_total: number | null
+        }[]
+      }
       get_planet_building_preview: {
         Args: { p_planet_id: string }
         Returns: {
@@ -5499,9 +5564,35 @@ export type Database = {
           universe_id: string
         }[]
       }
+      get_recyclable_debris_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          out_available: boolean
+          out_field_count: number
+        }[]
+      }
+      get_my_attack_protection: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          out_protected: boolean
+          out_protected_until: string | null
+          out_reason: string | null
+        }[]
+      }
       get_player_expedition_slots: {
         Args: { p_player_id: string }
         Returns: number
+      }
+      get_player_transport_movements: {
+        Args: { p_limit?: number }
+        Returns: {
+          out_created_at: string
+          out_destination_galaxy: number | null
+          out_destination_position: number | null
+          out_destination_system: number | null
+          out_movement_id: string
+          out_status: string
+        }[]
       }
       get_player_lifeform_effect: {
         Args: { p_effect_key: string; p_player_id: string }
@@ -6479,6 +6570,16 @@ export type Database = {
       start_lifeform_research: {
         Args: { p_planet_id: string; p_research_id: string }
         Returns: Json
+      }
+      start_missile_attack: {
+        Args: {
+          p_destination_planet_id: string
+          p_origin_planet_id: string
+          p_player_id: string
+          p_quantity: number
+          p_target_priority?: number
+        }
+        Returns: string[]
       }
       start_moon_destruction: {
         Args: {

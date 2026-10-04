@@ -1,3 +1,73 @@
+# 2026-10-01 — STUCK-STATE: los 4 anchors de llegada que el fix del 2026-09-30 no cubrió
+
+## El hueco
+
+`20260930240000` y `20260930241000` corrigieron la trampa «evento pasado + reloj del cuerpo ya
+adelantado» (`INVALID_RESOURCE_TIMESTAMP`) en una lista **fija** de puntos de asentamiento. Al
+auditar los call sites completos el 2026-10-01 se localizaron **cuatro** que seguían pasando el
+timestamp crudo:
+
+| Anchor | Cuerpo liquidado |
+| --- | --- |
+| `resolve_attack_arrival` | defensor |
+| `resolve_espionage_arrival` | objetivo |
+| `resolve_expedition_arrival` | origen |
+| `apply_attack_loot` | defensor |
+
+## Por qué era un stuck-state real
+
+`process_fleet_movements` degrada cualquier error a
+`raise warning 'FLEET_RESOLUTION_FAILED'`. Un `WARNING` no deshace nada ni se superficie, así que
+el movimiento reintentaba **para siempre** y las naves —ya debitadas del planeta de origen en el
+despacho— se perdían definitivamente. Sin presupuesto de reintentos, sin auto-sanación y sin
+superficie de operador: la única traza era el warning.
+
+Medido en LIVE (sondas con `ROLLBACK`, por el worker real `process_fleet_movements()`), con el
+evento 2 h en el pasado y el cuerpo ya liquidado a `now()`:
+
+```text
+ANTES                                    DESPUÉS
+ATTACK      OUTBOUND (tras 5 pasadas)   → COMPLETED   · 1 batalla
+ESPIONAGE   OUTBOUND · 0 informes      → COMPLETED   · 1 informe
+EXPEDITION  OUTBOUND                   → RETURNING   · resultado persistido
+TRANSPORT   COMPLETED (control)        → COMPLETED   (sin regresión)
+```
+
+La alcanzabilidad es el **orden ORDINARIO** de eventos: el worker corre cada 1 s mientras
+`universe-heartbeat` corre cada minuto y liquida todos los planetas a `now()`; cualquier acción del
+jugador sobre el cuerpo (`start_building`, `cancel_building`, `load_fleet_cargo`, el comerciante, la
+UI `sync_current_planet_resources`) hace lo mismo.
+
+## El arreglo
+
+El **mismo** clamp ya aceptado en 240000/241000, uno por anchor:
+
+```text
+greatest(<timestamp del evento>, last_calculated_at)
+```
+
+* Evento en el **futuro** (la vía certificada normal) → no-op, el anclaje a la hora del evento es
+  byte-idéntico.
+* Evento **detrás** → no queda tiempo transcurrido que acreditar, así que asentar en el reloj del
+  propio cuerpo concede **cero producción extra** y deja terminar la misión.
+
+La aserción 7 de `supabase/tests/fleet_stuck_attack_espionage_arrival_regression.sql` es la
+anti-vacuuidad del propio arreglo: si un clamp empezara a fabricar producción, falla.
+
+Las colas de hangar y defensa **no** se tocan: sólo filtran `finishes_at <= p_until` y no liquidan
+recursos, luego no pueden lanzar.
+
+## Lo que NO se cambió
+
+`update_planet_resources_until` y su guarda `INVALID_RESOURCE_TIMESTAMP` (es correcta); costes,
+tiempos, combustible, ventanas de espera, combate, topes de botín del 50 %, recompensas de
+expedición, reglas de revelado de espionaje, y todas las firmas, volatilidad, `SECURITY` y
+`search_path` (los cuerpos se cortan de `pg_get_functiondef()`, nunca se reescriben a mano).
+Ninguna de las cuatro gana `EXECUTE` de cliente: siguen siendo internas.
+
+Ver `docs/audits/STUCK_STATE_SWEEP_2026-10-01.md`.
+
+---
 # FLEET ENGINE — LA GRAN IMPLOSIÓN
 
 > **Status:** LOCAL CONVERGENCE IN PROGRESS / HISTORICAL GAP — the checked-in local convergence artifact
@@ -1858,3 +1928,463 @@ supabase/tests/universe_debris_read_contract.sql — 10 PASS + 1 INFO, LIVE, ROL
   9  as `authenticated` the contract returns the row
  10  as `authenticated` a direct read of debris_fields still returns 0 rows
 ```
+
+## 30. Ship losses that exhaust a stack violated `fleet_movement_ships_quantity_chk` (fixed 2026-09-28)
+
+### 30.1 The hole (measured LIVE 2026-09-28)
+
+```text
+contract     resolve_expedition_black_hole(fleet_id) — the BLACK_HOLE branch of resolve_expedition_arrival.
+symptom      the settlement subtracted the rolled loss with
+                UPDATE public.fleet_movement_ships SET quantity = quantity - v_loss_qty WHERE ...
+                DELETE FROM public.fleet_movement_ships WHERE ... AND quantity <= 0;
+             so when the loss consumed an ENTIRE stack the UPDATE wrote quantity = 0 and violated
+             fleet_movement_ships_quantity_chk = CHECK (quantity > 0); the statement aborted and the DELETE that was
+             meant to remove the exhausted row never ran.
+consequence  the error is NOT swallowed here (unlike the moon path): it propagates to resolve_expedition_arrival
+             for a deterministic roll, so the expedition cannot be resolved at all.
+reproducible 6/6 LIVE with the fleet {espionage_probe 1, light_fighter 1}: the loss target is capped at
+             total-1, so the single-unit stack is always fully consumed and the single-unit write is deterministic.
+```
+
+### 30.2 What was implemented (same shape as the moon fix, no new rule)
+
+```text
+migration    supabase/migrations/20260928121226_fix_fleet_movement_ship_loss_quantity_check.sql
+             applied to LIVE as version 20260928121226 and written to the repo (not committed).
+fix          delete the stacks the loss exhausts FIRST, then subtract only from the surviving stacks:
+                DELETE  ... AND quantity <= v_loss_qty;
+                UPDATE  ... SET quantity = quantity - v_loss_qty AND quantity > v_loss_qty;
+             quantity = 0 is never written, so the CHECK holds. Same signature, same ACL, same contract,
+             same table, same formula and same distribution; idempotent (no-op if already patched).
+post-check   inside the migration: no liquidation path keeps the legacy block and no ACL drift (both helpers
+             stay service_role only; anon and authenticated denied).
+md5 LIVE     resolve_expedition_black_hole prosrc 8db2c06ae768312ca05eda82e422e3a2 (was b9771f6d…).
+```
+
+### 30.3 Verification
+
+```text
+supabase/tests/fleet_ship_loss_quantity_check.sql — 8 PASS + 2 INFO, LIVE, ROLLBACK, residue 0
+  5  the black hole resolves: lost {espionage_probe: 1}, surviving {light_fighter: 1}, loss 50.00%
+  6  the exhausted stack is removed and the survivor kept: 1 unit left, 0 rows with quantity <= 0
+  7  a partial loss still subtracts instead of deleting: 2 lost of 4, 2 surviving, 0 rows with quantity <= 0
+  8  global invariant: fleet_movement_ships has 0 rows with quantity <= 0
+  9  static post-condition: 0 liquidation functions still subtract before deleting
+  INFO single-session harness, no concurrency. The 50% loss is structural (the loss target is capped
+       at total-1), not a lucky roll.
+
+## 31. Beginner protection visibility — CLOSED 2026-09-28
+
+### 31.1 The gap
+
+§25 introduced beginner protection: an empire inside its first 24 h cannot be attacked. The rule is
+**enforced** by `enforce_beginner_protection_before_insert`, a BEFORE INSERT trigger on `fleet_movements`
+that refuses any `ATTACK` whose target is still protected:
+
+```text
+MEASURED LIVE: attacking a freshly created empire
+  → TARGET_BEGINNER_PROTECTED: player <id> is protected until <ts>
+```
+
+But it was **invisible to the player**:
+
+```text
+get_player_attack_protection(player_id, at)   → service_role ONLY (correctly: it takes a player id)
+grep -r 'protection|beginner' src/**          → ZERO hits
+```
+
+The only place the rule ever surfaced was the raw text of a **failed** attack. An attacker never learns
+*before* striking that a target is shielded, and a brand-new empire never learns it is protected. In
+OGame this state is plainly visible to the player. This was a real, demonstrable gap in an already
+enforced mechanic — not a proposal for a new rule.
+
+### 31.2 The contract
+
+`20260928210000_add_my_attack_protection_read_contract.sql` (LIVE) adds ONE read-only function and
+changes no rule:
+
+```text
+name        public.get_my_attack_protection()      — NO arguments
+ownership   auth.uid() -> players.user_id -> players.id
+            with no player_id parameter, no argument can select another player
+delegates   to get_player_attack_protection(), the SAME authority the ATTACK trigger calls,
+            so the UI can never drift from the enforcement (the rule is NOT re-implemented)
+returns     out_protected, out_protected_until, out_reason
+security    SECURITY DEFINER + search_path pinned to public, pg_temp
+ACL         revoke public + anon; grant authenticated + service_role
+```
+
+The internal helper `get_player_attack_protection` stays `service_role` only — it is deliberately NOT
+opened, and the migration's post-conditions raise if that ever changes.
+
+### 31.3 UI
+
+`ProtectionStatusPanel` (`src/GameplayEnginePanel.tsx`), mounted on the overview screen next to
+`RankingPanel` / `MoonsPanel`. It renders the contract's own answer and nothing else; it reuses the
+existing `neo-panel` / `fleet-group-head` / `neo-definition-stats` / `neo-empty` classes, so **no CSS was
+touched**. It renders nothing at all when the empire is not protected, so an established player sees no
+change. `database.types.ts` gained the signature by hand (the CLI regeneration needs credentials this
+environment does not have).
+
+### 31.4 Verification
+
+```text
+supabase/tests/my_attack_protection_visibility.sql — 8 PASS + 2 INFO, LIVE, ROLLBACK, residue 0
+  1  a fresh empire reads PROTECTED, with a window ending inside 24 h
+  2  the contract returns the SAME answer as the authority the ATTACK trigger uses
+  3  an empire outside the window is not protected (reason EXPIRED)
+  4  exactly ONE row — my own state, never a list of players (ownership by construction)
+  5  without a session it returns 0 rows
+  6  the contract takes NO arguments: a player selector is impossible
+  7  no write path: the body cannot insert/update/delete/truncate
+  8  ACL: new contract authenticated + service_role, anon denied; the internal helper is still
+     service_role only
+residue    0: Mbp* players 0, auth.users 12, movements 0 — identical to pre-run
+regression 8 PASS: transport / espionage-report / battle-report contracts intact, the ATTACK protection
+           trigger untouched, the espionage composition guard and the untouched resolver intact, the
+           internal helper still service_role only, no RLS policy added or removed
+static     npx tsc -b exit 0 · npx vite build exit 0 · git diff --check clean
+browser    ENVIRONMENT BLOCKED — no browser driver + human DEV credential. The panel's rendering is
+           therefore NOT certified; the contract it consumes is.
+```
+
+### 31.5 Limitations, stated rather than hidden
+
+* Browser validation is blocked; the assertions cover the contract, not the DOM.
+* LIVE's single human player (`DevPlayer`, created 2026-09-13) is long past the window, so the panel
+  legitimately renders nothing there; the protected case is exercised by fixture-created empires that are
+  rolled back.
+* This adds visibility only. It does not change the 24 h window, the trigger, the AI scope, or any
+  balance.
+
+```
+
+## 32. RECYCLE discoverability — CLOSED 2026-09-28
+
+### 32.1 The gap
+
+The RECYCLE mission chooses its own target: the player may not send coordinates, so `start_fleet_mixed`
+picks the nearest non-empty field and raises `No debris field available for RECYCLE` when there is none.
+That refusal was already **correct and atomic** (verified LIVE: 0 movements created, no slot and no fuel
+consumed), so this was never a correctness bug.
+
+What was missing is **discoverability**. `launchBlock` (`useFleetDispatch.ts`) derives a pre-flight
+warning for `FLEET_SLOTS_FULL`, `EXPEDITION_SLOTS_FULL` and `COLONY_CAP_REACHED` straight from server
+contracts, and RECYCLE had no such case: the launch button was enabled and the only feedback was the
+error *after* pressing it. On LIVE the human player's universe (`cf021ece`) contains **zero** debris
+fields — all 3 live in another universe — so every RECYCLE attempt was guaranteed to fail silently in
+advance.
+
+### 32.2 Why existence-only is EXACT, not a weakening
+
+The dispatcher selects with `WHERE df.universe_id = <mine> AND (df.metal > 0 OR df.crystal > 0) … LIMIT 1`
+and raises precisely when that finds nothing. So "is there a recyclable field?" **is** the dispatcher's
+own precondition — no ordering and no distance involved. Verified LIVE on both cases: an empty universe
+(`EXISTS = f`, dispatcher found nothing) and a populated one (`EXISTS = t`, dispatcher found `[1:1:15]`).
+
+This is why the mission could be closed without a product decision. The alternative — telling the player
+*which* field and *how much* it holds — would have required duplicating the dispatcher's `ORDER BY` in a
+second place (and choosing a distance metric for a target that has no planet), which is exactly the
+second-source-of-truth drift this repository has been eliminating. That option was explicitly **not**
+taken.
+
+### 32.3 The contract
+
+`20260928220000_add_recyclable_debris_status_contract.sql` (LIVE), one read-only function:
+
+```text
+name        public.get_recyclable_debris_status()   — NO arguments
+ownership   auth.uid() -> players.user_id -> players.universe_id -> debris_fields
+            (not even a universe id can be supplied by the client)
+predicate   (metal > 0 OR crystal > 0) — the dispatcher's own condition
+returns     out_available boolean, out_field_count bigint
+security    SECURITY DEFINER + search_path pinned (debris_fields is closed to the client)
+ACL         revoke public + anon; grant authenticated + service_role
+```
+
+It does **not** tell the player which field will be targeted, and it does **not** model capacity: which
+field is chosen and how much fits remain the engine's decision. The migration's post-conditions raise if
+the ACL drifts, if the contract ever grows an argument, if a `distance|range|capacity|order by|limit`
+token ever appears in its body, or if the recycling engine ever starts depending on it.
+
+### 32.4 UI
+
+`useFleetDispatch` fetches the contract only while the RECYCLE mission is selected and feeds it into the
+**existing** `launchBlock`, which disables the launch button and shows the reason. The pre-existing
+`NEAREST_DEBRIS` note gained one sentence reporting the field count. No new component, no CSS, no new
+visual system: both edits reuse markup that was already there.
+
+### 32.5 Verification
+
+```text
+supabase/tests/recyclable_debris_status.sql — 12 PASS + 2 INFO, LIVE, ROLLBACK, residue 0
+  1  an empty universe -> available = false, fields = 0
+  2  ...and the ENGINE agrees ("No debris field available for RECYCLE", 0 movements) — the contract
+     predicts the engine exactly, and the engine stays atomic
+  3  one non-empty field -> available = true, fields = 1
+  4  and now the engine really accepts the recycle flight (the mechanic still works)
+  5  an exhausted (0/0) field is not recyclable: it is the dispatcher's own (metal>0 OR crystal>0)
+  6  without a session the answer is a hard NO (available = false, fields = 0)
+  7  a player of ANOTHER universe gets a hard NO, never my fields
+  7b and the owner still sees its own field — proving 6/7 are isolation, not a broken contract
+  8  the contract takes NO arguments: nothing to manipulate
+  9  read-only and existence-only: no write, no distance/range/capacity/ranking in the body
+  10 ACL: authenticated + service_role, anon denied
+  11 the recycling engine is untouched and does not depend on the new contract
+residue    0: debris_fields 3 (unchanged), universes 2, 0 Rds* players, 0 rdsother@example.invalid
+           auth.users, 0 RdsOtherUniverse-% — all identical to pre-run
+regression 7 PASS: both dispatchers still carry the RECYCLE branch; the four related functions remain
+           SECURITY DEFINER; start_fleet_mixed kept its p_mission_type DEFAULT; get_universe_debris
+           unchanged and still auth.uid()-gated; debris_fields still closed to direct access; the
+           transport / espionage / battle / protection contracts all still callable; the espionage
+           composition guard survives
+static     npx tsc -b exit 0 · npx vite build exit 0 · git diff --check clean
+browser    ENVIRONMENT BLOCKED — no browser driver + human DEV credential. The contract is certified;
+           the panel's rendering is not.
+```
+
+> **Fixture repair 2026-09-29.** Re-running this file against LIVE initially aborted with
+> `1 failed assertion(s)`. The cause was in the FIXTURE, never in the contract: it emptied the
+> universe with `delete from debris_fields` and then only ever issued `UPDATE`s, so assertions 5/6
+> touched **zero** rows and 7b asserted `out_field_count = 1` on a field that was never created.
+> Assertions 3 and 4 — the positive half the header comment already referred to — were missing
+> entirely, so the suite could only ever prove the negative answer. Fixed by inserting one real field
+> after assertion 2 (the universe must still be empty when 2 observes the engine refusing), which
+> restored 3 and 4. Re-run: **12 PASS + 2 INFO, 0 FAIL**, residue 0. Test 4 is asserted on the
+> engine's *acceptance* plus a before-count, not on an absolute movement total, because LIVE may
+> already hold RECYCLE rows for the selected player.
+
+### 32.6 Limitations, stated rather than hidden
+
+* Browser validation is blocked; the assertions cover the contract, not the DOM.
+* The contract is an aggregate without `GROUP BY`, so it always returns exactly **one** row
+  (`available = false, fields = 0` when nothing is visible). The UI reads the value, never the row count.
+* LIVE's human player has no recyclers and no debris in their universe, so the shipped UI will show
+  "no recyclable debris" there — which is the truthful answer, and is the point of this mission.
+* This adds visibility only. The RECYCLE mechanic, its target selection, its capacity and the worker
+  are untouched; only the *timing* of the information changed.
+
+## 33. BROWSER CERTIFICATION — Fleet flow (2026-09-29)
+
+The block that had been open since §27 is now **CLOSED**. It was closed with a real browser and a real
+human DEV session — not with SQL, not with a mock, and without touching a single line of fleet logic.
+
+### 33.1 Environment
+
+| Item | Value |
+|------|-------|
+| Browser | Microsoft Edge, headless, real process |
+| Driver | native CDP over WebSocket (`scripts/fleet-browser-certify.mjs`) — **no** Playwright/Puppeteer/Cypress |
+| App | real Vite build served locally and opened in the browser |
+| Supabase | LIVE |
+| Player | real DEV account, logged in through the real login form |
+
+Credentials were read from `process.env` at runtime only. They are **not** in the repository, not in
+`.env`, not in any log line, and not in any screenshot. The runner prints only a masked address.
+
+### 33.2 Happy path — 9/9
+
+```
+1  Login real DEV (UI, sin bypass)          PASS
+2  Abrir vista Fleet (navegación real)      PASS   encabezado "Flotas"
+3  Origen: selector con planeta propio      PASS   Homeworld [1:1:1] · PRINCIPAL
+4  Misión: selección                        PASS   ATTACK
+5  Naves: selección por input real          PASS   Light Fighter ×1
+6  Destino: coordenadas                     PASS   1:1:4 (DOM read back and verified)
+7  Botón LANZAR y su gate de UI             PASS   "LANZAR ATAQUE" disabled=false
+8  N2/N3: rechazo del servidor              PASS   ERROR: Selecciona al menos una nave.
+9  DISPATCH real desde la UI                PASS
+```
+
+Every one of those clicks was a real DOM event against the real React application.
+
+### 33.3 What the server actually persisted
+
+```text
+fleet_movements   ATTACK · OUTBOUND · 1:1:1 → 1:1:4 · fuel_consumed 1
+fleet_movement_ships   light_fighter × 1
+planet_ships      light_fighter 1 → 0   (decremented at dispatch)
+```
+
+Then the real `deuteria-fleet-worker` cron (1 second, active) carried the lifecycle to completion:
+
+```text
+OUTBOUND  →  arrival + combat resolved  →  RETURNING  →  COMPLETED
+planet_ships light_fighter 0 → 1  (returned to the origin planet)
+outstanding slots back to 0
+```
+
+So dispatch, persistence, worker, arrival, mission resolution and return are all certified end to end
+in a browser session.
+
+### 33.4 Negative tests
+
+| Test | Expected | Observed |
+|------|----------|----------|
+| N2 invalid fleet | rejected | `ERROR: Selecciona al menos una nave.` — nothing created |
+| N3 invalid target | rejected | `ERROR: El destino debe ser distinto del planeta de origen.` |
+| N2/N3 mission rule | enforced | `ESPIONAGE_MISSION_REQUIRES_PROBES: only espionage_probe may be sent…` |
+| N4 duplicate submit | no duplicate | the rejected click produced **no** row; exactly 1 fleet existed at the end |
+| N1 ownership | server-enforced | see below |
+
+**N1 is enforced in the database, not in React.** `start_fleet` is `SECURITY DEFINER` and opens with:
+
+```sql
+v_auth_user := auth.uid();
+IF v_auth_user IS NOT NULL THEN
+  IF NOT EXISTS (select 1 from public.players pl
+                 where pl.id = p_player_id and pl.user_id = v_auth_user)
+  THEN raise exception 'Player does not belong to authenticated user';
+```
+
+followed by `Origin planet does not belong to player` and a same-universe check on the destination.
+A client-supplied `player_id` is therefore worthless: it is only accepted when it resolves to the
+authenticated user.
+
+### 33.5 Two harness defects worth recording
+
+The first runs of the runner reported PASS while nothing had been dispatched. Both causes were in the
+**test**, never in the product, and both are now fixed:
+
+1. Step 9 searched the whole `body` for the word "LANZAR" — which the launch button itself contains.
+   It now reads the server's notice or its `ERROR:` paragraph instead.
+2. Step 6 wrote the destination coordinates and never read them back, so a value React had discarded
+   still counted as PASS. It now verifies the DOM afterwards. The screenshot (`06-post-dispatch.png`,
+   empty coordinate fields) is what exposed both.
+
+A third "failure" was not a defect at all: the DEV player owns exactly **one** `light_fighter`, so
+ESPIONAGE is legitimately impossible and ATTACK is the correct mission for this account.
+
+### 33.6 What is still not certified
+
+The worker, arrival and return were observed through the database rather than by watching the UI count
+down, and no ACS/HOLD, DEPLOY or multi-ship composition was exercised — the DEV account has a single
+light fighter. Those are coverage limits of this account, not open defects.
+
+## 34. Fleet slot cap — CLOSED 2026-10-03 (concurrency fixed)
+
+> This resolves the long-standing `PRODUCT DECISION` label on the fleet-slot cap. **It was not a
+> product decision: the policy was already decided and already enforced.** What was missing was
+> that the enforcement did not hold under concurrency.
+
+### The policy (unchanged — nothing here is new balance)
+
+```text
+base / effective capacity   1 + computer_technology level
+bonus sources               computer_technology ONLY
+maximum                     no separate cap; it grows with the research level
+occupied slot               any fleet_movements row whose status is NOT in
+                            ('COMPLETED','CANCELLED')  → OUTBOUND, ARRIVED,
+                            HOLDING, RETURNING
+consumed                    at INSERT (dispatch time)
+released                    the moment status becomes COMPLETED or CANCELLED
+enforcement point           BEFORE INSERT trigger trg_enforce_fleet_slots on
+                            fleet_movements → assert_player_fleet_slot_available
+read contract               get_player_fleet_slots()  (owner-scoped, SECURITY DEFINER)
+UI                          src/screens/fleet/FleetModules.tsx — SLOTS MÁXIMOS /
+                            EN VUELO / LIBRES, all read from the server contract
+```
+
+Because the gate is a **database trigger**, it covers *every* insert path — the RPCs and the AI
+actor alike — not just the ones the UI happens to call. A client cannot dodge it by changing
+`player_id`, mission, planet or payload: `authenticated` has no `INSERT` on `fleet_movements`
+(verified `false`), so the only way in is through a `SECURITY DEFINER` function, and all of them
+land on the trigger.
+
+### The real defect: lock scope vs. resource scope
+
+The limit is **per player**, but every dispatch locked only the **origin planet**:
+
+```sql
+SELECT ... INTO v_origin FROM public.planets p
+ WHERE p.id = p_origin_planet_id AND NOT p.is_destroyed FOR UPDATE;
+```
+
+Two concurrent dispatches by the same player from **different** planets therefore did not
+serialise. Both counted the same free slots, both passed the assert, both inserted — N available
+slots became N+1 active fleets. Nothing on the client has to be manipulated for this.
+
+### The fix — `20261004010000_fleet_slot_player_lock`
+
+`assert_player_fleet_slot_available` now takes the lock on the **player row** before counting:
+
+```sql
+SELECT pl.id INTO v_locked FROM public.players pl
+ WHERE pl.id = p_player_id FOR UPDATE;
+```
+
+This is the single choke point every `fleet_movements` insert passes through, so one change covers
+the RPCs *and* the AI. Only one lock is taken per call, so this lock cannot form a deadlock cycle;
+the order relative to the pre-existing planet lock is unchanged (planet first, then player).
+
+Signature, exception text (`FLEET_SLOTS_FULL: x/y`), volatility and ACL are all unchanged — this
+is a correctness fix to an already-decided rule, not a policy change.
+
+### OGameX divergence
+
+OGameX computes fleet capacity from Computer Technology too, and additionally from the Commander
+and Officers classes. **Those bonuses were deliberately not imported**: Dark Matter / Officers /
+premium are out of scope for this mission, so LGI's cap is `1 + computer_technology` with no
+premium source. See §"DARK MATTER — DEFERRED" below.
+
+### Tests
+
+```text
+supabase/tests/fleet_slot_cap.sql — 20 PASS / 0 FAIL, LIVE, ROLLBACK, residue 0
+  P1-P3  policy = 1 + computer_technology; no Dark Matter / Officers dependency
+  L1-L3  the lock is taken on the PLAYER row, the trigger is live, the assert is the choke point
+  C1-C3  all slots fillable; at the cap the assert AND the trigger both refuse one more
+  R1-R2  COMPLETED and CANCELLED both release the slot (no orphan slots)
+  R3     OUTBOUND / ARRIVED / HOLDING / RETURNING each count as occupied
+  S1-S4  forged player id, null player id, no client INSERT, assert stays closed
+  U1     get_player_fleet_slots() agrees with the engine numbers
+```
+
+**Declared limitation:** the harness is single-session. A genuine two-connection race cannot be
+opened from it, so mutual exclusion is *derived from the lock* (asserted in L1) and from correct
+serial behaviour — it is not an executed race. This is the same limitation the other fleet
+fixtures record.
+
+### DARK MATTER — DEFERRED, NOT TOUCHED
+
+No premium slot bonus, no Officers, no Commander, no Dark Matter spend-to-extra-slot was added.
+The cap implemented here is the base mechanic and is fully independent of premium economy.
+
+---
+
+## Stuck-state fix: a fleet can no longer be frozen by a past event (2026-09-30)
+
+**Defect.** Four fleet settlement sites anchored the economy clock to the SCHEDULED EVENT TIMESTAMP
+(`returns_at` / `arrives_at`), and `update_planet_resources_until` correctly refuses to move a planet
+backwards (`INVALID_RESOURCE_TIMESTAMP`). The worker's per-fleet handler downgraded that error to a
+WARNING, which rolls nothing back and surfaces nothing — so if the event was already BEHIND that
+body's production clock, the settlement failed on every heartbeat, forever.
+
+This is reachable on the ordinary event order: any player action on the body (`start_building`,
+`cancel_building`, `load_fleet_cargo`, the merchant, or the UI's `sync_current_planet_resources`)
+settles it to `now()`. Measured on LIVE: an ACS_HOLD flight whose `returns_at` was 4 h in the past
+stayed `RETURNING` permanently with its 5 cruisers debited and never returned; a TRANSPORT whose
+`arrives_at` was 2 h in the past stayed `ARRIVED` permanently and its cargo was never delivered.
+
+**Fix.** One clamp per settlement site: settle at `greatest(<event timestamp>, last_calculated_at)`.
+
+| Site | Body |
+|---|---|
+| `process_fleet_movements` (RETURNING) | origin |
+| `resolve_transport_arrival` | destination |
+| `resolve_deploy_arrival` | destination |
+| `resolve_expedition_return` | origin |
+
+* The `INVALID_RESOURCE_TIMESTAMP` guard is **untouched** — it still refuses any raw backwards
+  timestamp; the worker simply stops asking for one.
+* When the event is still in the FUTURE (the normal certified path) the clamp is a no-op and the
+  arrival-time anchoring is byte-identical. When it is behind, there is no elapsed time left to
+  credit, so settling at the current clock grants **zero** extra production and lets the fleet finish.
+* No balance invented: no cost, time, formula or capacity changed. Fleet ordering (fleets before
+  planets) preserved.
+
+Migrations `20260930240000_fix_stuck_returning_fleet_resource_timestamp` and
+`20260930241000_fix_stuck_arrival_resolvers_past_event_timestamp`; certified by
+`supabase/tests/fleet_stuck_return_arrival_regression.sql` (13 PASS, LIVE, ROLLBACK, residue 0).
+See `docs/audits/FLEET_STUCK_STATE_GAP_2026-09-30.md`.

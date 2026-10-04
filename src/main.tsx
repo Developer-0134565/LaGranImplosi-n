@@ -9,6 +9,8 @@ import App from './App.tsx'
 import LoginPage from './LoginPage'
 import { supabase } from './lib/supabase'
 import { UIDesigner, UIEngine, UIEngineProvider, UIWorkbench, useUIWorkbenchRequested } from './ui-engine'
+import { I18nProvider } from './i18n/LanguageProvider'
+import { LanguagePicker } from './i18n/LanguagePicker'
 
 /*
   Raíz de la aplicación.
@@ -63,8 +65,15 @@ function AuthenticatedApp() {
     )
   }
 
+  /* El selector de idioma vive FUERA del gate de sesión a propósito: el login y
+     el onboarding son justo las pantallas donde más hace falta poder cambiarlo. */
   if (!session) {
-    return <LoginPage />
+    return (
+      <>
+        <LoginPage />
+        <LanguagePicker />
+      </>
+    )
   }
 
   return (
@@ -75,6 +84,7 @@ function AuthenticatedApp() {
         </div>
       </UIEngine>
       <UIDesigner />
+      <LanguagePicker />
     </>
   )
 }
@@ -95,6 +105,8 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <I18nProvider>
+      <Root />
+    </I18nProvider>
   </StrictMode>,
 )

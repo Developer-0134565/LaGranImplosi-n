@@ -1,6 +1,22 @@
 # OGAMEX → LA GRAN IMPLOSIÓN — SYSTEMATIC ARCHITECTURAL MAP
 
-> **Status:** FIRST SYSTEMATIC MAP — **2026-09-25**. Read-only audit: no code, no migration, no LIVE change.
+> ## ⚠️ SUPERSEDED IN PART — DO NOT TRUST AS CURRENT STATE (2026-10-03)
+>
+> Este mapa es de **2026-09-25**. Varias filas `MISSING` ya **no** lo son: contrastadas contra LIVE,
+> estos sistemas están **implementados y cerrados** hoy:
+>
+> ```text
+> Missile System          · Moon destruction   · Demolition + Ion
+> recall_fleet            · wreck/message cleanup · Crawler overload
+> ```
+>
+> **La evidencia LIVE actual tiene prioridad sobre este documento.** Para el estado vigente ver
+> `docs/PROJECT_CONTEXT_PROMPT.md` §"GAMEPLAY GAP STATUS — CANONICAL" y
+> `docs/audits/OGAMEX_FINAL_GAP_CHECK_2026-10-03.md`.
+>
+> El texto original se conserva intacto como registro histórico de la auditoría del 2026-09-25.
+>
+> **Status:** FIRST SYSTEMIC MAP — **2026-09-25**. Read-only audit: no code, no migration, no LIVE change.
 > **Relationship to the older file:** [`OGAMEX_LGI_MAP.md`](OGAMEX_LGI_MAP.md) (2026-09-17) is the first-pass
 > structural bridge (method + open audit targets). It is **not** deleted and remains valid as the method note;
 > **this file is the per-domain map with states and classifications and supersedes it for gap analysis.**
@@ -70,9 +86,22 @@ docs/reference/README_OGAMEX.md · docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.m
 | `PlanetService::updateResources()` (devengo por horas transcurridas + cap de almacén al consultar) | producción y devengo temporal | `update_planet_resources_until(_raw)` + `calculate_planet_production` (devengo por segundos × tasa, cap por almacén, factor de energía) | IMPLEMENTED | MATCH / ADAPTATION | PlanetService 1451-1478; README_ECONOMY |
 | `BuildingObjects` (minas 30/20/10·L·1.1^L, solar 20·L·1.1^L, fusión) | producción por edificio | mismas fórmulas base + factor de energía + Plasma/Energy Technology + bonos lifeform/item; **fusión ausente** (no implementada a propósito: ver NEXT CANDIDATES 4) | PARTIAL | ADAPTATION + PRODUCT DECISION (integración del consumo de deuterio de la fusión) | `calculate_planet_production`; BuildingObjects.php |
 | almacén `5000·floor(2.5·exp(20L/33))` | capacidad de almacenamiento | `100000 · 2^nivel × universes.storage_multiplier` | IMPLEMENTED | INTENTIONAL DIFFERENCE (curva propia de LGI) | `calculate_planet_storage`; BuildingObjects storage |
+| `PlanetService::updateResourcesUntil()` — el tope de almacén se aplica **sólo al incremento** (`if (($current + $add) > $max) $add = $max - $current;`), nunca al stock ya poseído; combinado con `addResources()` (usado por `TransportMission::processArrival`), que **no** recorta por capacidad (sólo `max(0,…)`) | liquidación de almacén: la carga entregada por una flota nunca debe competir con la producción por el tope | `settle_resource_stock(current, delta, capacity)` (IMMUTABLE, `service_role` only): producción → sólo hueco libre; consumo → siempre completo; resultado con suelo 0. Delegada por `update_planet_resources_until_raw` y `update_planet_resources`. **DEFECTO CORREGIDO**: ambas terminaban en `LEAST(capacity, current + produced)`, que recortaba el TOTAL ⇒ el excedente entregado por transporte/deploy/expedición se acreditaba y se destruía en el siguiente tick (medido en LIVE: 149 000 → 100 000, 49 000 metal perdidos) | IMPLEMENTED 2026-09-30 | MATCH | `20260930230000`; `tests/resource_settlement_cargo_preservation.sql` 18/18; `docs/audits/RESOURCE_SETTLEMENT_GAP_2026-09-30.md` |
 | `ObjectService::getObjectPrice/getObjectTime` + `GameObjectPrice` | costes y tiempos | `calculate_building_cost/time`, `calculate_research_cost/time`, `calculate_ship_cost/build_time`, `calculate_defense_cost/build_time` | IMPLEMENTED | MATCH | inventario de funciones |
 | `BuildQueueService` / `ResearchQueueService` / `UnitQueueService` (multi-ítem, `cancel`, `addDowngrade`, DM halving/instant) | colas de construcción | `building_queue` / `research_queue` / `shipyard_queue` / `defense_queue` — un solo ítem activo; **cancelación de building y research implementada 2026-09-26** (`cancel_building` / `cancel_research`, reembolso 100 % del precio cobrado) y **demolición/downgrade implementada 2026-09-26** (`start_demolition` / `can_start_demolition` / `inspect_demolition`: coste = precio del nivel retirado −4 %/nivel de `ion_technology`, `is_downgrade`, nivel 0 permitido, cancelación reembolsa lo cobrado); shipyard/defensa sin cancelación | PARTIAL | TECHNICAL GAP CERRADO para building/research/**demolición** (fórmula y guardas tomadas de OGameX, no inventadas) + PRODUCT DECISION pendiente solo para multi-ítem/DM | README_ECONOMY «Queue cancellation contract» + «Building demolition» |
 | `PlanetService::deductResourcesAndUnitsAtomic` | débito atómico de recursos+unidades | `FOR UPDATE` + `UPDATE` en la misma transacción dentro de cada `start_*`; liquidación previa con `update_planet_resources_until` | IMPLEMENTED | ADAPTATION | `start_building`/`start_research`/`start_ship`/`start_defense` |
+| **`PlanetServiceFactory::planetData()`** (banda de temperatura por posición 1..15) + **PR #514** (mergeado: `temp_min = temp_max − 40`, rango de 40°) | temperatura planetaria derivada de la posición | `planet_temperature_for_position(position)` (banda OGameX verbatim, punto medio determinista) → `planets.temperature_min/max` → `planet_temperature(planet)`; backfill de los 692 planetas y los 4 escritores (`provision_player`, `resolve_colonize_arrival`, `reconcile_universe_ai_population`, `settle_moon_creation_for_battle`) | IMPLEMENTED 2026-09-30 | MATCH (con INTENTIONAL DIFFERENCE: punto medio en vez de `rand(lo,hi)`) | `20260930160000`; `docs/audits/PLANET_TEMPERATURE_SYSTEM_2026-09-30.md` |
+| **`BuildingObjects.php:86`** `10·L·1.1^L·(1.44 − 0.004·T_avg)` | factor de temperatura del **deuterio** | el mismo factor en `calculate_planet_production` (rango 0.56 pos 1 … 1.96 pos 15); el término crawler NO se multiplica, igual que en OGameX (`calculateCrawlerProduction()` corre tras `calculateMine()`) | IMPLEMENTED 2026-09-30 | MATCH | `tests/plasma_technology_production.sql` 12/12; `tests/planet_temperature.sql` 6-7 |
+| **`StationObjects.php`** `nano_factory` id 15, `GameObjectPrice(1000000, 500000, 100000, 0, 2)`, `requirements [computer_technology 10, robot_factory 10]`, `valid_planet_types = [Planet]` | fábrica de nanorobots | `20260930210000`: definición verbatim + `calculate_nanite_factory_build_speed(planet) = 2^nivel` plegada en la tasa efectiva de edificios, naves y defensas | IMPLEMENTED 2026-09-30 | MATCH | `tests/nanite_and_crawler_balance.sql` 1-5 |
+| **`PlanetService::getTechnologyResearchTime()`** — sin término nanite | el nanite **no** acelera la investigación | `calculate_research_time` intacta; la migración aborta si alguna vez aparece `nanite` en su cuerpo | IMPLEMENTED | MATCH (distinción de tipos de OGameX respetada) | `tests/nanite_and_crawler_balance.sql` 6 y 12 |
+| `PlanetService::getUnitConstructionTime()` usa `(metal + cristal)/2500` | tiempo base de unidades | LGI usa `base_build_time_seconds` por objeto (convención de toda la tabla) y **NO** `(1+robot)` en unidades | IMPLEMENTED | **INTENTIONAL LGI DIFFERENCE** (documentada; revertirla reabriría la decisión cerrada del Robot Factory) | `docs/audits/GAP_CLOSURE_2026-09-30.md` §3.1 y §6 |
+| `StationObjects.php` `missile_silo` id 44 (20000/20000/1000, shipyard 1), `DefenseObjects.php` `anti_ballistic_missile` id 502 (missile_silo 2) e `interplanetary_missile` id 503 (missile_silo 4 + impulse_drive 1), con ranuras 1 y 2 por silo nivel | bloque de misiles | — | MISSING | **GAP ESPECIFICADO, NO IMPLEMENTADO**: requiere un nuevo tipo de misión de flota + settlement ⇒ sistemas CLOSED | `docs/audits/GAP_CLOSURE_2026-09-30.md` §2 y §5 |
+| `StationObjects.php` `shipyard → robot_factory 2` y `space_dock → shipyard 2` | prerrequisitos de estación | ausentes | OUT OF SCOPE | la primera **rompería el hangar lunar** (robot_factory es PLANET-only y el prerrequisito es por cuerpo); la segunda es una mecánica LGI ya CLOSED | `docs/audits/GAP_CLOSURE_2026-09-30.md` §4 |
+| **`CivilShipObjects.php:171`** `floor((T_max + 140)/6) · n` | **energía del satélite solar** (antes inexistente: la nave era inerte) | misma expresión sumada a la energía planetaria junto a solar y fusión | IMPLEMENTED 2026-09-30 | MATCH | `tests/planet_temperature.sql` 8-9 (630/310/50 exactos) |
+| **`CivilShipObjects.php`** precio `GameObjectPrice(0, 2000, 500, 0)`, `requirements [shipyard 1]`, sin `valid_planet_types` | ficha completa del satélite | idéntica: 0/2000/500, un solo prerrequisito, `{PLANET,MOON}` | MATCH | MATCH | `tests/solar_satellite.sql` 1-3 |
+| **`GameObjectProperties($obj, 2000, 1, 0, 0, 0, 1)`** → SI 2000, escudo 1, **ataque 0**, velocidad 0, carga 0, combustible 1 | perfil táctico del satélite | casco 200 (= SI/10, convención LGI), escudo 1, **ataque 0 CORREGIDO 2026-09-30** (LGI tenía 1, copiado del crawler), velocidad 0, carga 0; **combustible 0 ≠ 1 upstream, inerte** (la velocidad 0 corta el despacho antes de calcularlo) | IMPLEMENTED | MATCH salvo el combustible (divergencia declarada, sin efecto alcanzable) | `20260930200000_solar_satellite_combat_profile.sql`; `tests/solar_satellite.sql` 19 |
+| `PlanetService::getFlightShipAmount()` excluye el satélite ("Do not count solar satellite as ship") | recuento de naves voladoras | — | OUT OF SCOPE | **la función no tiene NINGÚN llamante en todo el upstream**: intención sin consumidor, no hay regla que implementar | `prosrc` de `public` |
+| `PlanetService::getPlanetTempAvg/Min/Max` (leen `planets.temp_min/temp_max`) | getters de temperatura | `planet_temperature(planet)` — **total**: nunca devuelve 0 filas ni NULL (UUID aleatorio ni UUID NULL) | IMPLEMENTED | ADAPTATION (el nombre de las columnas LGI es `temperature_*`) | `20260930161000` |
 | `HalvingService::calculateHalvingCost/halve*/complete*` (DM: 750 DM/30 min, topes por tipo) | aceleración con DM | — | MISSING | PRODUCT DECISION | HalvingService.php |
 | `DarkMatterService` + `DarkMatterTransactionService` + `DarkMatterTransaction` | economía premium | `players.dark_matter` (sólo ingresos por expedición) | PARTIAL | PRODUCT DECISION | `players` |
 | `MerchantService`, `ShopController`, `PremiumController`, `RewardsController`, `PaymentController` | tienda, mercado y pagos | `resolve_expedition_merchant` + `execute_expedition_merchant_trade`, y desde 2026-09-27 también el contrato de CLIENTE (`get_player_expedition_merchant`, `trade_with_expedition_merchant`) | PARTIAL | la variante de expedición queda IMPLEMENTED y alcanzable; tienda/premium siguen OUT OF SCOPE / PRODUCT DECISION | Services list; funciones de expedición |
@@ -140,10 +169,10 @@ docs/reference/README_OGAMEX.md · docs/UNIVERSE_RATE_AND_FLEET_ENGINE_MONITOR.m
 
 | OGameX | Responsabilidad | L.G.I. | Estado | Clasificación | Evidencia |
 |---|---|---|---|---|---|
-| `BuildingObjects` + `StationObjects` (12: minas, solar, fusión, almacenes, robot/nano factory, shipyard, research lab, terraformer, silo, alliance depot, space dock, lunar base, phalanx, jump gate) | catálogo de edificios | `building_definitions` (**14 LIVE** — la lista de 8 era de 2026-09-21; planet/moon según `valid_kinds`) | PARTIAL | PRODUCT DECISION (`fusion_plant`, por la política de consumo de deuterio — NEXT CANDIDATES 4 — y los que exigen subsistema nuevo: robot/nano factory, terraformer, silo, lunares, depot, space dock; **`research_lab` SHIPPED 2026-09-26**) | listado LIVE; README_RESEARCH §1 |
+| `BuildingObjects` + `StationObjects` (12: minas, solar, fusión, almacenes, robot/nano factory, shipyard, research lab, terraformer, silo, alliance depot, space dock, lunar base, phalanx, jump gate) | catálogo de edificios | `building_definitions` (**14 LIVE** — la lista de 8 era de 2026-09-21; planet/moon según `valid_kinds`) | PARTIAL | **SHIPPED `fusion_plant` 2026-09-26** (`20260926140000/…40200`, política de combustible resuelta: el reactor se detiene sin deuterio; ver "Real state now") + **`research_lab` SHIPPED 2026-09-26**. PRODUCT DECISION sólo para los que exigen subsistema nuevo: robot/nano factory, terraformer, silo, lunares, depot, space dock | listado LIVE; README_RESEARCH §1; tabla "Real state now" |
 | `ResearchObjects` (16) + requisito `research_lab` + `CalculationType::MAX_COLONIES / MAX_EXPEDITION_SLOTS / MAX_FLEET_SLOTS` | catálogo de investigación y efectos de cálculo | `research_definitions` (16) + `research_prerequisites` (16 filas, research→research) + `research_building_prerequisites` (**mecanismo 2026-09-25; 16 gates ACTIVOS desde `20260926180000`**) | PARTIAL | MATCH en catálogo + SHIPPED (laboratorio de investigación + IRN, `20260926180000`) | README_RESEARCH §13-§14 |
-| `CivilShipObjects` + `MilitaryShipObjects` (16 + `crawler`) | catálogo de naves | `ship_definitions` (16) + `ship_prerequisites` (41 filas) | PARTIAL | TECHNICAL GAP (`crawler`) | listado LIVE |
-| `DefenseObjects` (8 + `anti_ballistic_missile` + `interplanetary_missile`) | catálogo de defensas | `defense_definitions` (8) + `defense_prerequisites` (18 filas) | PARTIAL | PRODUCT DECISION (misiles + silo) | listado LIVE |
+| `CivilShipObjects` + `MilitaryShipObjects` (16 + `crawler`) | catálogo de naves | `ship_definitions` (17 con `crawler`) + `ship_prerequisites` (45 filas) | PARTIAL | **SHIPPED `crawler` 2026-09-26** (`20260926140000/…40200`: +0.02 %/unidad, tope `(minas)×8`, 50 energía/unidad; ver "Real state now") | listado LIVE; tabla "Real state now" |
+| `DefenseObjects` (8 + `anti_ballistic_missile` + `interplanetary_missile`) | catálogo de defensas | `defense_definitions` (8) + `defense_prerequisites` (18 filas) | PARTIAL | PRODUCT DECISION (misiles + silo) · **SHIPPED `robot_factory` 2026-09-30** (ver "Real state now") | listado LIVE |
 | `GameObjectRequirement` (combinación libre de investigación y edificios) | prerequisitos | tres tablas separadas; `building_prerequisites` existe y está **vacía** (0 filas) | PARTIAL | TECHNICAL GAP (mecanismo/contenido de prerequisitos de edificio) | `building_prerequisites` (0 filas) |
 | `GameObjectPrice` (metal/crystal/deuterium/**energy** + factor) | coste de objeto | `base_metal/crystal/deuterium` + `cost_factor` — sin dimensión de energía | PARTIAL | INTENTIONAL DIFFERENCE (el coste en energía de gravitón no es expresable) | README_RESEARCH §13 |
 | `GameObjectProduction` (fórmulas por objeto; fusión dependiente de energy tech) | producción por objeto | `calculate_planet_production` (minas/solar + factor de energía + tecnologías + lifeform/item) | IMPLEMENTED | ADAPTATION | README_ECONOMY |
@@ -261,8 +290,9 @@ esperar · `LOW` = menor. Cada entrada cita su evidencia; ninguna se ha implemen
   `fusion_plant → deuterium_synthesizer 5 + energy_technology 3`, que además exige la dimensión
   edificio→investigación (inexistente: `can_start_building` / `start_building` sólo leen
   `building_prerequisites`, que es edificio→edificio) → forma parte de la decisión de producto de la fusión.
-- `fusion_plant`: **PRODUCT DECISION 2026-09-26** (contrato completo pero no implementado, ver NEXT CANDIDATES 4)
-  y `crawler` (+0,02 % por unidad, tope por minas).
+- `fusion_plant`: **IMPLEMENTADO 2026-09-26** (`20260926140000/…40100/…40200`) — la decisión de producto de la política de combustible
+  quedó resuelta e inscrita (el reactor se detiene sin deuterio). `crawler`: **IMPLEMENTADO** el mismo día
+  (+0,02 % por unidad, tope por minas). Ambos re-certificados LIVE el 2026-09-29 (10 PASS). Ver "Real state now".
 - `expedition_settings.bonus_expedition_slots` sin lector (configuración muerta).
   → **CLOSED 2026-09-25**: leído por `get_player_expedition_slots` (base + ajustes + objetos) y expuesto al
   cliente por `get_player_expedition_slot_status()`.
@@ -526,6 +556,7 @@ Supersedes the named rows below/above. Evidence = the LIVE migrations + fixtures
 | Planet-kind authority (`valid_planet_types` was absent in LGI) | **IMPLEMENTED**: `building_definitions.valid_kinds` + `ship_definitions.valid_kinds` with one trigger per family, aligned with OGameX (empty list = both kinds) | `20260926130100/…140000/…140100`; moon fixture 7/9/10 |
 | AI ownership blocker (jump 9 — NEEDS INVESTIGATION / failed for lack of session) | **CONTRACT IMPLEMENTED**: `ai_actor_begin` / `is_ai_actor_target` / `ai_actor_end` + gate integration, AI acts through the same dispatchers; no gate weakened | `20260926150000/…150100`; `tests/ai_service_actor.sql` 9 PASS; README_AI_ENGINE |
 | Moon polish D2/D3/D4 (see README_MOON_ENGINE §9) | phalanx outputs verified; `MoonsPanel` UI added; kind gate closed; D1 future; D5 product decision | `src/GameplayEnginePanel.tsx`, README_MOON_ENGINE §9 |
+| `robot_factory` (was GAP-05 "TECHNICAL GAP, cero bloqueos") | **IMPLEMENTED / LIVE VERIFIED**: `building_definitions.robot_factory` 400/120/200 factor 2, PLANET only, no prerequisite; `calculate_robot_factory_build_speed(planet)` returns `1 + level`; the divisor is applied at ONE point per queue family — `calculate_ship_build_time`, `calculate_defense_build_time`, `calculate_research_time(uuid,uuid,text,integer)`, and a new planet-aware `calculate_building_time(text,int,uuid,uuid)` overload used by `start_building` + `get_planet_building_preview`. Research inclusion is an explicit product decision. E2E fixture 14 PASS + 1 INFO | `20260930090000_robot_factory.sql`; `tests/robot_factory.sql`; classic OGame wiki "Robotics Factory" (`Build time = Base time / (1 + R)`, 2026-05-16) |
 
 ### Still open after this pass (evidence gathered, classification recorded)
 
@@ -536,8 +567,9 @@ Supersedes the named rows below/above. Evidence = the LIVE migrations + fixtures
    would be inventing a policy here. README_AI_ENGINE.md §4 lists exactly what is missing.
 2. WRECK FIELDS (jump / low) — OGameX `WreckFieldService` + Space Dock + `CleanupWreckFields`. LGI has no table, no
    building and no cleanup job: a new subsystem → PRODUCT DECISION / OUT OF SCOPE.
-3. FUSION `research_lab` gate — OGameX requires a research laboratory at certain levels; LGI has no laboratory
-   building (the same open decision recorded for the 14 research gates). The expressible requirements are wired.
+3. FUSION `research_lab` gate - **CLOSED 2026-09-26** (`20260926180000`). This line previously read
+   'LGI has no laboratory building (the same open decision recorded for the 14 research gates)'. That is no
+   longer true: `research_lab` exists and all 16 OGameX laboratory gates are enforced. Reconciled 2026-09-28.
 4. CRAWLER OVERLOAD — player-set 0–150 % does not exist in LGI; 100 % (OGame default) is what is implemented.
 5. DEDICATED MOON DESTRUCTION MISSION — the mechanic works through the ATTACK + Deathstar hook; a first-class
    mission type would touch the certified dispatch/worker pipeline → FUTURE.
@@ -610,9 +642,19 @@ CLOSED                        demolition / downgrade (above)
                               least(100, 20+8*level) %, free repairs at 5*level ships/h, 72 h decay worker;
                               producer = additive battle hook on combat_unit_state losses; pg_cron every 10 min
 APPROVED / NOT STARTED        (none — every block approved by the owner is closed)
-BLOCKED (product decision)    research_lab + the 14 research-building gates (the mechanism is CERTIFIED and
-                              intentionally empty: activating the content decides the whole research curve)
-                              wreck field + Space Dock subsystem (OGameX WreckFieldService is ~38 KB / 28
+CLOSED 2026-09-26 (20260926180000)  research_lab + the research-building gates are IMPLEMENTED and certified:
+                              the research_lab building exists and `research_building_prerequisites` ships the SIXTEEN
+                              OGameX gates (energy 1, laser 1, computer 1, combustion 1, impulse 2, armour 2,
+                              espionage 3, astrophysics 3, ion 4, weapons 4, plasma 4, shielding 6, hyperspace drive 7,
+                              hyperspace 7, IRN 10, graviton 12). The owner-approved activation is 16, NOT 14.
+                              Authority: check_research_building_prerequisites -> can_start_research + start_research.
+                              Certified by supabase/tests/research_building_prerequisites.sql (7 PASS re-verified LIVE
+                              2026-09-28) and research_lab_and_irn.sql (14 PASS). Re-verified 2026-09-28: all 16
+                              gates block and unblock correctly, cross-planet buildings never satisfy a gate, and no
+                              anon / cross-owner / client-supplied player_id path can start research.
+                              [Provenance: this row previously read 'BLOCKED (product decision) ... intentionally empty',
+                              which described the pre-20260926180000 state. Reconciled 2026-09-28 against LIVE.]
+BLOCKED (product decision)    wreck field + Space Dock subsystem (OGameX WreckFieldService is ~38 KB / 28
                               methods: active/blocked/repairing states, per-coordinate ownership, decay
                               cleanup and a dedicated building — a new subsystem, not an integration)
                               colonisation/colony cap, fleet-count policy, AI behaviour policy (priority

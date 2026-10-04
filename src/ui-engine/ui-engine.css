@@ -977,6 +977,65 @@ html[data-lgi-preview-width] .lgi-engine {
   min-width: 0;
 }
 
+/* Las cajas de coste/stats comparten la misma anatomía. En columnas estrechas
+   el `span` es flex con `justify-content:space-between`, así que la etiqueta
+   (`em`) y el valor (`b`) compiten por el ancho y la etiqueta se parte en
+   caráteres sueltos ("ME/TA/L"). Se apilan en columna: etiqueta arriba, valor
+   abajo, sin repartirse el ancho. */
+.lgi-engine .neo-definition-costs > span,
+.lgi-engine .neo-definition-stats > span,
+.lgi-engine .neo-definition-extra > span {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  /* La etiqueta manda el ancho de la caja: si no cabe, se encoge la caja
+     (grid `minmax(0,1fr)`), nunca la palabra. */
+  overflow: hidden;
+  padding-inline: 4px;
+}
+
+.lgi-engine .neo-definition-costs > span > em,
+.lgi-engine .neo-definition-stats > span > em,
+.lgi-engine .neo-definition-extra > span > em {
+  min-width: 0;
+  max-width: 100%;
+  font-style: normal;
+  line-height: 1.15;
+  /* `normal` en vez de `break-word`: la etiqueta SIEMPRE cabe y lo que no
+    Cupimos es la caja, nunca una palabra partida en dos ("CRIST AL"). */
+  overflow-wrap: normal;
+  word-break: keep-all;
+  white-space: nowrap;
+  /* Un punto más chica para que la etiqueta más larga ("DEUTERIO") quepa con
+     holgura en una columna `1fr`, sin depender del ancho exacto que toque. */
+  font-size: .62rem;
+  letter-spacing: .01em;
+}
+
+.lgi-engine .neo-definition-costs > span > b,
+.lgi-engine .neo-definition-stats > span > b,
+.lgi-engine .neo-definition-extra > span > b {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* La imagen se escala por su PROPIO tamaño intrinsic en lugar de estirarse a
+   la caja: con `width:100%` + `max-height` el elemento se volvía 309x150 para
+   un original de 250x150 (caja deformada; `contain` sólo evitaba que los
+   píxeles se estiraran dentro de ella). `max-width/max-height` + `width/height
+   auto` escalan la imagen conservando la relación de aspecto y dejándola más
+   pequeña si no cabe. `contain` queda como red de seguridad. */
+.lgi-engine .neo-definition-media img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 150px;
+  object-fit: contain;
+  object-position: center;
+}
+
 .lgi-engine .neo-empty {
   padding: var(--lgi-panel-pad-y) var(--lgi-panel-pad-x);
   color: var(--lgi-text-dim);
@@ -1051,8 +1110,11 @@ html[data-lgi-preview-width] .lgi-engine {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  /* Ancho mínimo de celda según el token de densidad, no un valor fijo: esta
+     regla pisaba `--lgi-card-min` y volvía a recortar las etiquetas de coste
+     en módulos anchos. Sólo se ensancha en densidades cómodas. */
   .lgi-engine .neo-card-grid {
-    --lgi-card-min: 200px;
+    --lgi-card-min: calc(var(--lgi-card-min-base) * var(--lgi-ui-scale));
   }
 }
 
@@ -1089,7 +1151,11 @@ html[data-lgi-preview-width] .lgi-engine {
    placement through the three shell modules.
    ============================================================================ */
 .lgi-live-shell {
-  height: calc(100dvh - 54px);
+  /* La cabecera ya NO es una hermana del shell: es el módulo
+     `resources.summary`, que vive DENTRO de `.lgi-layout` (así lo compone
+     `UIEngineScreen`). Restar 54px aquí reservaba una franja muerta que
+     empujaba el contenido fuera del viewport. El shell ocupa el alto entero. */
+  height: 100%;
   min-height: 0;
   padding-bottom: 0;
   overflow: hidden;
@@ -1108,13 +1174,36 @@ html[data-lgi-preview-width] .lgi-engine {
 
 .lgi-live-shell .lgi-module {
   min-height: 0;
-  height: 100%;
+  /* Una región puede apilar VARIOS módulos (p. ej. la cabecera de recursos y
+     el contenido). Forzarlos a `height:100%` hace que flexbox reparta la
+     región a partes iguales y el módulo que menos alto necesita se coma la
+     mitad del alto: el contenido quedaba a medias y la rejilla de tarjetas
+     se salía del viewport. Cada módulo toma su alto natural; el que deba
+     absorber el sobrante lo hace con `flex:1` explícito, no con `height`. */
+  height: auto;
+  flex: 0 0 auto;
   overflow: hidden;
+}
+
+/* El módulo de contenido es el único que debe crecer y absorber el alto
+   restante de la región (y ser el que scrollea). */
+.lgi-live-shell .lgi-module[data-module='navigation.main'],
+.lgi-live-shell .lgi-module:has(> .neo-main) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Regiones de un solo módulo (rail, aside): sí ocupan toda la región. */
+.lgi-live-shell .lgi-region[data-region] > .lgi-module:only-child {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .lgi-live-shell .neo-sidebar,
 .lgi-live-shell .neo-owned-planets,
 .lgi-live-shell .neo-main {
+  /* `flex:1` ya da el alto al módulo que crece; un `height:100%` sobre el
+     hijo volvería a medir contra el padre y a reintroducir el recorte. */
   height: 100% !important;
   min-height: 0 !important;
   max-height: none !important;
@@ -1122,13 +1211,14 @@ html[data-lgi-preview-width] .lgi-engine {
 }
 
 .lgi-live-shell .neo-main {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column;
   min-width: 0;
   padding: 0 !important;
 }
 
 .lgi-live-shell .neo-main-content {
-  height: 100% !important;
+  flex: 1 1 auto;
   min-height: 0 !important;
   max-height: none !important;
   overflow-x: hidden !important;
@@ -1154,7 +1244,7 @@ html[data-lgi-preview-width] .lgi-engine {
 
 @media (max-width: 760px) {
   .lgi-live-shell {
-    height: calc(100dvh - 54px);
+    height: 100%;
     overflow: auto;
   }
 

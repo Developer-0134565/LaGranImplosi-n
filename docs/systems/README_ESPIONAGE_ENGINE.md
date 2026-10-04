@@ -424,4 +424,101 @@ at the target during counter-espionage. This is coupled to the existing ACS_HOLD
 buildings/research gating work.
 
 Historical sections above remain useful as an audit trail; when they say buildings/research are "MISSING" or a
+
+## 12. ESPIONAGE mission composition — CLOSED 2026-09-28
+
+### 12.1 The gap (measured LIVE, not assumed)
+
+The whole espionage cycle was already certified end to end, so this was NOT a re-opening: dispatch →
+`resolve_espionage_arrival` → `espionage_reports` → `get_player_espionage_reports` →
+`EspionageReportsPanel` (which consumes all 26 columns, including the four reveal flags).
+
+What was missing is ONE dispatch invariant. `start_fleet` and `start_fleet_mixed` enforce a composition
+rule for RECYCLE (`RECYCLE mission requires recycler` / `RECYCLE mixed fleet may contain only
+recyclers`) but enforced **nothing** for ESPIONAGE: any hull could be sent on an espionage flight.
+
+Measured on LIVE before changing anything:
+
+```text
+start_fleet_mixed(3 × light_fighter, 'ESPIONAGE')   → ACCEPTED, movement persisted, fuel charged,
+                                                        fleet slot consumed
+resolve_espionage_arrival(that flight)              → probes_sent = 0, counter chance = 0,
+                                                        ships/defences/buildings/research ALL false
+                                                        ...and a message was still produced
+```
+
+That is a real gameplay defect, because everything the resolver computes derives from
+`espionage_probe`:
+
+```text
+probes_sent            = SUM(quantity) WHERE ship_id = 'espionage_probe'
+counter-espionage      = 0 whenever probe_count <= 0
+reveal ladder (OGameX) = max(0, probes_sent − level_gap²)
+```
+
+So a probe-less espionage flight could never reveal anything: the player paid fuel, a slot and flight
+time for a structurally guaranteed empty report. The defect is internal (the player only harms their
+own empire), not a security hole.
+
+### 12.2 What changed
+
+`20260928150000_enforce_espionage_probe_composition_rule.sql` (LIVE) adds exactly one guard to each
+dispatcher, mirroring the existing RECYCLE rule, in the same place and the same style:
+
+```text
+start_fleet_mixed   inside the SAME composition loop  → raises before any resource is touched
+start_fleet         in the single-ship guard
+rejection           ESPIONAGE_MISSION_REQUIRES_PROBES: only espionage_probe may be sent on an
+                    ESPIONAGE mission (got <ship_id>)
+```
+
+An ESPIONAGE mission may carry probes only; a mixed probe+fleet is refused as well.
+
+**How the patch was applied.** Both dispatchers are long, fully-certified bodies, so the migration does
+not retype them: it inserts the guard into the CURRENT `prosrc` through an anchor that must occur
+**exactly once** (otherwise it aborts without changing anything), and re-asserts the
+`DEFAULT 'TRANSPORT'` on `p_mission_type` because `create or replace` refuses to drop a parameter
+default (42P13). Every other line of both functions stays byte-identical, and the migration's
+post-conditions fail loudly if the guard, the mirrored RECYCLE rule, `SECURITY DEFINER`, the pinned
+`search_path` or the untouched resolver ever drift.
+
+### 12.3 Verification
+
+```text
+supabase/tests/espionage_mission_composition.sql — 11 PASS + 2 INFO, LIVE, ROLLBACK, residue 0
+  1  start_fleet_mixed refuses a probe-less ESPIONAGE fleet
+  2  the refusal is atomic: 0 movements persisted and the hulls are untouched (guard raises first)
+  3  start_fleet refuses it too
+  4  THE MECHANIC IS STILL OPEN: a real espionage_probe flight is accepted
+  5  a mixed probe+fighter ESPIONAGE fleet is refused
+  6  and that real flight still produces a genuine report (probes_sent = 3, ships revealed)
+  7  RECYCLE still refuses a non-recycler fleet (the mirrored rule, unchanged)
+  8  ATTACK never raises the espionage guard — it fails on its own reason (FLEET_SLOTS_FULL 1/1),
+     proving the guard is scoped to ESPIONAGE only
+  9  an anonymous session still cannot dispatch
+  10 the resolver does NOT carry the dispatch guard (level gating untouched)
+  11 ACL unchanged: authenticated + service_role, anon denied on both dispatchers
+residue  0: fleet_movements 0, espionage_reports 0, no test-named players, 1 human player
+          (the +2 players vs. an earlier count are the DORMANT AI scheduler creating AI empires,
+           player_type AI / user_id NULL — not fixture residue)
+static   npx tsc -b exit 0 · npx vite build exit 0 · git diff --check clean
+browser  ENVIRONMENT BLOCKED — no browser driver + human DEV credential in this environment.
+```
+
+### 12.4 Ledger note, stated openly
+
+Version `20260928144117` (`enforce_espionage_probe_mission_composition`) was applied by mistake during
+this session **with an empty body**. It changed nothing in the database; it is a no-op ledger row. The
+real change lives under the distinct name `20260928150000_enforce_espionage_probe_composition_rule`.
+Both rows are left in place rather than rewritten, because the ledger is a historical record and this
+repository has previously been damaged by "fixing" migration history.
+
+### 12.5 OGameX
+
+The OGameX code search requires an authenticated GitHub session, so no structural reference could be
+retrieved. The rule was NOT taken from OGameX by assumption: it follows the already-certified RECYCLE
+rule that exists in this same repository, and it is justified by the resolver's own arithmetic (a
+flight with zero probes has `probes_sent = 0`, hence nothing can ever be revealed). No mechanic was
+invented.
+
 "PRODUCT DECISION", read those statements as the state **before §11**.
