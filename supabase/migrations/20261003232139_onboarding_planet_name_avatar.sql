@@ -1,38 +1,10 @@
--- =============================================================================
--- ONBOARDING v2 — nombre del planeta + avatar (2026-10-04)
--- =============================================================================
--- Sigue a 20261004020000_player_country_code.sql (que cerró el parámetro muerto
--- `p_country_code`). Añade los dos campos que faltaban para personalizar el
--- imperio en la MISMA ventana de creación:
---
---   * planet_name — hoy `provision_player` fuerza 'Homeworld'. Se permite elegir.
---                   SIN unicidad: los planetas se identifican por coordenadas, no
---                   por nombre (dos jugadores con "Tierra" en sistemas distintos es
---                   correcto, igual que en OGameX).
---   * avatar_id   — clave del emblema elegido en `src/lib/avatars.tsx`.
---
--- DECISIONES Y LÍMITES (explícitos, para no inventar)
---   * `avatar_id` es OPACO (1-32 chars [a-z0-9_-]). El servidor NO valida contra
---     lista: el set de emblemas es cosa de UI. Si llega algo desconocido se guarda
---     y la UI cae a su default, así una URL vieja o un emblema retirado no rompen.
---   * Idempotente (reuse-first): si ya hay jugador NO se reescribe nombre ni avatar.
---     Cambiar el nombre del planeta en caliente es OTRA historia y aquí no se hace.
---
--- LO QUE NO SE TOCA
---   Slots de flota, economía, colas, combate ni motores de juego. Sólo onboarding.
--- =============================================================================
-
 BEGIN;
 
-ALTER TABLE public.planets
-  ADD COLUMN IF NOT EXISTS planet_name text NULL;
-
+ALTER TABLE public.planets ADD COLUMN IF NOT EXISTS planet_name text NULL;
 COMMENT ON COLUMN public.planets.planet_name IS
   'Nombre elegido por el jugador en el onboarding. NULL = nombre por defecto (Homeworld). No es único: la identidad del planeta son sus coordenadas.';
 
-ALTER TABLE public.players
-  ADD COLUMN IF NOT EXISTS avatar_id text NULL;
-
+ALTER TABLE public.players ADD COLUMN IF NOT EXISTS avatar_id text NULL;
 COMMENT ON COLUMN public.players.avatar_id IS
   'Clave del emblema de comandante (src/lib/avatars.tsx). NULL = default. El servidor no valida contra lista: la UI resuelve el fallback.';
 
@@ -75,13 +47,23 @@ begin
     raise exception 'USERNAME_RESERVED';
   end if;
 
-  /* País: 2 letras; cualquier otra cosa cae en 'XX'. */
   v_country := upper(regexp_replace(coalesce(btrim(p_country_code), ''), '[^A-Za-z]', '', 'g'));
   if length(v_country) <> 2 then
     v_country := 'XX';
   end if;
 
-select pl.id into v_player_id
+  v_pname := nullif(btrim(coalesce(p_planet_name, '')), '');
+  if v_pname is not null
+     and (length(v_pname) > 32 or v_pname !~ '^[[:alnum:] ._-]+$') then
+    v_pname := null;
+  end if;
+
+  v_avatar := nullif(btrim(coalesce(p_avatar_id, '')), '');
+  if v_avatar is not null and v_avatar !~ '^[a-z0-9_-]{1,32}$' then
+    v_avatar := null;
+  end if;
+
+  select pl.id into v_player_id
   from public.players pl
   where pl.user_id = v_user_id
   limit 1;
@@ -174,16 +156,3 @@ COMMENT ON FUNCTION public.provision_player(text,text,text,text) IS
   'Onboarding: crea player + Homeworld + estado inicial para el auth.uid() actual. Persiste country_code, planet_name y avatar_id. Idempotente (reuse-first).';
 
 COMMIT;
-  /* Nombre del planeta: 1-32 chars, letras/números/espacio/guiones/puntos.
-     Vacío o inválido => NULL => la UI muestra 'Homeworld'. */
-  v_pname := nullif(btrim(coalesce(p_planet_name, '')), '');
-  if v_pname is not null
-     and (length(v_pname) > 32 or v_pname !~ '^[[:alnum:] ._-]+$') then
-    v_pname := null;
-  end if;
-
-  /* Avatar: clave opaca; se sanea el formato pero NO se contrasta con lista. */
-  v_avatar := nullif(btrim(coalesce(p_avatar_id, '')), '');
-  if v_avatar is not null and v_avatar !~ '^[a-z0-9_-]{1,32}$' then
-    v_avatar := null;
-  end if;
