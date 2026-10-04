@@ -15,7 +15,7 @@ do $d$
 declare
     v_user uuid; v_player uuid; v_planet uuid; v_dest uuid; v_ship text := 'light_fighter';
     v_err text; v_lines text[] := array[]::text[]; v_res text[] := array[]::text[];
-    v_f uuid; v_status text; v_rows integer; v_ships bigint; v_msgs integer; v_dest_metal numeric;
+    v_f uuid; v_status text; v_rows integer; v_ships bigint; v_msgs integer; v_msgs_before integer; v_dest_metal numeric;
 begin
     select pl.id, pl.user_id into v_player, v_user from public.players pl
      where pl.user_id is not null order by pl.created_at limit 1;
@@ -31,6 +31,11 @@ begin
     update public.planet_resources set deuterium = greatest(deuterium, 2000000) where planet_id = v_planet;
     insert into public.player_research (player_id, research_id, level) values (v_player, 'computer_technology', 5)
     on conflict (player_id, research_id) do update set level = 5;
+
+    /* Baseline of this fixture: LIVE already holds fleet* messages from earlier activity, so every
+       message assertion below is a DELTA (before/after), never an absolute total. Comparing against
+       an absolute number asserts something about the DATABASE, not about this fleet. */
+    select count(*) into v_msgs_before from public.player_messages where dedupe_key like 'fleet%';
 
     perform set_config('role', 'authenticated', true);
     perform set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
@@ -66,8 +71,9 @@ begin
 
     /* messages produced by the transitions, with dedupe keys */
     select count(*) into v_msgs from public.player_messages where dedupe_key like 'fleet%';
-    v_lines := array_append(v_lines, format('3. fleet messages produced (dedupe_key fleet*) = %s', v_msgs));
-    v_res := array_append(v_res, case when v_msgs >= 1 then 'PASS' else 'FAIL' end);
+    v_lines := array_append(v_lines, format('3. fleet messages produced by this fixture (dedupe_key fleet*) = +%s',
+        v_msgs - v_msgs_before));
+    v_res := array_append(v_res, case when v_msgs - v_msgs_before >= 1 then 'PASS' else 'FAIL' end);
 
     /* idempotence: two more passes must change nothing */
     begin select count(*) into v_rows from public.process_fleet_movements();
@@ -79,9 +85,9 @@ begin
 
     select coalesce(quantity, 0) into v_ships from public.planet_ships where planet_id = v_planet and ship_id = v_ship;
     select count(*) into v_msgs from public.player_messages where dedupe_key like 'fleet%';
-    v_lines := array_append(v_lines, format('5. final: ships at origin=%s messages=%s fleet rows=%s',
-        v_ships, v_msgs, (select count(*) from public.fleet_movement_ships where fleet_id = v_f)));
-    v_res := array_append(v_res, case when v_ships = 6 and v_msgs <= 4 then 'PASS' else 'FAIL' end);
+    v_lines := array_append(v_lines, format('5. final: ships at origin=%s messages produced by this fixture=+%s fleet rows=%s',
+        v_ships, v_msgs - v_msgs_before, (select count(*) from public.fleet_movement_ships where fleet_id = v_f)));
+    v_res := array_append(v_res, case when v_ships = 6 and (v_msgs - v_msgs_before) <= 4 then 'PASS' else 'FAIL' end);
 
     for v_rows in 1..array_length(v_res, 1) loop
         insert into t_fwc values (v_res[v_rows], v_lines[v_rows]);

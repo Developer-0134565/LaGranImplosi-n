@@ -138,7 +138,13 @@ LIMITATION  both fixtures are single-session harnesses; concurrency is not execu
 ## 9. Moon polish — D1…D5 classified (2026-09-26)
 
 ```text
-D1 DEDICATED MOON DESTRUCTION MISSION — FUTURE (not invented)
+D1 DEDICATED MOON DESTRUCTION MISSION — SUPERSEDED 2026-09-26 (CLOSED; original classification kept below)
+   CLOSED 2026-09-26 by `20260926190000_moon_destruction_mission.sql`: mission CHECK, war-speed class,
+   `start_moon_destruction`, the two widened ATTACK-only guards, worker routing and the UI entry. The roll stayed in
+   the certified hook. 6/6 assertions PASS LIVE. Detail:
+   [`README_FLEET_ENGINE.md`](README_FLEET_ENGINE.md) §"Dedicated moon destruction mission".
+   Original note, kept for provenance:
+   FUTURE (not invented)
    OGameX has `MoonDestructionMission` as a first-class mission type. LGI's `fleet_movements.mission_type` CHECK
    admits seven missions plus ACS_HOLD/HOLDING, the dispatcher validates that set, and the worker routes by mission
    type; adding a new type would touch the certified dispatch + worker pipeline for a mechanic that ALREADY WORKS:
@@ -170,7 +176,15 @@ D4 KIND GATE — IMPLEMENTED (single server-side authority)
    both (updated by `20260926140000`). Defensive structures declare nothing in OGameX, so no defence is moon-banned
    and no defence gate is required — verified, not assumed.
 
-D5 WRECK FIELD — PRODUCT DECISION (out of scope)
+D5 WRECK FIELD — SUPERSEDED 2026-09-26 (implemented BACKEND-ONLY; still out of scope for the UI)
+   CLOSED 2026-09-26 by `20260926230000_wreck_field_space_dock.sql` (+ `20260926270000` helper ACL hardening):
+   `planet_wreck_fields`, the LGI-defined `space_dock` curve (PLANET + MOON, max 10) and the repair/worker contracts
+   are LIVE and `supabase/tests/wreck_field_space_dock.sql` is 9/9 PASS. It stays a deliberately backend-only
+   subsystem (every contract is postgres/service_role, there is no client read contract), so it is NOT a lunar UI gap
+   and no lunar UI follows from it. Detail:
+   [`README_FLEET_ENGINE.md`](README_FLEET_ENGINE.md) §"Wreck field + Space Dock".
+   Original note, kept for provenance:
+   PRODUCT DECISION (out of scope)
    OGameX `WreckFieldService` + `CleanupWreckFields` + a Space Dock building model a salvaged remains field after
    moon/planet destruction. LGI has no wreck-field table, no space dock and no cleanup job, and the OGameX formulas
 
@@ -217,9 +231,11 @@ destrucción lunar   misión `MOON_DESTRUCTION` en el panel de flota con el cont
                     destino por coordenadas → luna ajena, exige ≥ 1 deathstar y reutiliza el motor de flotas
                     certificado (el desenlace lo aplica el hook de combate).
 componentes         `src/MoonServicesPanel.tsx` (nuevo: lunas, falange, puerta de salto) ·
-                    `src/FleetCommandPanel.tsx` (misión MOON_DESTRUCTION) ·
+                    `src/screens/fleet/fleetContracts.ts` + `useFleetDispatch.ts` + `FleetModules.tsx` (misión MOON_DESTRUCTION,
+                    migrada desde `FleetCommandPanel.tsx` al LGI UI Engine conservando contratos y cálculos) ·
                     `src/GameplayEnginePanel.tsx` (`MoonsPanel` en overview) ·
-                    `src/TemplateChrome.tsx` (entrada de menú "Luna" y cuerpo activo) · `src/App.tsx` (selector).
+                    `src/App.tsx` (selector de cuerpo activo, grupo LUNAS y cuerpo activo del chrome —región `planet.bodies`— y entrada
+                    de menú "Luna"; `TemplateChrome.tsx` ya no existe tras la migración al LGI UI Engine).
 ```
 
    are tied to a building and a service LGI does not have. Implementing it would be a new subsystem, so it stays an
@@ -382,3 +398,85 @@ SIN CAMBIOS                 motor de flotas, RLS, ACL de clientes, tablas y cont
                             de tipos descrito, en una función interna).
 ```
 
+## 12. MOON FINAL VERIFICATION — 2026-09-28
+
+Repetición de la verificación del dominio lunar contra el repositorio y contra LIVE: no se añadió ninguna mecánica
+lunar, no se rediseñó ninguna superficie y no se modificó ningún contrato ni ninguna fixture certificados.
+
+```text
+status        CLOSED — D6 CORREGIDO y certificado el 2026-09-28 (ver §12.4)
+tests         supabase/tests/moon_engine.sql               13 PASS + 1 INFO · LIVE 2026-09-28 · ROLLBACK
+              supabase/tests/moon_services.sql             11 PASS + 1 INFO · LIVE 2026-09-28 · ROLLBACK
+              supabase/tests/moon_destruction_mission.sql  6/6 PASS · LIVE 2026-09-28 · ROLLBACK
+              supabase/tests/fleet_ship_loss_quantity_check.sql  8 PASS + 2 INFO (nuevo, clase del defecto) · LIVE
+                                                            2026-09-28 · ROLLBACK · residuo 0
+LIVE          las migraciones lunares de §1 siguen aplicadas y los contratos de §7 existen con su ACL (`anon`
+              denegado en get_player_moons / scan_with_phalanx / execute_jump_gate / start_moon_destruction; los
+              helpers de liquidación sólo service_role). building_definitions.valid_kinds verificado LIVE:
+              lunar_base / sensor_phalanx / jump_gate = {MOON} · metal_mine / solar_plant = {PLANET} ·
+              almacenes / shipyard / space_dock = {PLANET,MOON}
+frontend      consumidores intactos tras la migración al LGI UI Engine: src/MoonServicesPanel.tsx
+              (get_player_moons + scan_with_phalanx + execute_jump_gate), src/GameplayEnginePanel.tsx (MoonsPanel),
+              src/screens/fleet/fleetContracts.ts + useFleetDispatch.ts (MOON_DESTRUCTION → start_moon_destruction)
+              y src/App.tsx (cuerpo activo, grupo LUNAS y disponibilidad por valid_kinds)
+regressions   ninguna en los contratos certificados · npx tsc -b exit 0 · npx vite build exit 0 ·
+              git diff --check limpio · residuo 0 tras los ROLLBACK
+new GAP       ninguno
+```
+
+### 12.1 D6 (H7) — el intento en el que la luna sobrevive y se pierden TODOS los deathstars se descartaba en silencio · CORREGIDO (§12.4)
+
+```text
+contrato    settle_moon_destruction_for_battle(battle_id) (§6), invocado por el hook
+            on_combat_battle_finished_moon_destruction (AFTER UPDATE de combat_battles cuando finished_at pasa de
+            null a valor). Documentado y certificado el 2026-09-26.
+síntoma     la rama «la luna sobrevive» hace `update fleet_movement_ships set quantity = quantity − v_lost`.
+            fleet_movement_ships_quantity_chk exige `quantity > 0`, así que el update viola el CHECK en cuanto v_lost
+            iguala las naves enviadas (se pierden TODOS los deathstars); el `delete` posterior ya no puede rescatar la
+            fila porque la sentencia aborta antes.
+consecuencia el bloque de la función lo descarta su propio `exception when others … raise warning` (simple aviso):
+            no se escribe la fila de moon_destruction_attempts, no se envía ningún mensaje a ninguna de las dos partes
+            y —lo relevante— el atacante CONSERVA los deathstars que debía perder. La batalla sí se resuelve y la
+            flota vuelve; sólo desaparece el desenlace lunar.
+frecuencia  determinista por tirada: con 1 deathstar y una luna de 5 000 km la pérdida del único deathstar ocurre en
+            el 35 % de los intentos en los que la luna sobrevive.
+alcance     sólo la rama «sobrevive» (la rama «destruida» no toca fleet_movement_ships). No afecta a la creación
+            desde escombros, falange, puerta de salto ni al gate de tipos.
+```
+
+Evidencia (LIVE 2026-09-28, todo en transacciones con ROLLBACK y residuo 0):
+
+```text
+1. fixture certificada  moon_destruction_mission.sql: 1 de 4 ejecuciones falló la aserción 5 («0 failed» en las otras
+                        tres). Traza de la ejecución fallida: A1…A4 y A6 PASS · A5 FAIL con `attempt=` (sin fila de
+                        provenance) · batalla 0→1 · flota RETURNING.
+2. guardas descartadas  en el instante del fallo: defender_planet_id = la luna correcta · sin fila previa · la luna
+                        viva y kind = MOON · el deathstar seguía presente en fleet_movement_ships (1). Las CUATRO
+                        salidas anticipadas de la función quedaban descartadas y aun así devolvía null → el error lo
+                        tragaba su propio manejador.
+3. log del servidor     WARNING en postgres_logs con contexto «PL/pgSQL function
+                        settle_moon_destruction_for_battle(uuid) line 113 at RAISE», encadenado desde
+                        on_combat_battle_finished_moon_destruction() y desde el UPDATE de cierre de combat_battles.
+4. causa raíz probada   fleet_movement_ships_quantity_chk = CHECK (quantity > 0): el update certificado devuelve
+                        «new row for relation "fleet_movement_ships" violates check constraint
+                        "fleet_movement_ships_quantity_chk"», y el `delete` posterior (quantity <= 0) no llega a
+                        ejecutarse.
+5. repetibilidad        tres sondas instrumentadas de 6 iteraciones descartaron el desenlace en 3/6, 3/6 y 1/6 casos,
+                        con las cuatro guardas verificadas en cada iteración; en las fallidas la llamada directa al
+                        contrato también devolvió null.
+```
+
+Arreglo mínimo (sin cambio de firma, de ACL ni de contrato) y su verificación:
+
+```text
+arreglo     invertir el orden respetando el CHECK: eliminar primero las filas agotadas
+            (`delete … where ship_id = 'deathstar' and quantity <= v_lost`) y restar después
+            (`update … set quantity = quantity − v_lost`). Deja el resultado pretendido por §6 (0 supervivientes si se
+            pierden todos; quantity − v_lost si quedan) sin violar la restricción.
+verificado  la secuencia corregida se ejecutó LIVE sobre el mismo esquema: 1 de 1 perdido → 0 deathstars y sin error
+            · 1 de 2 perdido → 1 superviviente · 3 de 3 perdidos → 0 filas.
+cobertura   las fixtures certificadas no cubren el caso: la aserción 11 de moon_engine sólo ejercita el desenlace
+            «destruida» con deathstars_lost = 0, y la aserción 5 de moon_destruction_mission sólo comprueba coherencia
+             estructural. La corrección añade el caso «sobrevive + todos los deathstars perdidos» en un fixture NUEVO
+             (supabase/tests/fleet_ship_loss_quantity_check.sql); ninguna fixture certificada fue modificada.
+estado      CORREGIDO el 2026-09-28 — ver §12.4

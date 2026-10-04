@@ -26,7 +26,7 @@ declare
     v_econ numeric; v_prod_rate numeric;
     v_item_a numeric; v_prod_b_a numeric; v_metal_b_a numeric; v_crystal_b_a numeric; v_deut_b_a numeric;
     v_energy_prod numeric; v_energy_cons numeric; v_factor numeric; v_factor_def numeric;
-    v_exp_metal numeric; v_exp_crystal numeric; v_exp_deut numeric;
+    v_exp_metal numeric; v_exp_crystal numeric; v_exp_deut numeric; v_temp_factor numeric;
     v_m0_a numeric; v_c0_a numeric; v_d0_a numeric; v_e0_a numeric;
     v_m0_b numeric; v_c0_b numeric; v_d0_b numeric;
     v_m1 numeric; v_c1 numeric; v_d1 numeric;
@@ -84,6 +84,7 @@ begin
     v_exp_metal   := 30 * 10 * power(1.1, 10) * v_econ * v_prod_rate * (1 + (v_item_a + v_prod_b_a + v_metal_b_a) / 100)   * v_factor;
     v_exp_crystal := 20 * 10 * power(1.1, 10) * v_econ * v_prod_rate * (1 + (v_item_a + v_prod_b_a + v_crystal_b_a) / 100) * v_factor;
     v_exp_deut    := 10 * 10 * power(1.1, 10) * v_econ * v_prod_rate * (1 + (v_item_a + v_prod_b_a + v_deut_b_a) / 100)    * v_factor;
+    -- deuterium is recomputed with the temperature factor inside TEST 13 (see the note there)
 
     /* baselines with plasma level 0 */
     select metal_per_hour, crystal_per_hour, deuterium_per_hour, energy_per_hour
@@ -103,10 +104,20 @@ begin
       format('12. level 0 crystal = pre-patch formula (%s vs %s)', v_c0_a, v_exp_crystal));
     v_fail := v_fail + case when v_ok then 0 else 1 end;
 
-    /* TEST 13 — level 0 deuterium */
+    /* TEST 13 — level 0 deuterium.
+       UPDATED 2026-09-30 by 20260930160000_planet_temperature_system.sql: the deuterium baseline now
+       carries the OGameX temperature factor 1.44 - 0.004*T_avg (BuildingObjects.php:86). The plasma
+       fixture pins the PLASMA factor, so its deuterium expectation must include the temperature factor
+       of the planet under test; everything else in this file is relative and therefore unaffected. */
+    select greatest(0, 1.44 - 0.004 * t.temperature_average) into v_temp_factor
+      from public.planet_temperature(v_planet_a) t;
+    v_exp_deut := 10 * 10 * power(1.1, 10) * v_temp_factor * v_econ * v_prod_rate
+                  * (1 + (v_item_a + v_prod_b_a + v_deut_b_a) / 100) * v_factor;
+
     v_ok := abs(v_d0_a - v_exp_deut) <= abs(v_exp_deut) * v_tol + v_tol;
     insert into t_plasma_results(resultado, prueba) values (case when v_ok then 'PASS' else 'FAIL' end,
-      format('13. level 0 deuterium = pre-patch formula (%s vs %s)', v_d0_a, v_exp_deut));
+      format('13. level 0 deuterium = pre-patch formula x temperature factor %s (%s vs %s)',
+             v_temp_factor, v_d0_a, v_exp_deut));
     v_fail := v_fail + case when v_ok then 0 else 1 end;
 
     /* TEST 2 — level 1: +1% metal, +0.66% crystal, +0.33% deuterium */

@@ -104,6 +104,7 @@ export function FleetDestinationModule({ model }: { model: FleetDispatchModel })
     setHoldingUntil,
     authorizations,
     selectedAuthorization,
+    recyclableDebris,
   } = model
   return (
     <>
@@ -146,6 +147,13 @@ export function FleetDestinationModule({ model }: { model: FleetDispatchModel })
         <p>
           El motor de flota elige el campo de escombros más cercano al planeta de origen; no se envían
           coordenadas. La composición sólo puede contener recicladores.
+          {/* Existencia de debris en MI universo, según `get_recyclable_debris_status()`. Es sólo
+              visibilidad: qué campo se elige y cuánta carga cabe sigue decidiéndolo el servidor. */}
+          {recyclableDebris
+            ? (recyclableDebris.available
+                ? ` Hay ${recyclableDebris.fields} campo${recyclableDebris.fields === 1 ? '' : 's'} de escombros reciclable${recyclableDebris.fields === 1 ? '' : 's'} en tu universo.`
+                : ' No hay escombros reciclables en tu universo.')
+            : ''}
         </p>
       )}
       {missionDef.destination === 'FOREIGN_PLANET' && (

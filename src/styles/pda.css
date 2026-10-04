@@ -1,0 +1,143 @@
+/* =============================================================================
+   PDA SHELL v1 — Personal Data Assistant
+   -----------------------------------------------------------------------------
+   Capa de PRESENTACIÓN únicamente. Este archivo no define una segunda estética:
+   reutiliza las variables `--neo-*` que ya consume el resto de la aplicación y
+   los componentes existentes (`neo-panel`, `neo-list-row`, `status-pill`, …).
+   Sólo añade el marco del dispositivo, la navegación por módulos y un par de
+   detalles sci-fi (marco, HUD, línea de escaneo) que son propios de la PDA.
+
+   Reglas de autoridad (heredadas del resto de LGI):
+     * Ningún módulo de la PDA decide nada: sólo renderiza.
+     * La IA Assistant NO está conectada a ningún proveedor. Ver `PdaAiAssistant`.
+   ========================================================================== */
+
+.pda-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pda-device {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--neo-line-strong, rgba(79, 195, 247, .28));
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(79, 195, 247, .06), transparent 42%),
+    linear-gradient(180deg, rgba(7, 12, 19, .98), rgba(6, 10, 16, .96));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .5),
+    0 14px 40px rgba(0, 0, 0, .45),
+    inset 0 1px 0 rgba(159, 232, 255, .10);
+  overflow: hidden;
+}
+
+/* HUD superior: identidad del dispositivo + estado. */
+.pda-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--neo-line-strong, rgba(79, 195, 247, .28));
+  background: linear-gradient(180deg, rgba(79, 195, 247, .07), transparent);
+}
+.pda-glyph {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(79, 195, 247, .45);
+  border-radius: 8px;
+  background: radial-gradient(circle at 35% 30%, rgba(159, 232, 255, .18), rgba(6, 14, 22, .9));
+  color: var(--neo-accent, #4fc3f7);
+  font-size: 15px;
+}
+.pda-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pda-titles strong { font: 700 13px var(--font-heading); letter-spacing: 2px; color: var(--neo-text, #e6f5ff); }
+.pda-titles span { font: 600 7px var(--font-heading); letter-spacing: 2.4px; color: var(--neo-faint, #8294a8); }
+.pda-hud { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.pda-hud-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--neo-ok, #5dd88a);
+  box-shadow: 0 0 8px var(--neo-ok, #5dd88a);
+}
+.pda-hud-label { font: 700 7px var(--font-number); letter-spacing: 1.4px; color: var(--neo-faint, #8294a8); }
+
+/* Navegación de módulos: reutiliza la forma de las tabs de mensajes existentes. */
+.pda-tabs { display: flex; flex-wrap: wrap; gap: 5px; padding: 9px 13px; border-bottom: 1px solid var(--neo-line, rgba(135, 171, 207, .18)); }
+.pda-tab {
+  padding: 7px 11px;
+  border: 1px solid var(--neo-line, rgba(135, 171, 207, .18));
+  border-radius: 6px;
+  background: rgba(20, 28, 42, .34);
+  color: var(--neo-dim, #8294a8);
+  font: 700 7px var(--font-button);
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.pda-tab:hover { border-color: var(--neo-accent, #4fc3f7); color: var(--neo-text, #e6f5ff); }
+.pda-tab.active {
+  border-color: var(--neo-accent, #4fc3f7);
+  background: rgba(79, 195, 247, .10);
+  color: var(--neo-accent, #4fc3f7);
+  box-shadow: inset 2px 0 var(--neo-accent, #4fc3f7);
+}
+.pda-tab[data-pending='true']::after { content: ' ·'; color: var(--neo-faint, #8294a8); }
+
+/* Área de contenido. */
+.pda-body { position: relative; min-width: 0; padding: 12px 13px 14px; }
+.pda-body::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgba(159, 232, 255, .028) 0 1px, transparent 1px 3px);
+}
+
+.pda-module-head { margin-bottom: 10px; }
+.pda-module-head h2 { margin: 0; font: 700 13px var(--font-heading); letter-spacing: 1.4px; color: var(--neo-text, #e6f5ff); }
+.pda-module-head p { margin: 3px 0 0; font: 400 8px var(--font-body); color: var(--neo-dim, #8294a8); }
+
+.pda-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.pda-stat {
+  padding: 10px 12px;
+  border: 1px solid var(--neo-line, rgba(135, 171, 207, .18));
+  border-radius: 6px;
+  background: rgba(10, 17, 26, .72);
+}
+.pda-stat small { display: block; font: 600 7px var(--font-number); letter-spacing: 1.2px; color: var(--neo-faint, #8294a8); }
+.pda-stat b { display: block; margin-top: 3px; font: 700 14px var(--font-number); color: var(--neo-text, #e6f5ff); }
+
+/* Placeholder común de módulos futuros. */
+.pda-placeholder {
+  padding: 16px 14px;
+  border: 1px dashed var(--neo-line, rgba(135, 171, 207, .18));
+  border-radius: 8px;
+  background: rgba(8, 14, 22, .6);
+}
+.pda-placeholder h3 { margin: 0 0 4px; font: 700 10px var(--font-heading); letter-spacing: 1.4px; color: var(--neo-text, #e6f5ff); }
+.pda-placeholder p { margin: 0; font: 400 8px/1.6 var(--font-body); color: var(--neo-dim, #8294a8); }
+.pda-placeholder ul { margin: 8px 0 0; padding-left: 16px; }
+.pda-placeholder li { font: 400 8px/1.7 var(--font-body); color: var(--neo-faint, #8294a8); }
+
+.pda-cta-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.pda-status-offline { font: 700 7px var(--font-number); letter-spacing: 1.4px; color: var(--neo-danger, #ff6b6b); }
+
+@media (max-width: 760px) {
+  .pda-stats { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .pda-hud-label { display: none; }
+}
+/* GALAGA - solo el lienzo. Sin imagenes, sin sprites, sin animaciones. */
+.pda-galaga-canvas {
+  display: block;
+  margin-top: 12px;
+  border: 1px solid var(--neo-line, rgba(135, 171, 207, .18));
+  border-radius: 8px;
+  background: rgba(4, 8, 14, .85);
+  /* El game loop y el reescalado los escribira el usuario; aqui solo se evita
+     que el lienzo se estire de forma borrosa al encoger la pantalla. */
+  max-width: 100%;
+  height: auto;
+}

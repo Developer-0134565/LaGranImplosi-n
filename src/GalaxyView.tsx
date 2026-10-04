@@ -40,8 +40,8 @@ export default function GalaxyView({playerId,universeId,activePlanetId,activePla
    <div className="galaxy-arrow-nav"><button type="button" className="neo-button secondary" onClick={()=>go(galaxy-1,1)} disabled={galaxy<=1}>‹‹ GALAXIA</button><button type="button" className="neo-button secondary" onClick={()=>go(galaxy,system-1)} disabled={system<=1}>‹ SISTEMA</button><strong>GALAXIA {galaxy} · SISTEMA {system}</strong><button type="button" className="neo-button secondary" onClick={()=>go(galaxy,system+1)} disabled={maxSystem>0&&system>=maxSystem}>SISTEMA ›</button><button type="button" className="neo-button secondary" onClick={()=>go(galaxy+1,1)}>GALAXIA ››</button></div>
   </section>
   <section className="galaxy-statusline"><span><b>GALAXIA {galaxy}</b> · {meta?.is_special?'ESPECIAL':'NORMAL'} · {meta?.system_count??'—'} SISTEMAS</span><span>{occupied}/{POSITIONS} POSICIONES OCUPADAS</span><span>{debrisCount} CAMPOS DE RESTOS</span><span>{meta?.next_system_expansion_at?`PRÓXIMA EXPANSIÓN ${formatDate(meta.next_system_expansion_at)}`:'—'}</span></section>
-  {error&&<div className="global-notice error">{error}<button type="button" onClick={()=>setError(null)}>×</button></div>}
-  {fleetNotice&&<div className="global-notice">{fleetNotice}<button type="button" onClick={()=>setFleetNotice(null)}>×</button></div>}
+  {error&&<div className="global-notice error">{error}<button type="button" onClick={()=>setError(null)} aria-label="Descartar error">×</button></div>}
+  {fleetNotice&&<div className="global-notice">{fleetNotice}<button type="button" onClick={()=>setFleetNotice(null)} aria-label="Descartar aviso">×</button></div>}
   <section className="neo-panel galaxy-table-panel">
    <div className="galaxy-table-caption"><span>VISTA DEL SISTEMA</span><small>15 POSICIONES</small></div>
    <div className="galaxy-table-head"><span>POS.</span><span>PLANETA</span><span>JUGADOR</span><span>ESTADO</span><span>ACCIÓN</span></div>

@@ -63,6 +63,10 @@ export function useFleetDispatch({
   const [slots, setSlots] = useState<FleetSlotRow | null>(null)
   const [expeditionSlots, setExpeditionSlots] = useState<ExpeditionSlotRow | null>(null)
   const [colonyCap, setColonyCap] = useState<ColonyCapRow | null>(null)
+  /** RECYCLE: does a recyclable debris field exist in my universe right now? Read-only hint from
+   *  `get_recyclable_debris_status()`. It is EXISTENCE ONLY: the target selection stays inside
+   *  `start_fleet_mixed`, so this never becomes a second source of truth. `null` = not loaded yet. */
+  const [recyclableDebris, setRecyclableDebris] = useState<{ available: boolean; fields: number } | null>(null)
   /** Recursos del cuerpo de origen (lectura RLS del propio planeta): sólo informa la carga transportable.
    *  La autoridad sigue siendo `load_fleet_cargo` en el servidor. */
   const [originResources, setOriginResources] = useState<{ metal: number; crystal: number; deuterium: number } | null>(null)
@@ -200,6 +204,28 @@ export function useFleetDispatch({
       cancelled = true
     }
   }, [missionDef.id, playerId])
+
+  /** RECYCLE: existence check only, so the player is told BEFORE pressing launch instead of learning
+   *  it from 'No debris field available for RECYCLE' afterwards. The server remains the authority: if
+   *  this says available, the dispatch is still validated by `start_fleet_mixed` as always. */
+  useEffect(() => {
+    if (missionDef.id !== 'RECYCLE') {
+      setRecyclableDebris(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const { data, error: debrisError } = await supabase.rpc('get_recyclable_debris_status')
+      if (cancelled) return
+      // A failed read must not masquerade as "no debris": leave the hint unloaded and surface the reason.
+      if (debrisError) { setError(debrisError.message); setRecyclableDebris(null); return }
+      const row = (data as { out_available: boolean; out_field_count: number }[] | null)?.[0]
+      setRecyclableDebris(row ? { available: row.out_available, fields: Number(row.out_field_count) } : null)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [missionDef.id])
 
   /** ACS_HOLD: autorizaciones RECIBIDAS y utilizables, para elegir destino sin teclear coordenadas a ciegas.
    *  La autoridad sigue siendo el servidor: si la autorización caduca o se revoca, el despacho la rechaza. */
@@ -448,8 +474,14 @@ export function useFleetDispatch({
     if (missionDef.id === 'COLONIZE' && colonyCap && !colonyCap.allowed) {
       return `Colonización no permitida (${colonyCap.reason}): ${numberFormat(colonyCap.current_planets)} / ${numberFormat(colonyCap.max_slots)} colonias.`
     }
+    /* RECYCLE: `start_fleet_mixed` raises 'No debris field available for RECYCLE' when no non-empty
+       field exists, so this is the same precondition reported up front. Existence only — which field
+       is chosen, and the recycler capacity, remain the engine's decision. */
+    if (missionDef.id === 'RECYCLE' && recyclableDebris && !recyclableDebris.available) {
+      return 'No hay campos de escombros reciclables en tu universo: el servidor rechazará el despacho con "No debris field available for RECYCLE".'
+    }
     return null
-  }, [missionDef, slots, expeditionSlots, colonyCap])
+  }, [missionDef, slots, expeditionSlots, colonyCap, recyclableDebris])
 
   return {
     /* contexto */
@@ -473,6 +505,7 @@ export function useFleetDispatch({
     slots,
     expeditionSlots,
     colonyCap,
+    recyclableDebris,
     originResources,
     busy,
     notice,

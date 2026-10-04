@@ -132,3 +132,141 @@ the durable offscreen-source/destination drag geometry remains in the certificat
 - No frontend heuristic may replace backend ownership checks.
 - Do not duplicate engine formulas in the Designer.
 - Do not add a second layout engine to solve a Designer issue.
+## 9. PDA Shell v1 (2026-09-28)
+
+New player-facing SURFACE: a sci-fi Personal Data Assistant that acts as a modular container. It is
+deliberately a container, not a system.
+
+```
+src/screens/pda/PdaShell.tsx   the shell + one component per module
+src/styles/pda.css             frame, HUD, module tabs (new file, additive)
+src/App.tsx                    view 'pda' + nav entry, fed from state already in memory
+```
+
+### Modules in v1
+
+| Module | State | Notes |
+|---|---|---|
+| OVERVIEW | functional | Only renders data the app already holds (player, active body, resources, counters). 0 new calls, 0 new contracts. |
+| MESSAGES | placeholder | `MessagesPanel` is NOT migrated here on purpose: the existing inbox stays the single source of truth. |
+| NOTIFICATIONS | placeholder | No notification system is created. |
+| IA ASSISTANT | placeholder, OFFLINE | No provider, no fetch, no keys, no data sent anywhere. |
+| MINI-GAMES | placeholder, empty | No game installed. Galaga is a separate mission. |
+
+### Visual language
+
+The PDA reuses the existing `--neo-*` variables and existing components (`neo-section-head`,
+`neo-eyebrow`, `neo-button`). It adds only PDA-specific framing: device border, HUD header, module tabs
+and a scanline texture on the body. No global CSS was rewritten; `pda.css` is a new additive file.
+
+### IA security requirement (documented, NOT implemented)
+
+The future assistant must receive context ONLY through a server-side owner-scoped contract:
+
+```
+auth.uid() -> players.user_id -> players.id -> authorised summary -> IA
+```
+
+It must never reach Supabase directly, credentials, secrets, private tables, `service_role`, an arbitrary
+`player_id`, or unauthorised global data. The v1 module states this in the UI and implements none of it.
+
+### Boundaries respected
+
+0 migrations · 0 new RPCs · 0 gameplay/engine changes · Messages untouched · no external calls.
+## 10. PDA Messages v1 (2026-09-28)
+
+El módulo `MESSAGES` de la PDA deja de ser un placeholder y monta el sistema de mensajes **existente**.
+No es un módulo nuevo: es la misma bandeja, dentro del marco de la PDA.
+
+```
+PDA -> MESSAGES
+  -> PlayerInboxPanel            (GameplayEnginePanel.tsx, sin modificar)
+       -> get_player_messages    (lectura, contador, orden, límite)
+       -> mark_message_read      (acción MARCAR LEÍDO)
+```
+
+### Qué se movió y qué NO
+
+* `PlayerInboxPanel` se usa **sin cambios**. No se copió, no se reimplementó, no se duplicó.
+* La navegación `MENSAJES` ahora abre la PDA con `initialModule="MESSAGES"`.
+* `PdaMessages` es un **contenedor**: recibe `inbox` como slot desde `App.tsx` y lo monta dentro del
+  marco PDA (módulo head + tabs + `pda.css`). No conoce la RPC, ni la carga, ni el estado de lectura.
+* El contenido que ya viajaba en la vista `messages` (`PlayerInboxPanel`, `BattleReportsPanel`,
+  `EspionageReportsPanel` y `renderMessages()`) entra por ese slot. Se conserva **tal cual**.
+* Sigue habiendo **una sola instancia de la bandeja en toda la aplicación** (`App.tsx`). No hay dos
+  inboxes activos, ni segunda consulta, ni segundo estado de lectura.
+
+### Autoridad (no negociable)
+
+| Contrato | Rol | Estado |
+|---|---|---|
+| `get_player_messages(p_limit, p_unread_only)` | lectura + filtro unread + orden + clamp | **sin cambios** |
+| `mark_message_read(p_message_id)` | marcar leído (idempotente) | **sin cambios** |
+| `player_messages` | cerrada a acceso directo del cliente | **sin cambios** |
+| RLS / ACL | `authenticated` + `service_role`; `anon` denegado | **sin cambios** |
+
+La cadena de propiedad es la misma y el cliente **no** puede proporcionar `player_id` ni owner arbitrario:
+
+```
+auth.uid() -> players.user_id -> players.id -> recipient_player_id
+```
+
+El `playerId` que la UI ya pasaba es sólo un guard de cliente (evita consultar sin sesión); la autoridad
+la impone el servidor, que ignora cualquier identificador que llegue del cliente.
+
+### Verificado
+
+* `npx tsc -b` → 0 · `npx vite build` → 0 · `git diff --check` → 0
+* `supabase/tests/pda_messages.sql` → **12 PASS / 0 FAIL** (`ROLLBACK`, sin datos LIVE)
+  1. el dueño lo ve una vez y el filtro unread lo cuenta
+  2. aparece en el filtro unread antes de marcar
+  3. tras `mark_message_read` sale del filtro unread
+  4. `read_at` persistido (el contador de la UI lo refleja)
+  5. la segunda llamada es idempotente (`out_already_read`)
+  6. el mensaje leído sigue en la bandeja completa (sólo se filtra del contador)
+  7. otro jugador autenticado lee **0** filas de ese mensaje
+  8. otro jugador **no** puede marcarlo leído (`PLAYER_MESSAGE_NOT_FOUND_OR_NOT_OWNED`)
+  9. sin sesión la bandeja devuelve **0** filas
+  10. ACL intacta en ambos contratos
+  11. owner scoping intacto en ambos contratos
+  12. `player_messages` sigue cerrada al acceso directo
+
+### Limitación honesta
+
+**BROWSER: ENVIRONMENT BLOCKED** — no había driver de navegador ni credencial DEV. La navegación visual
+`PDA -> MESSAGES -> mensaje visible -> unread -> marcar leído` **no** está certificada en navegador;
+compilación, build y contrato de servidor sí. La verificación de React pendiente es manual.
+
+Nota sobre el fixture: una aserción anterior buscaba `'%pda%'` dentro del SQL de los contratos y daba
+**falso positivo** — la palabra "up**date**" contiene literalmente el substring "pda". Se sustituyó por
+una comprobación de propiedad real (cadena `auth.uid()` + guarda `NOT_OWNED`).
+## 11. MINI-GAMES — Galaga: estructura base, SIN juego (2026-09-28)
+
+> Galaga está **preparado estructuralmente**, pero **el gameplay lo implementará el usuario** como
+> ejercicio de aprendizaje de HTML5 Canvas. No hay juego escrito.
+
+```
+src/screens/pda/games/
+├── GalagaCanvas.tsx        componente React: monta el <canvas> y su ref
+└── galaga/
+    ├── constants.ts        SOLO el tamaño del lienzo (480x640)
+    └── types.ts            marcador de "aún no implementado" (sin tipos de juego)
+```
+
+Qué hace hoy el componente, y nada más:
+
+* monta el elemento `<canvas>`;
+* guarda el nodo en un `useRef` para poder alcanzar el `CanvasRenderingContext2D`;
+* fija `width`/`height` desde las constantes.
+
+Qué **no** existe, deliberadamente: ningún `ctx.*`, ningún `requestAnimationFrame` ni game loop,
+jugador, enemigos, disparos, movimiento, colisiones, vidas, score, oleadas, partículas, animaciones,
+sonido, IA, física, controles, persistencia, Supabase ni leaderboard. Tampoco se eligió el modelo de
+datos del juego (no hay `Vec2`, `Player`, `Enemy`…): inventar esas formas sería decidir la mecánica,
+que es justo lo que corresponde construir.
+
+`MINI-GAMES` monta el lienzo dentro del marco PDA con un aviso explícito de que el juego no existe.
+El único CSS añadido es `.pda-galaga-canvas` (borde, fondo, `max-width`) en el `pda.css` ya existente:
+sin sprites, sin imágenes y sin animaciones. **0 dependencias nuevas, 0 migraciones, 0 RPC.**
+
+Criterio de cierre de esta misión: Cline prepara el lienzo, el usuario construye el juego.

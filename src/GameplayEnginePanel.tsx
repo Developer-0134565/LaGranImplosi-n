@@ -17,6 +17,80 @@ import { supabase } from './lib/supabase'
 
 type FleetRef = { id: string; mission_type: string; status: string }
 
+/* Beginner protection: the server decides whether THIS empire is inside the 24 h window. The panel
+   renders the contract's own answer and never re-derives the rule. */
+type ProtectionRow = {
+  out_protected: boolean
+  out_protected_until: string | null
+  out_reason: string | null
+}
+
+/**
+ * BEGINNER PROTECTION — read-only surface of `get_my_attack_protection()`.
+ *
+ * The rule itself is already ENFORCED server-side (`TARGET_BEGINNER_PROTECTED` on any ATTACK against a
+ * protected empire), but before this contract the player could not see it: the only place the rule ever
+ * surfaced was the raw error of a failed attack. This shows the state up front instead.
+ *
+ * Authority rule unchanged: the panel decides nothing, it only renders the contract's answer.
+ */
+export function ProtectionStatusPanel() {
+  const [row, setRow] = useState<ProtectionRow | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      const { data, error: e } = await supabase.rpc('get_my_attack_protection')
+      if (!active) return
+      // A failed read is NOT the same answer as "not protected": say so instead of hiding the panel.
+      if (e) { setError(e.message); setLoaded(true); return }
+      setRow((data as ProtectionRow[] | null)?.[0] ?? null)
+      setLoaded(true)
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Nothing to say for an unprotected empire: the panel only appears while the rule actually applies.
+  if (!loaded) return null
+
+  if (error) {
+    return (
+      <section className="neo-panel">
+        <div className="fleet-group-head">
+          <h2>PROTECCIÓN DE NOVATO</h2>
+          <span>NO VERIFICADA</span>
+        </div>
+        <div className="neo-empty">
+          No se pudo consultar el estado de protección: {error}. Recarga la vista para comprobarlo.
+        </div>
+      </section>
+    )
+  }
+
+  if (!row?.out_protected) return null
+
+  return (
+    <section className="neo-panel">
+      <div className="fleet-group-head">
+        <h2>PROTECCIÓN DE NOVATO</h2>
+        <span>ACTIVA</span>
+      </div>
+      <div className="neo-definition-stats">
+        <span>ESTADO <b>PROTEGIDO</b></span>
+        <span>HASTA <b>{row.out_protected_until ? stamp(row.out_protected_until) : '—'}</b></span>
+      </div>
+      <div className="neo-empty">
+        Tus planetas no pueden ser atacados todavía. La protección termina automáticamente en la fecha indicada.
+      </div>
+    </section>
+  )
+}
+
+
 type SlotRow = {
   out_max_slots: number
   out_slots_in_use: number
@@ -325,7 +399,17 @@ type ExpeditionReportRow = {
   item_name: string | null
   item_quantity: number | null
   merchant_resource: string | null
+  /** Cantidad encontrada ANTES del recorte por bodega: el motor calcula
+   *  `final = LEAST(base × multiplier, cargo_capacity)`, así que cuando la bodega no daba más, la
+   *  diferencia se descartaba sin que el informe dijera nada. Se muestran SOLO como par
+   *  (scaled_resource_find, cargo_capacity) y únicamente cuando el recorte se produjo. */
+  scaled_resource_find: number | null
+  cargo_capacity: number | null
   battle_id: string | null
+  /** Rival y pérdidas del combate de expedición. Vienen del contrato y ahora tienen consumidor
+   *  (`expeditionDetail`); antes el panel sólo imprimía la palabra «combate». */
+  enemy_ships: unknown
+  lost_ships: unknown
   delay_seconds: number | null
   speedup_seconds: number | null
   loss_percentage: number | null
@@ -347,7 +431,27 @@ function expeditionDetail(row: ExpeditionReportRow): string {
   if (row.item_id) parts.push(`objeto ${row.item_name ?? row.item_id} ×${Number(row.item_quantity ?? 1)}`)
   if (row.merchant_resource) parts.push(`comerciante ${row.merchant_resource}`)
   if (row.battle_id) parts.push('combate')
+  /* Rival y pérdidas del combate de expedición (PIRATES/ALIENS). `enemy_ships` y `lost_ships` ya
+     venían del contrato `get_player_expedition_reports` sin ningún consumidor: la UI sólo decía
+     "combate". Se renderizan tal cual — el panel no calcula ni deduce nada. */
+  if (row.enemy_ships && typeof row.enemy_ships === 'object') {
+    const enemy = Object.entries(row.enemy_ships as Record<string, number>).filter(([, qty]) => Number(qty) > 0)
+    if (enemy.length > 0) parts.push(`rival ${enemy.map(([id, qty]) => `${id}×${Number(qty)}`).join(', ')}`)
+  }
+  if (row.lost_ships && typeof row.lost_ships === 'object') {
+    const lost = Object.entries(row.lost_ships as Record<string, number>).filter(([, qty]) => Number(qty) > 0)
+    if (lost.length > 0) parts.push(`perdidas ${lost.map(([id, qty]) => `${id}×${Number(qty)}`).join(', ')}`)
+  }
   if (Number(row.loss_percentage ?? 0) > 0) parts.push(`pérdidas ${Math.floor(Number(row.loss_percentage))}%`)
+  /* Recorte por bodega: el servidor awarded `min(encontrado, carga)`. Cuando encontró más de lo que
+     cabía, la diferencia se perdía en silencio y el informe sólo mostraba el premio. Se explica con los
+     DOS valores del contrato, sin recalcular nada. `reward_tier`, `reward_multiplier` y
+     `max_resource_find` siguen deliberadamente ocultos: son internals de la fórmula. */
+  const found = Number(row.scaled_resource_find ?? 0)
+  const hold = Number(row.cargo_capacity ?? 0)
+  if (hold > 0 && found > hold) {
+    parts.push(`encontrado ${Math.floor(found)} · carga ${Math.floor(hold)} · ${Math.floor(found - hold)} no cabía, se transportó el máximo`)
+  }
   if (Number(row.delay_seconds ?? 0) > 0) parts.push(`retraso ${Math.floor(Number(row.delay_seconds))} s`)
   if (Number(row.speedup_seconds ?? 0) > 0) parts.push(`aceleración ${Math.floor(Number(row.speedup_seconds))} s`)
   return parts.length > 0 ? parts.join(' · ') : 'Sin recompensas registradas.'
@@ -573,6 +677,163 @@ export function MoonsPanel({ playerId }: { playerId?: string }) {
         </article>)}</div>
       : <div className="neo-empty">Sin lunas: se forman cuando el campo de escombros de una batalla alcanza el tamaño
           mínimo y la tirada de creación acierta.</div>}
+  </section>
+}
+
+/* ---------------------------------------------------------------------------------------------
+   INFORMES DE COMBATE — detail view over the certified `get_player_battle_reports` contract.
+
+   GAP (2026-09-28, Messages/Reports cycle): the contract has always returned `rounds` (per-round unit
+   counts) and `participants`, but the browser never consumed them. The COMBATE row of the
+   communications centre was a one-line summary: outcome, loot, own losses, debris and the round COUNT.
+   The player could never see what happened round by round, nor which bodies took part — the single most
+   requested piece of a battle report (OGameX `BattleReport`, rendered as a round table).
+
+   This panel closes that loop WITHOUT touching the engine: same contract, same ownership chain
+   (auth.uid() → players.user_id → players.id), same ACL (authenticated, never anon), no new RPC and no
+   second architecture. It only renders the server's own answer; it never re-derives a combat rule.
+   OGameX is a STRUCTURAL reference only (a round-by-round table); LGI's certified columns win.
+*/
+
+type BattleRoundRow = {
+  round: number
+  attacker_units_before: number
+  attacker_units_after: number
+  defender_units_before: number
+  defender_units_after: number
+  defender_combat_units_after: number | null
+}
+
+type BattleParticipantRow = {
+  side: string
+  participant_type: string
+  player_id: string | null
+  fleet_id: string | null
+  planet_id: string | null
+}
+
+type BattleReportRow = {
+  battle_id: string
+  created_at: string
+  finished_at: string | null
+  outcome: string
+  caller_role: string
+  attacker_player_id: string | null
+  defender_planet_id: string | null
+  defender_player_id: string | null
+  attacker_ships_before: number
+  attacker_ships_after: number
+  defender_defenses_before: number
+  defender_defenses_after: number
+  loot_metal: number
+  loot_crystal: number
+  loot_deuterium: number
+  debris_metal: number
+  debris_crystal: number
+  /** Defensas del defensor reparadas tras el combate (regla OGameX ~70 %, aplicada por
+   *  `repair_defenses_after_combat`). El contrato ya lo devolvía y el panel lo ignoraba, de modo que
+   *  mostraba `DEFENSAS 40→27` sin decir que 13 habían vuelto. */
+  defenses_repaired: number
+  rounds_played: number
+  participants: BattleParticipantRow[]
+  rounds: BattleRoundRow[]
+  losses: Array<{ side: string; unit_type: string; unit_id: string; destroyed_quantity: number }>
+}
+
+function combatOutcomeLabel(outcome: string, role: string) {
+  if (outcome === 'ATTACKER_WIN') return role === 'ATTACKER' ? 'VICTORIA' : 'DERROTA'
+  if (outcome === 'DEFENDER_WIN') return role === 'DEFENDER' ? 'VICTORIA' : 'DERROTA'
+  if (outcome === 'DRAW') return 'EMPATE'
+  return 'SIN RESOLVER'
+}
+
+export function BattleReportsPanel({ playerId }: { playerId?: string }) {
+  const [rows, setRows] = useState<BattleReportRow[]>([])
+  const [names, setNames] = useState<Record<string, string>>({})
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      const [ships, defenses] = await Promise.all([
+        supabase.rpc('ui_ship_definitions'),
+        supabase.rpc('ui_defense_definitions'),
+      ])
+      if (!ships.error && !defenses.error) {
+        const map: Record<string, string> = {}
+        ;(ships.data ?? []).forEach(s => { map[s.id] = s.name })
+        ;(defenses.data ?? []).forEach(d => { map[d.id] = d.name })
+        setNames(map)
+      }
+    })()
+  }, [])
+
+  const refresh = useCallback(async () => {
+    if (!playerId) return
+    const { data, error: e } = await supabase.rpc('get_player_battle_reports', { p_limit: 25 })
+    if (e) { setError(e.message); return }
+    /* `participants` / `rounds` / `losses` arrive as the generated `Json` type; the panel only reads them,
+       so the cast is to the local shape. The panel NEVER derives a combat value: every number below is
+       already computed by the certified contract. A non-array payload degrades to an empty list. */
+    const list = ((data ?? []) as unknown as BattleReportRow[]).map(b => ({
+      ...b,
+      participants: Array.isArray(b.participants) ? b.participants : [],
+      rounds: Array.isArray(b.rounds) ? b.rounds : [],
+      losses: Array.isArray(b.losses) ? b.losses : [],
+    }))
+    setRows(list)
+    /* keep the detail open across refreshes while the battle is still listed */
+    setOpenId(current => current && list.some(b => b.battle_id === current) ? current : null)
+  }, [playerId])
+
+  useEffect(() => { void refresh() }, [refresh])
+
+  return <section className="neo-panel">
+    <div className="fleet-group-head">
+      <h2>INFORMES DE COMBATE</h2>
+      <span>{rows.length} BATALLAS</span>
+    </div>
+    {error && <p>{error}</p>}
+    {rows.length
+      ? <div className="neo-list-panel">{rows.map(b => {
+          const open = openId === b.battle_id
+          const ownLosses = b.losses.filter(l => l.side === b.caller_role)
+          return <article className="neo-list-row" key={b.battle_id}>
+            <div>
+              <strong>{combatOutcomeLabel(b.outcome, b.caller_role)} · {b.caller_role === 'ATTACKER' ? 'ATAQUE' : 'DEFENSA'}</strong>
+              <small>saqueo {b.loot_metal} M / {b.loot_crystal} C / {b.loot_deuterium} D · escombros {b.debris_metal} M / {b.debris_crystal} C</small>
+              <small>NAVES {b.attacker_ships_before}→{b.attacker_ships_after} · DEFENSAS {b.defender_defenses_before}→{b.defender_defenses_after} · {b.rounds_played} RONDAS</small>
+              {/* Reparación tras el combate (OGameX ~70 %): el motor la aplicó a `planet_defenses`, así que
+                  sin esta línea el informe sugiere una muralla más débil de la que realmente queda. */}
+              {Number(b.defenses_repaired ?? 0) > 0 && (
+                <small>REPARADAS {b.defenses_repaired} (quedan {Number(b.defender_defenses_after) + Number(b.defenses_repaired)})</small>
+              )}
+            </div>
+            <span className="status-pill">{b.outcome}</span>
+            <div><small>TERMINADA</small><b>{stamp(b.finished_at ?? b.created_at)}</b></div>
+            <button type="button" className="neo-button" aria-expanded={open}
+              onClick={() => setOpenId(open ? null : b.battle_id)}>
+              {open ? 'OCULTAR RONDAS' : 'VER RONDAS'}
+            </button>
+            {open && <div>
+              <small>PARTICIPANTES {b.participants.map(p => `${p.side}/${p.participant_type}`).join(' · ') || '—'}</small>
+              <small>BAJAS PROPIAS {ownLosses.length
+                ? ownLosses.map(l => `${names[l.unit_id] ?? l.unit_id} ×${l.destroyed_quantity}`).join(' · ')
+                : 'ninguna'}</small>
+              {b.rounds.length
+                ? <div className="neo-list-panel">{b.rounds.map(r => <article className="neo-list-row" key={r.round}>
+                    <div>
+                      <strong>RONDA {r.round}</strong>
+                      <small>ATACANTE {r.attacker_units_before} → {r.attacker_units_after} · DEFENSOR {r.defender_units_before} → {r.defender_units_after}</small>
+                    </div>
+                    <div><small>UNIDADES DEFENSORAS</small><b>{r.defender_combat_units_after ?? '—'}</b></div>
+                  </article>)}</div>
+                : <small>Sin rondas registradas en este informe.</small>}
+            </div>}
+          </article>
+        })}</div>
+      : <div className="neo-empty">Todavía no hay batallas resueltas: ataca un objetivo o defiende un cuerpo y el
+          informe aparecerá aquí con su detalle de rondas.</div>}
   </section>
 }
 

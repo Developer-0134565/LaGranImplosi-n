@@ -1,4 +1,78 @@
+# 2026-10-01 — STUCK-STATE DE COLA: un evento vencido ya no congela el heartbeat
+
+## El hueco
+
+`complete_building` y `complete_research` liquidan la economía **en el timestamp del evento** con
+`update_planet_resources_until_raw`, que rechaza correctamente mover el reloj de un planeta **hacia
+atrás** (`INVALID_RESOURCE_TIMESTAMP`). Esa guarda es correcta y **no se toca**.
+
+Si el reloj del cuerpo ya estaba pasado cuando la cola vencía, la liquidación lanzaba en **cada**
+heartbeat. La fila se quedaba `BUILDING`/`RESEARCHING` **para siempre** y, como
+`process_universe_tick` no aísla errores por planeta, **ningún planeta de ese universo liquidaba**.
+
+Es la versión de cola del mismo stuck-state ya cerrado para flotas
+(`20260930240000` / `20260930241000` / `20261001030000`).
+
+## Cómo se adelanta el reloj de una cola pendiente
+
+Los anchors de flota y combate usan la variante `_raw`, que **no recorre eventos**:
+`resolve_attack_arrival → apply_attack_loot`, `resolve_expedition_return`, etc. Un planeta puede
+quedar liquidado más allá de un evento de cola pendiente. A partir de ahí ese evento es **invisible
+al walker** (`finishes_at > last_calculated_at` ya no se cumple) pero **sigue visible al predicado
+del tick** (`finishes_at <= now()`): ésa es exactamente la ventana del atasco.
+
+`complete_research` lo amplifica: recorre **todos** los planetas del jugador, así que **un** solo
+planeta adelantado abortaba el bucle y la concesión para todo el mundo.
+
+## Semántica: se COMPLETA (no se descarta)
+
+La regla se dedujo del código, no se eligió:
+
+* el tick selecciona `finishes_at <= now()` → todo lo vencido se completa;
+* `complete_building` / `complete_research` **no** tienen rama `CANCELLED` **ni** `DELETE`;
+* sólo `cancel_building` / `cancel_research` ponen `CANCELLED`, y son **acciones del jugador** con
+  reembolso. No existe abandono automático.
+
+Descartar una cola pagada sería inventar una regla y destruir recursos del jugador.
+
+## El arreglo
+
+El mismo clamp ya aceptado para flotas, **por planeta**:
+
+```text
+effective = greatest(<timestamp de la cola>, <last_calculated_at de ESE planeta>)
+```
+
+* Evento en el **futuro** (vía certificada normal) → no-op; el reloj queda **exactamente** en
+  `finishes_at`, byte-idéntico (verificado).
+* Evento **detrás** → no queda tiempo transcurrido que acreditar, así que se liquida en el reloj
+  propio del cuerpo: **cero producción extra** y la cola completa.
+
+En `complete_research` el clamp se calcula **dentro** del bucle, contra el planeta que se liquida:
+un planeta ya adelantado se liquida en su propio reloj (no-op) en lugar de lanzar y abortar los
+planetas restantes **y** la concesión. La investigación se completa **exactamente una vez**.
+
+Se conserva `_raw` a propósito: es lo que evita el procesamiento recursivo mientras un walker ya
+recorre ese mismo evento.
+
+## Lo que NO se cambió
+
+`update_planet_resources_until_raw` y su guarda; las guardas de idempotencia (`COMPLETED` → nivel /
+`false`), `BUILDING_NOT_FINISHED`, `BUILDING_QUEUE_NOT_ACTIVE` y `BUILDING_LEVEL_MISMATCH`; la
+concesión de niveles; el incremento de `fields_used`; la ruta de demolición; y todas las firmas,
+volatilidad, `SECURITY` y `search_path` (los cuerpos se cortan de `pg_get_functiondef()`). Ninguna
+de las dos funciones gana `EXECUTE` de cliente: siguen siendo internas.
+
+Verificado por `supabase/tests/stuck_building_research_queue_regression.sql` (21 aserciones) y
+`docs/audits/BUILDING_RESEARCH_STUCK_STATE_2026-10-01.md`.
+
+---
 # ECONOMY — LA GRAN IMPLOSIÓN
+
+> **Sweep 2026-10-02: `NO OBJECTIVE ECONOMY GAP FOUND`** (0 líneas de código). Evidencia, candidatos
+> descartados y decisiones de producto pendientes: `docs/audits/ECONOMY_GAP_SWEEP_2026-10-02.md`.
+> En particular: `get_economic_sustainability_check` no tiene consumidor pero **no es gap** —
+> `can_start_building` ya devuelve el mismo veredicto y motivo.
 
 > Durable knowledge for resources, production, costs, storage and temporal settlement.
 > Operational status lives in [`../PROJECT_CONTEXT_PROMPT.md`](../PROJECT_CONTEXT_PROMPT.md);
@@ -169,6 +243,9 @@ Decisiones registradas:
 * **Energía = información, nunca puerta.** `start_building` y `evaluate_building_start_internal` no mencionan
   energía en ninguna rama (verificado sobre `prosrc`), así que LGI NO bloquea la construcción por energía; el
   contrato la expone como número y no se inventó ninguna regla de bloqueo.
+  *(Esta afirmación es la regla histórica. Desde 2026-10-01 tiene UNA excepción deliberada y más específica,
+  documentada más abajo: el pre-flight de autosostenibilidad. La energía sigue sin ser una puerta de
+  construcción; lo único que puede rechazarse es la acción que colapsa la producción a cero.)*
 * **Sin segundo oráculo.** El nivel objetivo viene del oráculo certificado y la energía/h del helper
   certificado; la fixture lo comprueba fila a fila (`target_level` == `can_start_building`, `energy_delta` ==
   `calculate_building_energy_delta`, `duración` == composición autoritativa) — incluido el caso con un objeto
@@ -605,10 +682,506 @@ EVIDENCE    the resolver settles a foreign planet with a JWT present (RETURNING 
 ```
 
 The client contracts that read the OWN planet (`get_current_planet_resources`, `get_planet_economy_overview`) keep
+
+## Resource-panel honesty: the dead `energy` stock and the invisible storage cap — CLOSED 2026-09-29
+
+Two presentation defects found by the economy sweep. Both are **UI-only**: no RPC, no migration, no
+formula, no cost, no capacity and no ACL changed. The engine was already correct in both cases.
+
+### A — `planet_resources.energy` is a dead column presented as a fourth resource
+
+**Measured LIVE.** The only writers of the column are two resets:
+`20260926130200_moon_creation_and_destruction.sql:231` (`energy = 0`) and
+`20260926297000_ai_empire_normalization.sql:78` (`energy = default`, i.e. 0). Every INSERT hard-codes
+`energy = 0`. The settlement `update_planet_resources_until_raw` **reads** `pr.energy` and returns
+it, but its single UPDATE writes only `metal, crystal, deuterium, last_calculated_at, updated_at`:
+
+```sql
+update public.planet_resources pr
+   set metal = v_metal, crystal = v_crystal, deuterium = v_deuterium,
+       last_calculated_at = p_until, updated_at = now()
+ where pr.planet_id = p_planet_id;
+```
+
+So the stock is structurally `0` forever. This document already states the authoritative semantics —
+**"energy is a balance value, not a produced resource"** (§Energy), and the fusion migration proves
+the engine treats it as a flow (`20260926140200:62-69` folds `v_fusion_energy` into
+`v_energy_production`). Meanwhile the UI rendered it as a resource:
+
+* `src/App.tsx` overview: `ENERGÍA  {formatNumber(resources?.energy)} · {balance}/h` — always `0`;
+* the same file's header bar: a `⚡` chip showing the same dead stock;
+* `src/screens/pda/PdaShell.tsx`: a `ENERGIA` tile fed `Number(resources?.energy ?? 0)` — a fourth
+  resource in a device that claims to read the empire's real state.
+
+**Fix (presentation only).** The three dead reads are gone; the authoritative figures the contract
+*already returns* are what is rendered:
+
+* overview: `ENERGÍA` now shows the server's balance, `{economy.energy_balance_per_hour}/h`, next to
+  the existing `ENERGÍA PROD/CONS` row;
+* header bar: the `⚡` chip is removed, leaving the three real stocks;
+* PDA: the tile is `ENERGIA /H` fed `economy.energy_balance_per_hour` (prop renamed
+  `resourceSummary.energy → energyBalancePerHour` so the type states the semantics).
+
+The engine is untouched: energy is still not accumulated, still is not a spendable resource, and no
+player can spend or lose it.
+
+### B — production stops at the storage cap and nothing showed it
+
+**The engine is correct.** `update_planet_resources_until_raw` clamps with the same capacity helper
+the rest of the system uses:
+
+```sql
+select s.metal_capacity, s.crystal_capacity, s.deuterium_capacity
+  into v_metal_capacity, v_crystal_capacity, v_deuterium_capacity
+  from public.calculate_planet_storage_internal(p_planet_id) s;
+
+v_metal     := least(v_metal_capacity,     greatest(0, v_metal + v_metal_produced));
+v_crystal   := least(v_crystal_capacity,   greatest(0, v_crystal + v_crystal_produced));
+v_deuterium := least(v_deuterium_capacity, greatest(0, v_deuterium + v_deuterium_produced));
+```
+
+**The gap was the presentation.** The panel printed `ALMACÉN M/C/D` as three bare numbers, so a bank
+whose production had already stopped looked exactly like a half-full one. The player could not tell
+that a mine was producing nothing. This is the same class of defect as the earlier expedition
+cargo-clamp closure ("could not tell *found nothing* from *found plenty, my cargo was too small*").
+
+**Fix (presentation only).** One new formatter, `formatStorage(stock, capacity)`, returns
+` · NN%` and ` · NN% ALMACÉN LLENO` when `stock >= capacity`. Both operands were already on the
+client — the stock from the `planets … planet_resources(...)` read and the capacity from the
+**same** `get_planet_economy_overview` row that already feeds the `ALMACÉN` line — so the panel only
+compares two server values. It derives no rule, and the authoritative clamp stays in the engine.
+
+```text
+before   METAL   1.234.567 · +30.000/h
+after    METAL   1.234.567 · 82% · +30.000/h
+before   METAL   1.000.000 · +30.000/h        (production already halted, indistinguishable)
+after    METAL   1.000.000 · 100% ALMACÉN LLENO · +30.000/h
+```
+
+### Verification
+
+```text
+static   npx tsc -b exit 0 · npm run build exit 0 (192 modules) · git diff --check clean
+backend  no migration and no RPC: the engine, the clamp, the formulas and the capacities are
+         byte-identical; only src/App.tsx and src/screens/pda/PdaShell.tsx changed
+regression the two affected views still render the three real stocks, the three capacities, the
+         energy PROD/CONS split and the per-hour energy balance
+untouched economy core, settlement, storage calculation, fusion/crawler, every cost, every queue,
+         the worker and the ACL
+```
+
+### Not decided here (still product decisions, recorded not invented)
+
+Crawler overload %, Collector-class multiplier, crawler reuse, the fusion-plant research-lab gate,
+general merchant / shop / Dark Matter premium economy — unchanged from §"Still open". The fusion
+fuel gate remains intentionally evaluated from the pre-settlement stock (OGameX rule), and a planet
+with a fusion plant and no deuterium mining legitimately reports a **negative**
+`deuterium_per_hour`; the balance itself is re-clamped with `greatest(0, …)` and the sign is
+surfaced by `formatRate`.
+
 using the gated `calculate_planet_storage`; only engine paths were repointed.
 
+## Crawler overload 0–150 % · Demolition + Ion Technology · Queue expiry (2026-10-03)
+
+Misión OGameX-adaptada. **OGameX = referencia de comportamiento. LGI = autoridad.** De las tres
+mecánicas sólo UNA era un gap real: las otras dos ya estaban conformes y se han **certificado sin
+reescribir**.
+
+Migración: `20261004000000_crawler_overload`. Fixture: `supabase/tests/crawler_overload_demolition_queue_expiry.sql`.
+
+### Queue expiry — ya conforme, NO reescrito
+
+```text
+Una cola vencida (time_end <= now) se COMPLETA. No se cancela por el hecho de que el jugador
+volviera después de que expirara el contador. Una cola pagada/acelerada que ya alcanzó su
+time_end se liquida igual que una que el jugador nunca aceleró: no existe ninguna rama
+`expired -> cancel` en LGI.
+```
+
+Comprobado sobre los cuatro procesadores (`process_building_queue_for_planet`,
+`process_research_queue_for_player`, `process_shipyard_queue`, `process_defense_queue`): **ninguno
+menciona `cancel`**; todos comparan `finishes_at <= …` y marcan `COMPLETED`. Certificado en vivo
+con las cuatro colas sembradas ya vencidas: las cuatro terminan `COMPLETED` con el resultado
+aplicado, y reprocesarlas **no** vuelve a aplicar nivel ni unidades (idempotencia).
+
+`QUEUE EXPIRED` y `PLAYER CANCELS` siguen siendo caminos distintos: la cancelación conserva su
+política y su reembolso. Esta misión **no** la tocó.
+
+### Crawler overload — el gap real, implementado
+
+LGI tenía el crawler fijo al 100 %: `+0.02 %` de producción por crawler efectivo y `50` de energía
+por crawler efectivo. **No existía ningún porcentaje configurable** (0 columnas `%overload%` en todo
+el schema `public`, medido el 2026-10-02). Ahora `planets.crawler_percentage` guarda un entero
+`0–150` con `DEFAULT 100`, así que **el comportamiento de todos los cuerpos no cambia**.
+
+```text
+p = porcentaje / 100
+energia = 50 * p                    si p <= 1
+energia = 50 * p + 50 * (p - 1)     si p > 1        (equivalente a 50 * (2p - 1))
+
+100 % -> 50      110 % -> 60      120 % -> 70      130 % -> 80      140 % -> 90      150 % -> 100
+```
+
+Por encima del 100 % el coste crece **más rápido** que la producción: ése es el compromiso que hace
+que el overload sea una decisión y no un bonus gratis.
+
+Pipeline, sin duplicar el modificador y con la autoridad en el servidor:
+
+```text
+crawler efectivo = min(crawlers poseidos, (metal+crystal+deuterium)*8)      calculate_crawler_effective_count
+        ↓
+porcentaje configurado 0-150                                            planets.crawler_percentage
+        ↓
+multiplicador de producción (bono de crawler * p)                        calculate_planet_production
+        ↓
+consumo energético (50*p, o 50*(2p-1))                                   calculate_crawler_overload_energy
+        ↓
+economy settlement                                                       calculate_planet_energy_balance
+```
+
+* El tope **no** depende del overload: subir el overload aumenta la potencia de cada crawler, no
+  cuántos son útiles.
+* La sostenibilidad se integra por la ruta **ya existente**: el consumo sigue saliendo de
+  `calculate_crawler_energy_consumption`, la misma que consumen `calculate_planet_energy_balance` y
+  `evaluate_economic_sustainability`. **No** se creó una segunda regla.
+* El splice de `calculate_planet_production` es mínimo y verificable: 3 ocurrencias de
+  `0.0002 * v_crawler_effective`, y el propio bloque **aborta** si no son exactamente 3 o si
+  alguno de los `replace` no encaja (evita un no-op silencioso).
+
+**Divergencia deliberada — gating por clase NO importado.** OGameX limita el overload a la clase
+*Collector* (General 100 %, Collector 150 %). **LGI no tiene Character Classes ni Lifeforms.**
+Crear ese sistema sólo para el crawler habría sido inventar infraestructura cerrada, así que **no
+se importa**: el rango es `0–150 %` para todos los cuerpos. No se inventó un "Collector" ficticio.
+
+Contratos:
+
+```text
+set_planet_crawler_percentage(player, planet, percentage)   SECURITY DEFINER · 0-150 · reject fuera de rango
+get_planet_crawler_status(planet)                           añade crawler_percentage y crawler_production_multiplier
+calculate_crawler_overload_energy(crawlers, percentage)     fórmula pura, IMMUTABLE, cerrada al cliente
+calculate_crawler_effective_count(planet)                   tope, cerrada al cliente
+```
+
+Las columnas **existentes** de `get_planet_crawler_status` no cambian de nombre, tipo ni orden; las
+dos nuevas van al final. Ownership por `auth.uid() → players.user_id`; un `player_id` falsificado o
+un cuerpo ajeno se rechazan **en el servidor**, no ocultando botones.
+
+### Demolition + Ion Technology — ya conforme, NO reescrito
+
+```text
+coste de demolición = coste de construir el nivel RETIRADO
+                      × (1 - 4 % × nivel de Ion Technology)
+                      → floor por recurso → mínimo 0
+```
+
+Ya existía `calculate_building_demolition_cost(building, level, ion)`, y `inspect_demolition` lo
+llama con el Ion real del jugador antes de que `start_demolition` cobre nada. Verificado en vivo con
+`metal_mine` nivel 10 (base 2306.6015…):
+
+| Ion | metal | % del base |
+|---|---|---|
+| 0 | 2306 | 100 % |
+| 1 | 2214 | 96 % |
+| 5 | 1845 | 80 % |
+| 10 | 1383 | 60 % |
+| 25 | 0 | 0 % |
+
+Nunca negativo (comprobado de Ion 0 a 60). `calculate_building_cost` es **fraccionario**; el `floor`
+por recurso es lo que produce el entero final, no un redondeo.
+
+Coste de demolición ≠ reembolso por cancelación: son conceptos distintos y esta misión no mezcló
+ni redefinió la política de cancelación.
+
+### Verificación
+
+```text
+fixture  supabase/tests/crawler_overload_demolition_queue_expiry.sql — 32 PASS / 0 FAIL, LIVE, ROLLBACK, residuo 0
+static   npx tsc -b exit 0 · npm run build exit 0 · eslint 0 errors (7 warnings preexistentes)
+         npm run cert:contracts PASS (75 nombres RPC) · git diff --check limpio
+ui       src/App.tsx muestra el OVERLOAD del servidor y permite 0/50/100/110/120/130/140/150 %.
+         No calcula producción ni energía: las muestra del contrato.
+toque    calculate_planet_production (3 ocurrencias), calculate_crawler_energy_consumption (reescrita con
+         overload), get_planet_crawler_status (2 columnas al final), 1 columna nueva, 1 RPC nueva.
+         No se tocó ninguna otra fórmula, ni las colas, ni el motor de asentamiento.
+```
+
+## Queue retention — CLOSED / **RETAIN** (no purge) (2026-10-03)
+
+> Decisión: **NO PURGAR.** No se escribió código. La medición no encontró ningún problema funcional,
+> y cualquier periodo de retención habría sido inventado.
+
+This closes the question left open as `PRODUCT DECISION REQUIRED` by the economy gap sweep.
+**Queue expiry is untouched** — expired → `COMPLETED` remains exactly as certified (§Queue expiry
+above). Nothing here converts `COMPLETED` into `CANCELLED` or touches refunds.
+
+### Measurement (LIVE, read-only)
+
+```text
+queue             total  terminal  active  oldest       newest
+building_queue       3         3       0  2026-09-18   2026-09-18
+research_queue       5         5       0  2026-09-18   2026-09-19
+shipyard_queue       1         1       0  2026-09-19   2026-09-19
+defense_queue        0         0       0  —            —
+TOTAL                9         9       0
+```
+
+### Why there is no problem to solve
+
+```text
+1. NO UI CONSUMER of terminal rows. Every client query filters to ACTIVE statuses:
+     building_queue  .in('status',['BUILDING','QUEUED'])
+     research_queue  .eq('status','RESEARCHING')
+     shipyard_queue  .in('status',['BUILDING'])
+     defense_queue   .in('status',['BUILDING','QUEUED'])
+     MissileControlPanel .in('status',['BUILDING','QUEUED'])
+   There is no construction/research/shipyard history screen anywhere.
+
+2. NO GAMEPLAY DECISION depends on them. The three gates that could have been poisoned by a
+   purge all filter to the active state:
+     can_start_research            upper(q.status) = 'RESEARCHING'
+     evaluate_building_start_internal  UPPER(rq.status) = 'RESEARCHING'
+     inspect_demolition            upper(rq.status) = 'RESEARCHING'
+   So deleting terminal rows would change NO behaviour.
+
+3. NO DEPENDENTS. Zero inbound foreign keys reference any of the four queue tables: no child
+   table, no report, no message and no history row hangs off them. (No blind CASCADE was ever
+   at risk, because there is nothing to cascade.)
+
+4. NO ACCUMULATION. 9 rows in the whole era, and **zero rows created in the last 14 days** —
+   while 546 planets were created in that same window. The universe is active; the queues simply
+   are not being written to. At this rate the tables cost nothing measurable.
+
+5. ALL FOUR QUEUES ARE FULLY INDEXED, including status/finish composites
+   (e.g. idx_research_queue_player_researching_finish). There is no scan pressure to relieve.
+```
+
+### Why purging would be wrong anyway
+
+The schema has **no audit, history, log or event table at all** (verified against
+`information_schema.tables`). The queue tables are therefore the *only* record of what an empire
+built, researched and produced. Deleting terminal rows would be irreversible destruction of the
+game's sole history — in exchange for **zero** functional benefit, because points 1–5 show
+nothing consumes them and nothing is degrading.
+
+### Why no period was chosen (no invented constants)
+
+```text
+OGameX   Its scheduled maintenance covers highscores, DarkMatterRegenerate, CleanupWreckFields,
+         DeleteOldMessages, CleanupDestroyedPlanets and ResetDebrisFields.
+         It defines NO queue-retention rule. OGameX therefore authorises nothing here.
+LGI      Has a 7-day default, but in run_message_retention_worker — that window comes from
+         OGameX's DeleteOldMessages and is a MESSAGES rule. Applying it to queues by analogy
+         would be a category error, not a derivation.
+```
+
+So the possible retention periods were 7 / 30 / 90 days with **no source for any of them**.
+Choosing one would have been inventing a policy. Choosing "keep everything" invents no constant
+and is the only option that is safe when the benefit of the alternative is zero.
+
+```text
+QUEUE RETENTION
+status:  CLOSED
+policy:  RETAIN (indefinite)
+purge:   DISABLED — not implemented, not needed
+reason:  no consumer, no dependents, no accumulation, full indexes, and these rows are the
+         only construction/research history the schema has
+revisit: only if a queue-history screen is built (then retention becomes a real policy), or
+         if growth ever becomes measurable — measure first, then decide with evidence
+```
 
 ---
+
+## Resource settlement: la carga de una flota no se destruye (2026-09-30)
+
+
+**Regla.** El tope de almacena acota **lo que se produce**, nunca lo que ya se posee:
+
+```text
+settle_resource_stock(current, delta, capacity)
+  = greatest( 0
+      current
+    + least( greatest(delta, 0), greatest(capacity - current, 0) )   -- produccion: solo hueco libre
+    + least( delta, 0 ) )                                            -- consumo: siempre completo
+```
+
+`update_planet_resources_until_raw` y `update_planet_resources` delegan en ella: una sola autoridad,
+dos llamadores. `IMMUTABLE`, `search_path` fijo, `EXECUTE` solo `service_role` (no es contrato de
+cliente). Postura idéntica a `calculate_planet_production` y al `_internal` de
+`20260927120200_fix_engine_settle_storage_regression`.
+
+**Defecto corregido.** Ambas funciones terminaban en
+
+```sql
+v_metal := LEAST(v_metal_capacity, GREATEST(0, v_metal + v_metal_produced));
+```
+
+que recorta el **TOTAL**. Los resolvers de llegada (`resolve_transport_arrival`,
+`resolve_deploy_arrival`, `resolve_expedition_return`) acreditan la carga sin tope, igual que
+`PlanetService::addResources()` de OGameX. Resultado: un transporte que desbordaba un planeta lleno
+se acreditaba entero y el **siguiente tick borraba el excedente** — medido en LIVE, 149 000 -> 100 000,
+**49 000 metal destruidos sin evento ni informe**. El botin de expedicion sufria lo mismo.
+
+**Evidencia.** `PlanetService::updateResourcesUntil` (PlanetService.php:1450-1460) limita el
+incremento (`if (($current + $add) > $max) $add = $max - $current;`) y nunca reduce el stock; un
+planeta por encima de su capacidad conserva los recursos y deja de producir hasta que el jugador
+gaste el excedente. `addResources()` tampoco recorta por capacidad (solo `max(0,...)`): entrega y
+produccion nunca compiten por el mismo tope en upstream. En LGI competian, y ganaba la produccion.
+
+**Consecuencias de juego (intencionales).**
+
+* Un planeta transportado por encima de su capacidad conserva el excedente y **no produce** hasta
+  gastarlo. Es el comportamiento clasico.
+* El consumo **nunca** se recorta: la planta de fusion sigue quemando deuterio con el almacen lleno.
+  Sin separar produccion de consumo, arreglar el overflow habria roto el combustible de la fusion.
+
+**No se inventa balance**: sin coste, tiempo, formula ni capacidad nueva. Se restaura upstream.
+Certificado por `supabase/tests/resource_settlement_cargo_preservation.sql` — **18 PASS / 0 FAIL,
+LIVE 2026-09-30, ROLLBACK, residuo 0**, con guarda anti-vacuidad (el planeta de prueba debe
+producir de verdad; `bootstrap_new_player_state` no crea edificios).
+Ver `docs/audits/RESOURCE_SETTLEMENT_GAP_2026-09-30.md`.
+
+---
+
+# 2026-10-01 — PRE-FLIGHT DE AUTOSOSTENIBILIDAD (guard contra soft-lock económico)
+
+## El problema
+
+`bootstrap_new_player_state` deja el planeta en **500 metal / 500 crystal / 0 deuterio y sin
+edificios**, es decir **sin ninguna fuente de energía**.
+
+Secuencia legal, sin trampas ni concessions, verificada contra los costes reales del catálogo:
+
+```text
+deuterium_synthesizer L1   -225 metal  -75 crystal     consumo 22/h
+crystal_mine L1             -48 metal  -24 crystal     consumo 11/h
+metal_mine L1               -60 metal  -15 crystal     consumo 11/h
+crystal_mine L2             -72 metal  -36 crystal     consumo 24.2/h
+metal_mine L2               -90 metal   -0 crystal     consumo 24.2/h
+                           ────────────────────────────
+restan                       5 metal   350 crystal     consumo total 70.4/h
+```
+
+`solar_plant` L1 cuesta **75 metal** y ya no es construible. Con `energy production = 0` y
+`energy consumption = 70.4/h`, `production_factor = 0` y **toda** la producción de recursos se
+detiene para siempre. La demolición no rescata (`inspect_demolition` exige recursos y devuelve
+`INSUFFICIENT_RESOURCES`). Soft-lock económico real, reproducible y **alcanzable desde el
+bootstrap**.
+
+**Corrección sobre la secuencia que circulaba en auditorías previas:** la ruta
+«shipyard L1 + crystal_mine L1 → 52 metal» **no es ejecutable desde un planeta recién creado**,
+porque `shipyard` cuesta además **100 deuterio** y el arranque deja 0. Los números de esa ruta
+eran correctos como aritmética, pero partían de un planeta que ya tenía deuterio. La secuencia
+real y alcanzable es la de cinco pasos de arriba.
+
+Además, en un planeta **sin ninguna fuente de energía** el primer consumidor ya colapsa la
+producción por sí solo: no hace falta una secuencia larga. El guard rechaza ese primer consumo y
+señala la recuperación; al construir la planta solar, toda la economía se abre.
+
+## La decisión de producto
+
+> Un jugador no debe poder iniciar una acción que deje su planeta **sin capacidad de
+> autoabastecerse** cuando existe una alternativa económica razonable para recuperar o proteger
+> la producción.
+
+Esto **no revierte** «Energía = información, nunca puerta». La energía sigue sin bloquear una
+construcción por ser baja. Lo único que se rechaza es la acción cuyo estado posterior *demuestra*
+el colapso. Es una excepción de gameplay deliberada, más específica, y está anotada en la decisión
+registrada de la sección anterior para que no se contradigan.
+
+## Definición de autosostenibilidad
+
+No se inventó ninguna fórmula. Se usa la de LGI:
+
+```text
+production_factor := GREATEST(0, LEAST(1, energy_production / energy_consumption))
+```
+
+El planeta se autoabastece si y solo si `consumption = 0` **o** `production > 0`. El soft-lock es
+exactamente `consumption_after > 0 AND production_after <= 0`.
+
+Ahorro (`resources >= cost`) **no** es suficiente: con recursos de sobra y energía a cero el
+planeta sigue atrapado.
+
+## El contrato
+
+| Función | Rol | ACL |
+| --- | --- | --- |
+| `calculate_building_energy_output(building, level)` | Efecto energético **neto** de un nivel, en las unidades de `calculate_planet_production`. Positivo produce, negativo consume. Reutiliza `calculate_building_energy_consumption`. | `service_role` |
+| `evaluate_economic_sustainability(planet, building, target_level)` | **Pre-flight autoritativo.** Simula el estado post-acción: `applicable, blocks, reason_code, reason, energy_*_now, energy_*_after, production_factor_after, recovery_available`. | `service_role` |
+
+## Dónde se aplica — una sola autoridad para jugador e IA
+
+El guard se cableó por *splice* anclado sobre `pg_get_functiondef()` (nada se reescribe a mano: se
+conservan byte a byte firma, `RETURNS TABLE`, volatility, seguridad y `SET search_path`) en:
+
+1. **`evaluate_building_start_internal`** — el oráculo certificado que ya comparten
+   `can_start_building` (cliente), `get_planet_building_preview` (lectura) y
+   `ai_decide_and_act_core` (IA).
+2. **`start_building`** — **descubrimiento crítico**: esta función **no** delega en
+   `can_start_building`; reimplementa todas las validaciones por su cuenta. Cablear solo el oráculo
+   protegía las rutas *consultivas* pero **`start_building` directo seguía soft-loqueando** — justo
+   la vía de atacante que la misión prohíbe. El pre-flight se aplica también aquí, **antes de
+   cobrar**: una acción rechazada no cuesta recursos ni encola nada.
+
+Por eso jugador e IA quedan protegidos por la **misma** autoridad, y el backend sigue siendo la
+última barrera aunque el planificador de IA cambie.
+
+## Qué acciones quedan protegidas (verificado contra `building_energy_definitions`)
+
+| Acción | ¿Puede alterar energía/producción? | ¿Necesita guard? | Motivo |
+| --- | ---: | ---: | --- |
+| `metal_mine`, `crystal_mine` | **Sí** (consumo) | **Sí** | Único camino a `production_factor = 0` |
+| `deuterium_synthesizer` | **Sí** (consumo) | **Sí** | Ídem |
+| `solar_plant` | **Sí** (producción) | No | Es la **recuperación**; nunca se bloquea |
+| `fusion_plant` | **Sí** (producción) | No | Ídem; solo si hay deuterio |
+| `shipyard`, almacén, cía. | No (0 en `building_energy_definitions`) | No | `applicable = false`; cero falsos positivos |
+| Investigación | No | No | No toca energía |
+| Naves / defensas | No | No | No tocan energía |
+
+Nada se bloquea indiscriminadamente: el guard solo es `applicable` cuando la acción mueve energía.
+
+## Contrato de error
+
+`reason_code = 'INSUFFICIENT_ENERGY_SUSTAINABILITY'`, con un `reason` que la UI puede mostrar tal
+cual («Investiga o construye primero una mejora energética»). Los errores económicos previos
+(`Recursos insuficientes`, `INSUFFICIENT_RESOURCES`, `PLAYER_NOT_OWNED`…) **no cambian**: la
+comprobación va *después* de ellos, así que un jugador roto sigue viendo su error de siempre.
+
+## Condición de escape
+
+`blocks` solo es `true` si además `recovery_available`: el colapso se bloquea únicamente cuando el
+planeta todavía tiene salida (ya tiene fuente de energía, o le alcanza el metal para la siguiente
+planta solar / de fusión). Así el guard no convierte un mal momento en unCALLEJÓN sin salida, y
+nunca impide construir la mejora que **sí** rescata.
+
+## Tests
+
+`supabase/tests/economic_sustainability_guard.sql` — fixture transaccional (ROLLBACK, residuo 0):
+A acción segura, B acción peligrosa, C affordability conserva el error previo, D sin falsos
+positivos, E reintentos/race, F IA (candidato peligroso rechazado y candidato seguro ejecutado,
+ambos por el actor declarado), G ownership (no-owner 0 filas, owner 1 fila, anónimo denegado),
+ACL y aserción anti-vacuidad.
+
+| `get_economic_sustainability_check(planet, building)` | Mismo pre-flight, **owner-scoped** (`auth.uid()` → `players.user_id`). Cero filas para planeta ajeno/destruido, nunca excepción. Es la prevalidación de UI. | `authenticated` |
+
+**Simulación pura:** el estado posterior se deriva aritméticamente de los helpers certificados. No
+se muta el planeta y no se usa mutación+rollback como mecanismo de validación.
+
+### Signo del delta (trampa real, documentada)
+
+`calculate_building_energy_output` devuelve el **neto** (producción − consumo), así que un
+consumidor da delta **negativo** (`crystal_mine` L1 = −11, no +11). La primera implementación
+sumó ese delta al consumo, lo que lo invertía y dejaba el guard **siempre en `false`**: una sonda
+en vivo reportaba `crystal_mine` L1 como +11/h de *producción*. Dos migraciones correctivas
+quedan registradas en el ledger; la aserción `J` (anti-vacuidad) de la fixture impide que un guard
+inerte vuelva a pasar por bueno.
+
+---
+
+## Closure records added 2026-10-03 (from origin/main)
+
+> Secciones de cierre presentes en `origin/main` y ausentes en la version local.
+> Contenido complementario: la seccion anterior no las recogia.
 
 ## Crawler overload — CLOSED (2026-10-03)
 
@@ -621,6 +1194,7 @@ The player-configurable crawler percentage is implemented with a default of **10
 - set_planet_crawler_percentage is SECURITY DEFINER and resolves auth.uid() → players.user_id → owned planet. Forged player/foreign planet and values outside 0–150 are rejected server-side.
 
 Verification reported: 26/26 assertions PASS, including bounds and energy curve; LIVE fixture 32 PASS / 0 FAIL in a transaction; residue 0 and all live bodies remained at 100%. Migration crawler_overload was reported applied LIVE. TypeScript/build/contracts/diff-check passed; lint had 0 errors and 7 pre-existing warnings.
+
 
 ## Queue expiry and retention — CLOSED / RETAIN (2026-10-03)
 
@@ -638,6 +1212,7 @@ Evidence recorded in the closure run:
 
 Revisit retention only when a queue-history feature is designed or measurable growth justifies a policy. Do not invent a 7/30/90-day window and do not delete terminal rows by analogy with message cleanup.
 
+
 ## Demolition / Ion technology — CLOSED (certification, no rewrite)
 
 The existing demolition path was verified as correct:
@@ -649,3 +1224,4 @@ The existing demolition path was verified as correct:
 Reported fixture coverage: Ion levels 0/1/5/10/25 yield 100/96/80/60/0% cost respectively; values never become negative (tested through Ion 0..60), 8/8 PASS. No rewrite was made.
 
 **Dark Matter premium economy remains DEFERRED** to a future update. No premium fleet slots, Officers, Commander bonuses or Dark Matter spend are authorized by these closures.
+

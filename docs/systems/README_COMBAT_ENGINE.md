@@ -3878,6 +3878,37 @@ Still awaiting human ratification (from §22.1, unchanged):
 **No settlement code exists in LGI and none was written by this mission.** The three ready gates may be
 implemented after ratification; the loot path stays blocked until PG-09 and PG-10 are decided.
 
+## 23.12. PG-09 / PG-10 STATUS RECONCILIATION (read-only, 2026-09-28)
+
+> **No code was changed by this mission.** This section only reconciles a contradiction between two
+> historical sections of this same document, so the next reader is not misled into re-opening a gate
+> that is already implemented and certified.
+
+```text
+§22.1 (2026-09-22, decision package) says:
+    PG-09 loot-capacity source      -> UNRESOLVED PRODUCT DECISION
+    PG-10 loot recipient/allocation -> UNRESOLVED PRODUCT DECISION
+
+§24   (2026-09-22, same day, LATER) says both were IMPLEMENTED by
+      migration 20260922060013_acs_settlement_participant_model.
+
+§24 is the later and the operative one. The gate answers are:
+    PG-09  capacity = ORIGINAL (round 1) combined ATTACKER/FLEET composition   -> DECIDED + IMPLEMENTED
+    PG-10  entitlement = participants with survivors; allocation = proportional
+           to each participant's SURVIVING capacity, credited to its own fleet -> DECIDED + IMPLEMENTED
+
+CONCLUSION: PG-09 and PG-10 are IMPLEMENTED TECHNICALLY. The §22.1 "UNRESOLVED" wording is
+SUPERSEDED and must not be read as a still-open gate. The ONLY residue of the original question is
+the §24.2 rounding-convention note, which is a documented LGI convention and an unread OGameX
+source, not an unimplemented gate.
+```
+
+LIVE re-verification on 2026-09-28 (`apply_attack_loot.prosrc`, rollback-safe, 6/6 PASS): capacity is
+`sum(cargo_capacity)` over `round_number=1`, `side='ATTACKER'`, `participant_type='FLEET'`; PG-09 and
+PG-10 are distinct variables; allocation is `surv_cap / surv_capacity` per participant credited to its
+own `status='ARRIVED'` fleet; the planet is debited only by what was credited; the `loot_applied_at`
+guard plus `SELECT ... FOR UPDATE` make replay a no-op; and the function is `service_role` only
+(`anon` and `authenticated` have no EXECUTE), so no client can decide loot, capacity or allocation.
 ## 24. ACS SETTLEMENT — IMPLEMENTED (2026-09-22)
 
 > Migration `20260922060013_acs_settlement_participant_model` (forward-only, LIVE applied, repo file
@@ -4079,5 +4110,85 @@ GAPS            no client read contract for `debris_fields` (a galaxy/system vie
                 debris decay/cleanup job. Neither is required by a current UI or mechanic.
 ```
 
+
+
+## Defence repair visibility — CLOSED 2026-09-28 (UI only)
+
+### The gap (category A: consumer)
+
+`repair_defenses_after_combat(p_battle_id)` implements the OGameX rule that ~70 % of destroyed
+defences are rebuilt after a fight (`random() < 0.70` per lost unit, written to `combat_defense_repairs`
+and applied straight to `planet_defenses`). It is wired into `resolve_attack_arrival` and is authoritative.
+
+`get_player_battle_reports` exposes the result as `defenses_repaired` — and **no component consumed it**.
+`BattleReportsPanel` rendered:
+
+```text
+DEFENSAS 40→22
+```
+
+without ever saying that 10 of those 22 had come back. The engine had already rebuilt the wall, and the
+report understated it. That is a player-facing fact, not an internal score: the player is deciding what to
+attack next based on this number.
+
+Measured LIVE (rolled back) driving the **real** attack path — `start_fleet_mixed` → `resolve_attack_arrival`:
+
+```text
+defender_defenses_before 40   destroyed 17   repaired 10   planet_defenses 40-17+10 = 33
+get_player_battle_reports    → defenses_repaired = 10        ← contract returns it
+BattleReportsPanel          → "DEFENSAS 40→23"               ← the panel ignored it
+```
+
+### What changed
+
+`BattleReportsPanel` now prints one extra line, only when a repair actually happened:
+
+```text
+REPARADAS 10 (quedan 33)
+```
+
+The sum `defender_defenses_after + defenses_repaired` is exactly what the engine left standing, so the
+report can state the real wall instead of the mid-fight one. The `BattleReportRow` local type gained the
+field; the generated `database.types.ts` already declared it. No CSS, no new component, no RPC, no
+migration, and the panel still derives nothing: every number is the contract's own.
+
+### Verification
+
+```text
+supabase/tests/defense_repair_visibility.sql — 11 PASS + 2 INFO, LIVE, ROLLBACK, residue 0
+  1  the attack was dispatched by the real dispatcher
+  2  resolve_attack_arrival ran the real combat AND the repair
+  3  the engine recorded the repair: 17 destroyed, 10 repaired
+  4  the contract reports defenses_repaired verbatim (stored 7 → contract says 7)
+  5  the wall was really rebuilt: 40 - 17 destroyed + 10 repaired = 33 in planet_defenses
+  6  the panel can state the real wall: after + repaired
+  7  zero repairs → 0, so the extra line never appears
+  8  another authenticated player reads 0 rows of that battle
+  9  without a session the contract returns 0 rows
+  10 ACL unchanged: authenticated + service_role, anon denied
+  11 the combat engine was NOT modified by this mission
+residue    0: combat_battles 0, combat_defense_repairs 0, combat_rounds 0, fleet_movements 0, auth.users 12
+regression 5 PASS: the combat resolver and the repair function still exist; the repair is still wired
+           into resolve_attack_arrival; the ~70 % roll is unchanged; every previous mission's contracts
+           still callable; the espionage guard and the protection trigger survive
+static     npx tsc -b exit 0 · npx vite build exit 0 · git diff --check clean
+browser    ENVIRONMENT BLOCKED — no browser driver + human DEV credential. The panel is READ-ONLY, so
+           the contract is certified while its rendering is not.
+```
+
+### Limitations, stated rather than hidden
+
+* Browser validation is blocked.
+* LIVE has no human defender, so the defender-side view is exercised only through the attacker's report
+  (both read the same contract row). The defender path is identical by construction: the contract is
+  owner-scoped on participation, not on side.
+* The repair roll is random, so the fixture asserts the *wiring* on the rolled value and uses a
+  controlled value for the exposure assertions. The fixture therefore does not flake.
+* An earlier version of assertion 5 asserted `planet_defenses >= before`; that was a **fixture** bug —
+  the defender legitimately *loses* units — and it was corrected to `before - destroyed + repaired`
+  after measuring the real timeline. No product defect was involved.
+* The remaining unconsumed report columns (`reward_*`, `max_resource_find`, `scaled_resource_find`,
+  `cargo_capacity`) are reward-formula internals; whether to show them is a product decision and they
+  were deliberately left alone.
 
 

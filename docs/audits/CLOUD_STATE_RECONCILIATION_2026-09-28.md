@@ -119,4 +119,88 @@ Supabase security advisors at 2026-09-28 02:16 UTC no longer report guest-policy
 
 ## 2026-09-28 AI target protection closure
 
+
+## 2026-09-29 — gap-closure sweep, advisor re-baseline, and the next hardening item
+
+### Advisor posture is UNCHANGED by the 2026-09-29 closure sweep
+
+Re-measured after `20260929000000` (colony/moon producer) and `20260929010000` (four wrong-answer
+client helpers). Counts are **identical** to the 2026-09-28 02:16 UTC snapshot above — 3 RLS tables
+without policies, 5 mutable-search-path functions, 3 anon-callable SECURITY DEFINER functions, 61
+authenticated-callable SECURITY DEFINER functions, anonymous-access policies on cron/dashboard/storage,
+leaked-password protection disabled. **Zero advisor delta** from the two new migrations, and the four
+revocations moved an `authenticated` surface *down*, not up.
+
+### NEXT HARDENING ITEM — `function_search_path_mutable` (5 functions) — NOT APPLIED, owner decision
+
+The advisor's `function_search_path_mutable` WARN is **fully diagnosed but deliberately left open**.
+All five have `proconfig = null` (no `SET search_path` at all) and **every one of the five bodies is a
+pure single-`select` expression** using only built-ins (`coalesce`, `least`, `greatest`, `floor`,
+`format`) and its own parameters — **no table reads and no calls to other project objects**:
+
+| function | SECURITY DEFINER | ACL | client-reachable |
+|---|---|---|---|
+| `calculate_moon_creation_chance` | no | `authenticated,postgres,service_role` | **yes** |
+| `format_coordinates` | no | `postgres,service_role` | no |
+| `calculate_counter_espionage_chance` | no | `postgres,service_role` | no |
+| `calculate_moon_field_capacity` | no | `postgres,service_role` | no |
+| `wreck_field_recover_percent` | no | `postgres,service_role` | no |
+
+Consequence: `set search_path = public, pg_temp` is **provably behaviour-preserving** on all five, and
+it is the pattern every other contract in this project already uses. The owner reviewed this on
+2026-09-29 and chose **NOT to change production in this pass**; it is recorded here as the next
+hardening item rather than applied. When it is taken, the acceptance evidence should be: each body
+byte-identical, each function returning identical values, `SECURITY INVOKER` preserved, and the advisor
+WARN count dropping 5 → 0.
+
+### 2026-09-29 project verifier results — 3 FAILs, ALL pre-existing / false positives
+
+Both verifiers were run for the first time with working credentials. None of the three FAILs is a
+product defect, and **none is a regression from the 2026-09-29 closure sweep**.
+
+* `verify-identity.mjs` → **1 FAIL, false positive in the checker.** The assertion is
+  `!identitySrc.includes('register_guest_player')`, but the only occurrence in `src/lib/identity.ts`
+  is line 12, inside the comment that documents its removal
+  (*"El modo invitado (sesión anónima + register_guest_player) fue retirado"*). The product is correct
+  and agrees with the LIVE finding above that no public function references `is_guest`. A naive
+  substring check now fails on the very comment that proves the guest path is gone, and would invite a
+  future mission to "fix" already-correct code. Fix, when wanted, is to match calls rather than any
+  mention, or to strip comments before the check.
+* `verify-buildings.mjs` → **2 FAIL, pre-existing.** The script authenticates with the
+  `VITE_SUPABASE_PUBLISHABLE_KEY`, so PostgREST executes it as `anon`, but it calls
+  `calculate_building_cost`, which has been `authenticated`-only since before 2026-09-29 (the ACL dump
+  taken at mission start, prior to any migration, already showed `anon: false`). The second FAIL is
+  only the missing `planetId` argument. Neither of the four functions revoked by
+  `20260929010000` is used by either verifier.
+
+### Credential hygiene note (2026-09-29)
+
+Two credentials were supplied interactively. Both were used **read-only**, and neither reached the
+repository or the client bundle.
+
+| credential | kind | scope | containment |
+|---|---|---|---|
+| `sb_secret_…` | service / DB key, RLS-bypassing | this one database | byte-identical to the key already in `.env.local`; `.env.local` is covered by `.gitignore` line 33 (`.env*`); **0 tracked files** contain an `sb_secret_` token; `src/` reads no non-`VITE_` env var and holds no literal secret |
+| `sbp_…` | Supabase **personal access token** | **account-level management API** — arbitrary SQL, secret read/rotate, and every project on the account | **0 tracked files**; not present in `.env.local`; never given a `VITE_` prefix (Vite inlines `VITE_` vars into the shipped bundle, so a PAT under one would be catastrophic) |
+
+The publishable key supplied alongside them is byte-identical to the existing
+`VITE_SUPABASE_PUBLISHABLE_KEY` and is by design safe to bundle.
+
+The PAT was used for exactly one read-only purpose: making the migration ledger directly readable,
+which closed the blocker described in [`MIGRATION_DRIFT_RECONCILIATION.md`](../MIGRATION_DRIFT_RECONCILIATION.md).
+It was **not** used to mint a user session or impersonate a player, because that would convert a
+privileged fixture into false player certification. `supabase db push`, `supabase migration repair`,
+key rotation and env-var updates were **not** run: the first two are forbidden by the drift mission's own
+terms, and the latter two would be unreviewed production mutations.
+
+**Both credentials are now in the session transcript and should both be rotated.** The PAT first: it is
+the broader of the two. Note that the Supabase CLI (v2.117.0) rejects this PAT with *"Invalid access
+token format"* because the token's length does not match the CLI's expected pattern, while the
+management API itself accepts it — so `supabase gen types` / `supabase projects list` remain unusable
+from here even with a valid token, and the ledger had to be read over plain SQL instead.
+
+Browser certification remains environment-blocked (no driver plus a human DEV credential) and was not
+simulated.
+
+
 The existing beginner-protection contract was measured LIVE before changing it: the ATTACK insert trigger already called get_player_attack_protection(), but that function intentionally returned NOT_HUMAN_TARGET for AI players. The approved project rule is to reuse the existing human 24-hour beginner protection for AI targets. Migration 20260928032301_extend_beginner_protection_to_ai_targets now applies the same 24-hour created_at window to both human and AI targets. Post-change LIVE verification: 33 AI players are currently protected, 592 are outside the 24-hour window, and the human protection path remains unchanged. All 625 AI profiles remain DORMANT; no activation was performed.

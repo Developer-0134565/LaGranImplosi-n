@@ -62,10 +62,20 @@ export async function resolveIdentity(): Promise<{ player: PlayerIdentity | null
  * Es idempotente (reuse-first): si la sesión ya tiene jugador, devuelve el suyo
  * y nunca reclama un jugador existente.
  */
-export async function provisionPlayer(p_username: string, p_country_code = 'XX'): Promise<ProvisionedEmpire> {
+export async function provisionPlayer(
+  p_username: string,
+  p_country_code = 'XX',
+  p_planet_name: string | null = null,
+  p_avatar_id: string | null = null,
+): Promise<ProvisionedEmpire> {
   // `provision_player` está tipada en database.types.ts desde la reconciliación LIVE:
   // la llamada va directa, sin casts que oculten incompatibilidades.
-  const { data, error } = await supabase.rpc('provision_player', { p_username, p_country_code })
+  const { data, error } = await supabase.rpc('provision_player', {
+    p_username,
+    p_country_code,
+    p_planet_name,
+    p_avatar_id,
+  })
   if (error) throw new Error(error.message)
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined
   if (!row) throw new Error('PROVISION_FAILED')

@@ -61,6 +61,18 @@
   --lgi-space-7-base: 24px;
   --lgi-space-8-base: 32px;
 
+  /* ---- alturas y ancho mínimo de celda (la densidad los sobreescribe) ----
+     Estos dos tokens necesitan un valor por defecto aquí y no sólo en los
+     overrides de densidad: `classic` usa la densidad `compact`, que no tiene
+     bloque propio. Sin base, `--lgi-row-min` y `--lgi-card-min` quedan
+     invalidos en tiempo de cómputo y sus consumidores caen a `auto`/al valor
+     de reserva, que es lo que aplanaba botones y tarjetas. */
+  --lgi-row-min-base: 30px;
+  /* 230px y no menos: la tarjeta de definición aloja una rejilla de 3
+     columnas de coste y la etiqueta más larga ("DEUTERIO") necesita ~52px.
+     Con 200px las columnas salían de ~47px y la etiqueta se recortaba. */
+  --lgi-card-min-base: 230px;
+
   /* ---- bordes y radios (el radio lo controla el tema) ---- */
   --lgi-border-width: 1px;
   --lgi-border-style: solid;
