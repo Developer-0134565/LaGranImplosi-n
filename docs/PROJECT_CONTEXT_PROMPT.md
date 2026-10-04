@@ -1,3 +1,45 @@
+# CURRENT CANONICAL STATUS — 2026-10-04 (supersedes older status snapshots below)
+
+This compact block is the current operational truth for session recovery. Older dated sections are retained as history; when they conflict with this block or the linked specialist documents, this block and the latest specialist closure records take precedence.
+
+## Recently closed gameplay systems
+
+- **Missile System:** CLOSED — backend, D1 and LIVE verified. Browser re-certification was not run in the closure session. Migration-ledger drift remains documented; never use db push as a repair.
+- **Crawler overload:** CLOSED — configurable 0–150%, default 100%, server-owned validation and LIVE verification.
+- **Demolition / Ion:** CLOSED — existing removed-level cost and 4% per Ion level reduction verified; no rewrite required.
+- **Queue expiry:** CLOSED — expiry resolves to COMPLETED, not CANCELLED.
+- **Queue retention:** CLOSED — RETAIN terminal rows indefinitely; no purge. Revisit only with a queue-history feature or measured growth.
+- **Fleet slot cap:** CLOSED — 1 + Computer Technology, enforced player-wide in the database with player-row serialization. OGameX premium/Officer bonuses are not imported.
+- **Fleet browser certification:** CLOSED for the explicitly tested ATTACK pipeline — 9/9 browser steps, real-time dispatch/arrival/combat/return, ownership and cleanup, residue 0. This is not certification of every mission type.
+- **Dark Matter premium economy:** DEFERRED to a future update. Do not add premium slots, Officers, Commander bonuses or DM spending without a later product decision.
+
+Durable evidence:
+- [Economy system](systems/README_ECONOMY.md) — crawler overload, queue expiry/retention and demolition/Ion closure.
+- [Fleet engine](systems/README_FLEET_ENGINE.md) — player slot cap and narrow-scope browser E2E certification.
+- [Missile system](systems/README_MISSILE_SYSTEM.md) — canonical D1, authoritative lifecycle, fixture repairs and verification caveats.
+
+## Recent frontend work — local implementation reports, not deployed
+
+The following two implementation reports were supplied for the 2026-10-03/04 local work. They explicitly state that the product changes were not committed/pushed or deployed in those sessions. The documentation has been segregated here, but **the documentation commits do not publish the corresponding product code**.
+
+- **Onboarding/profile:** optional planet name (32 chars, empty → Homeworld), 12 procedural SVG avatars, es/en/ru preference with country fallback and localStorage precedence, login/onboarding translations, email-link localhost correction and removal of obsolete provision_player overload. About 180 gameplay strings remained Spanish-only; do not claim full-game i18n. Supabase Auth Site URL correction and deployment were still manual/pending in the report.
+  Detail: [Onboarding and profile](systems/README_ONBOARDING_PROFILE.md).
+- **Responsive shell/navigation:** .neo-nav vertical flex layout on desktop, intentional horizontal navigation at ≤760px, separated brand/player labels, removal of dead shell CSS, and a geometry assertion with a negative control. The headless fixture was not a full authenticated app session. The report explicitly says no deployment occurred.
+  Detail: [Responsive layout](ui/README_RESPONSIVE_LAYOUT.md).
+
+Do not mark either frontend change as deployed until the actual product files are present in the target branch, the Supabase Auth Site URL is checked where relevant, and the Worker is deployed and verified.
+
+## Current scope guardrails
+
+- Lifeforms remain deferred/out of scope.
+- Dark Matter premium economy remains deferred.
+- Do not reopen any CLOSED item without new regression evidence or an explicit human decision.
+- OGameX is a reference, not authority. Adapt only compatible behavior; do not import absent class/Officer systems or invent balance.
+- Distinguish implementation, LIVE verification, browser certification and deployment; one does not imply another.
+- Keep this file as the operational index. Durable formulas, contracts, tests, caveats and evidence belong in the linked specialized READMEs.
+
+---
+
 # PROJECT CONTEXT — LA GRAN IMPLOSIÓN
 
 > **Purpose:** compact operational memory for safe session recovery.
