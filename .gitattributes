@@ -1,0 +1,34 @@
+# Politica de finales de linea - unica y explicita.
+#
+# POR QUE
+# En este repositorio `core.autocrlf=true` sin `.gitattributes` provoco que el
+# mismo contenido se almacenara con finales distintos segun como se comprobara:
+# `git diff --check` marco 612 lineas de `scripts/fleet-browser-certify.mjs`
+# como "trailing whitespace" cuando el blob ya es LF puro, y 30 ficheros
+# cambiaron de hash solo por CRLF<->LF al hacer checkout. Eso genera conflictos
+# espurios y hace imposible verificar de verdad si algo se ha perdido.
+#
+# `text=auto` deja que Git detecte los binarios por si mismo (no los toca) y
+# `eol=lf` fija LF tanto en el repositorio como en el arbol de trabajo.
+#
+# EFECTO SECUNDARIO A CONOCER
+# Al aplicar esta politica, los ficheros que hoy estan en CRLF en el arbol de
+# trabajo apareceran como modificados en el proximo checkout/renormalize. Es
+# esperado y no es perdida de contenido: es la normalizacion, con su coste
+# puntual, de una sola vez. Se puede forzar con:
+#     git add --renormalize .
+# Esa orden NO se ha ejecutado en esta mision.
+
+* text=auto eol=lf
+
+# Tipos que deben conservar LF aunque la deteccion automatica falle.
+*.sql   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.css   text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.html  text eol=lf
