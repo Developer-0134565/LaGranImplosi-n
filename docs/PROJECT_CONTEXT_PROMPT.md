@@ -18,6 +18,57 @@ Durable evidence:
 - [Fleet engine](systems/README_FLEET_ENGINE.md) — player slot cap and narrow-scope browser E2E certification.
 - [Missile system](systems/README_MISSILE_SYSTEM.md) — canonical D1, authoritative lifecycle, fixture repairs and verification caveats.
 
+## Backend / ACL closure — 2026-10-04
+
+- **`provision_player` ACL regression: CLOSED (LIVE).** Root cause: the `grant execute ... to authenticated`
+  declared in `20260921073405` and `20260926296000` targeted the OLD two-argument overload
+  `provision_player(text, text)`. Onboarding work replaced it with the four-argument version, whose
+  `CREATE OR REPLACE` carries no GRANT of its own; the old overload was dropped out-of-band and took
+  its ACL with it. The privilege was orphaned onto a signature that no longer existed.
+  Proof, not inference: a real `authenticated` session calling `supabase.rpc('provision_player')`
+  returned `HTTP 403 / SQLSTATE 42501 "permission denied for function provision_player"`. Because the
+  privilege check precedes the function body, nothing was created.
+  Corrective migration `20261004120000_restore_authenticated_execute_provision_player`: exactly one
+  `GRANT EXECUTE ON FUNCTION public.provision_player(text, text, text, text) TO authenticated`,
+  plus a post-condition block asserting the grant was restored AND that `anon`/`PUBLIC` stayed closed.
+  Final LIVE ACL: `public=FALSE · anon=FALSE · authenticated=TRUE · service_role=TRUE`.
+  Function body verified byte-identical across the change (`md5(prosrc)` unchanged,
+  4165 bytes); owner `postgres`, `SECURITY DEFINER`, `search_path=''`, single overload.
+  Regression: `supabase/tests/wrong_client_invoker_helpers.sql` test 9 moved from 52 contracts /
+  51 with the grant (FAIL) to **52 / 52 (PASS)** — the repo's existing battery already covered this.
+  Safe to grant because identity is never a parameter: `v_user_id := auth.uid()` with
+  `AUTHENTICATION_REQUIRED` when null, so an authenticated caller cannot provision for another
+  identity, claim a foreign planet, choose the universe or escalate; reuse-first plus
+  `pg_advisory_xact_lock` already prevent replay and concurrent double provisioning.
+  Functional onboarding E2E is **BLOCKED**, not skipped: this project requires email confirmation,
+  so no session can be minted for a throwaway identity without the Admin API.
+- **Migration ledger — reconciled 2026-10-04.** An earlier snapshot of this file recorded
+  `20261004010000`, `20261004020000` and `20261004030000` as "absent from the LIVE ledger". That was
+  **wrong**, and is corrected here rather than deleted, because the misreading is worth keeping visible:
+  all three WERE registered in LIVE under tool-generated versions, with identical migration names.
+  The local filename timestamp is not the applied version. Verified against
+  `supabase_migrations.schema_migrations`:
+
+  ```text
+  local file                                          -> LIVE ledger version / name
+  20261004010000_fleet_slot_player_lock.sql           -> 20261003221411  fleet_slot_player_lock
+  20261004020000_player_country_code.sql              -> 20261003225843  player_country_code
+  20261003232139_onboarding_planet_name_avatar.sql    -> 20261003232139  onboarding_planet_name_avatar
+  20261004120000_restore_authenticated_execute_...sql -> 20261004013503  restore_authenticated_execute_provision_player
+  ```
+
+  All four effects were verified present in LIVE object by object (columns, function bodies, lock
+  scope, ACL). Nothing was missing and nothing needed re-applying.
+
+  **One real repo defect was found and fixed.** `20261004030000_onboarding_planet_name_avatar.sql`
+  had 13 orphaned lines after its `COMMIT;` holding the `v_pname` / `v_avatar` assignments, leaving
+  the local function body declaring but never assigning them. The file also carried a design header
+  absent from the applied payload. It was replaced by the byte-exact ledger payload and renamed to
+  the real applied version `20261003232139`, so a future `db push` can no longer attempt the broken
+  file (it would have failed with a syntax error). The removed design rationale is preserved in
+  git history at commit `2550b7a`.
+
+  `supabase db push` and `migration repair` remain PROHIBITED and were never run.
 ## Recent frontend work — local implementation reports, not deployed
 
 The following two implementation reports were supplied for the 2026-10-03/04 local work. They explicitly state that the product changes were not committed/pushed or deployed in those sessions. The documentation has been segregated here, but **the documentation commits do not publish the corresponding product code**.
