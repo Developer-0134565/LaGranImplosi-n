@@ -1858,3 +1858,39 @@ supabase/tests/universe_debris_read_contract.sql — 10 PASS + 1 INFO, LIVE, ROL
   9  as `authenticated` the contract returns the row
  10  as `authenticated` a direct read of debris_fields still returns 0 rows
 ```
+
+
+---
+
+## Player fleet-slot cap — CLOSED (2026-10-03)
+
+The enforced player-wide cap is:
+
+~~~text
+max slots = 1 + computer_technology level
+occupied = movements not in (COMPLETED, CANCELLED)
+~~~
+
+OUTBOUND, ARRIVED, HOLDING and RETURNING movements occupy a slot; COMPLETED and CANCELLED release it. Enforcement is a database trigger on fleet_movements, so it covers every authoritative dispatcher and the AI, not only the UI.
+
+### Concurrency correction
+
+The cap is player-scoped, but the former serialization lock was origin-planet-scoped. Concurrent dispatches from different planets could count the same free slot and exceed the cap. The correction locks the player row before counting, preserving the existing planet-lock order. authenticated has no direct INSERT on fleet_movements; dispatch remains through SECURITY DEFINER functions and the trigger.
+
+OGameX adds Commander/Officer bonuses; LGI deliberately uses Computer Technology only. Dark Matter, premium slots and Officers remain deferred.
+
+Verification reported: supabase/tests/fleet_slot_cap.sql **20 PASS / 0 FAIL** LIVE. The harness was single-session, so a true two-connection race was not executed; mutual exclusion was established from the lock implementation and lock-scope assertions, not claimed as an observed concurrent race. Residue 0; existing UI already reads server-provided MÁX / EN VUELO / LIBRES.
+
+## Fleet browser certification — CLOSED (2026-10-03)
+
+The authenticated DEV browser harness completed **9/9 PASS**, including real login, fleet view, origin, mission, ship input, destination, launch gate, server-side rejection of an invalid selection and real dispatch.
+
+A real ATTACK mission against a non-combat AI target was followed without timestamp manipulation:
+- dispatcher created an owned OUTBOUND movement;
+- worker respected the not-due temporal gate;
+- arrival changed the movement to RETURNING;
+- combat settlement/reporting ran as expected;
+- return completed and ships returned to origin;
+- attacker/defender ownership and reports were checked.
+
+Cleanup removed the test movement, battle, dependent rows/reports and reversed exact fuel/loot deltas. Final counters and resources matched baseline; **residue 0**. The scope certifies this ATTACK pipeline only; it does not claim every mission type is browser-certified.
