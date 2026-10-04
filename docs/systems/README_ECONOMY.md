@@ -606,3 +606,46 @@ EVIDENCE    the resolver settles a foreign planet with a JWT present (RETURNING 
 
 The client contracts that read the OWN planet (`get_current_planet_resources`, `get_planet_economy_overview`) keep
 using the gated `calculate_planet_storage`; only engine paths were repointed.
+
+
+---
+
+## Crawler overload — CLOSED (2026-10-03)
+
+The player-configurable crawler percentage is implemented with a default of **100%** and an accepted range of **0–150%**. Existing bodies therefore retain their previous behavior unless a player changes the setting.
+
+- Production contribution is scaled once by percentage / 100; do not duplicate the crawler modifier elsewhere.
+- Energy cost follows the OGameX overload curve: 50 energy per effective unit at or below 100%; above 100%, add another 50 per overload unit. Certified points: 100% → 50, 110% → 60, 120% → 70, 130% → 80, 140% → 90, 150% → 100.
+- The setting applies to all bodies. Character-class gating was not imported because LGI has no Character Classes/Lifeforms system.
+- Existing energy-sustainability throttling remains authoritative; 150% does not guarantee higher realized production when the planet lacks energy headroom.
+- set_planet_crawler_percentage is SECURITY DEFINER and resolves auth.uid() → players.user_id → owned planet. Forged player/foreign planet and values outside 0–150 are rejected server-side.
+
+Verification reported: 26/26 assertions PASS, including bounds and energy curve; LIVE fixture 32 PASS / 0 FAIL in a transaction; residue 0 and all live bodies remained at 100%. Migration crawler_overload was reported applied LIVE. TypeScript/build/contracts/diff-check passed; lint had 0 errors and 7 pre-existing warnings.
+
+## Queue expiry and retention — CLOSED / RETAIN (2026-10-03)
+
+Expiry and retention are separate policies:
+
+- **Expiry:** all four processors (building, research, shipyard, defense) mark expired work COMPLETED; they do not convert expiry into CANCELLED and do not trigger a cancellation refund. This behavior was already implemented and was certified, not rewritten.
+- **Retention:** terminal queue rows are retained indefinitely. No purge worker or destructive retention window is implemented or required at current scale.
+
+Evidence recorded in the closure run:
+- LIVE contained 9 terminal rows total (building 3, research 5, shipyard 1, defense 0), no active rows.
+- All five UI queue reads filter active states; no queue-history UI exists.
+- Gameplay gates filter active states; terminal rows do not affect gameplay.
+- No incoming foreign keys or audit/history dependents; the queue tables are currently the only durable record of completed queue activity.
+- No measured accumulation or index pressure justified deletion. OGameX maintenance routines do not define a queue-retention window; the 7-day LGI message-retention rule is not transferable to queues.
+
+Revisit retention only when a queue-history feature is designed or measurable growth justifies a policy. Do not invent a 7/30/90-day window and do not delete terminal rows by analogy with message cleanup.
+
+## Demolition / Ion technology — CLOSED (certification, no rewrite)
+
+The existing demolition path was verified as correct:
+- Charge is based on the construction cost of the level being removed, not the next level.
+- Ion technology reduces each resource cost by 4% per level; floor per resource and clamp at zero prevent negative costs.
+- The read contract inspect_demolition already calls calculate_building_demolition_cost with the player's real Ion level.
+- Demolition cost remains distinct from cancellation refunds.
+
+Reported fixture coverage: Ion levels 0/1/5/10/25 yield 100/96/80/60/0% cost respectively; values never become negative (tested through Ion 0..60), 8/8 PASS. No rewrite was made.
+
+**Dark Matter premium economy remains DEFERRED** to a future update. No premium fleet slots, Officers, Commander bonuses or Dark Matter spend are authorized by these closures.
